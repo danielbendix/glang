@@ -1,0 +1,13 @@
+fun fac(n: int) -> int {
+    var result: int = 0;
+    for i in 1 .. n {
+        result = result * n;
+    }
+    repeat 10000 {
+        result = result + 0;
+    }
+    return result;
+}
+
+int x = 0b101010;
+int y = 0xFF;
