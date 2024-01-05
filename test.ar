@@ -9,5 +9,5 @@ fun fac(n: int) -> int {
     return result;
 }
 
-int x = 0b101010;
-int y = 0xFF;
+var x: int = 0b101010;
+var y: int = 0xFF;

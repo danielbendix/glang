@@ -6,7 +6,9 @@
 
 enum class TokenType : uint8_t {
     // Brackets
+    /// []
     LeftBrace, RightBrace,
+    /// {}
     LeftBracket, RightBracket,
     LeftParenthesis, RightParenthesis,
 
@@ -64,6 +66,8 @@ enum class TokenType : uint8_t {
     EndOfFile,
 };
 
+std::ostream& operator<<(std::ostream& os, TokenType tokenType);
+
 struct Token {
 public:
     int line;
@@ -107,7 +111,13 @@ private:
     }
 
     char advance() {
+        offset += 1;
         return *current++;
+    }
+
+    void newline() {
+        line += 1;
+        offset = -1;
     }
 
     char peek() {
