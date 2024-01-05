@@ -1,101 +1,135 @@
 #include "AST.h"
 
 namespace AST {
-    void FunctionDeclaration::print(std::ostream& os) const {
-        os << name << "(";
-        for (auto& p : parameters) {
-            os << p.name << ": " << *p.type.get();
-        }
-        os << ")";
-        if (returnType) {
-            os << " -> " << *returnType.get();
-        }
-        os << " {\n";
-        for (auto const& d : declarations) {
-            os << *d.get();
-        }
-        os << "}";
-    }
-    void AssignmentStatement::print(std::ostream& os) const {
-        target->print(os);
-        os << " = ";
-        value->print(os);
+    
+    void Node::print(std::ostream& os) const {
+        PrintContext pc{os};
+        this->print(pc);
     }
 
-    void IfStatement::print(std::ostream& os) const {
+    PrintContext& PrintContext::operator<<(const Node& value) {
+        value.print(*this);
+        return *this;
+    }
+
+    void Block::print(PrintContext& pc) const {
+        pc.indent();
+        // TODO: Convert to range-based for loop
+        for (int i = 0; i < size(); i++) {
+            pc << (*this)[i];
+        }
+        pc.outdent();
+    }
+
+    void TypeLiteral::print(PrintContext& pc) const {
+        pc << identifier;
+    }
+
+    void Identifier::print(PrintContext& pc) const { 
+        pc << name; 
+    }
+
+    void BinaryExpression::print(PrintContext& pc) const {
+        pc << *left << ' ' << int(op) << ' ' << *right;
+    }
+
+    void FunctionDeclaration::print(PrintContext& pc) const {
+        pc << name << "(";
+        for (auto& p : parameters) {
+            pc << p.name << ": " << *p.type;
+        }
+        pc << ")";
+        if (returnType) {
+            pc << " -> " << *returnType;
+        }
+        pc << " {\n";
+        pc.indent();
+        for (auto const& d : declarations) {
+            pc << *d;
+        }
+        pc.outdent();
+        pc << "}";
+    }
+    void AssignmentStatement::print(PrintContext& pc) const {
+        pc << *target << " = " << *value;
+    }
+
+    void IfStatement::print(PrintContext& pc) const {
         auto it = conditionals.cbegin();
         bool isElse = false;
         for (auto const& branch : conditionals) {
             if (isElse) {
-                os << " else if " << *branch.condition << " {\n";
+                pc << " else if " << *branch.condition << " {\n";
             } else {
-                os << "if " << *branch.condition << " {\n";
+                pc.startLine();
+                pc << "if " << *branch.condition << " {\n";
             }
-            // TODO: Convert to range-based for loop
-            for (int i = 0; i < branch.block.size(); i++) {
-                os << branch.block[i];
-            }
-            os << "}";
+            branch.block.print(pc);
+            pc.startLine();
+            pc << "}";
+
             isElse = true;
         }
+        pc << "\n";
     }
 
-    void ReturnStatement::print(std::ostream& os) const {
-        os << "return " << *expression << ";\n";
+    void ReturnStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "return " << *expression << ";\n";
     }
 
-    void StatementDeclaration::print(std::ostream& os) const {
-        os << *statement.get();
+    void StatementDeclaration::print(PrintContext& pc) const {
+        pc << *statement;
     }
 
-    void VarDeclaration::print(std::ostream& os) const {
-        os << "var " << identifier;
+    void VarDeclaration::print(PrintContext& pc) const {
+        pc << "var " << identifier;
         if (type) {
-            os << ": " << *type.get();
+            pc << ": " << *type.get();
         }
         if (value) {
-            os << " = " << *value.get();
+            pc << " = " << *value.get();
         }
     }
 
-    void Literal::print(std::ostream& os) const {
+    void Literal::print(PrintContext& pc) const {
         using enum Type;
         switch (type) {
             case Boolean: 
-                std::cout << internal.boolean;
+                pc << internal.boolean;
                 break;
             case Int8:
-                std::cout << internal.int8;
+                pc << internal.int8;
                 break;
             case Int16:
-                std::cout << internal.int16;
+                pc << internal.int16;
                 break;
             case Int32:
-                std::cout << internal.int32;
+                pc << internal.int32;
                 break;
             case Int64:
-                std::cout << internal.int64;;
+                pc << internal.int64;;
                 break;
             case UInt8:
-                std::cout << internal.uint8;
+                pc << internal.uint8;
                 break;
             case UInt16:
-                std::cout << internal.uint16;
+                pc << internal.uint16;
                 break;
             case UInt32:
-                std::cout << internal.uint32;
+                pc << internal.uint32;
                 break;
             case UInt64:
-                std::cout << internal.uint64;
+                pc << internal.uint64;
                 break;
             case Float:
-                std::cout << internal.float_;
+                pc << internal.float_;
                 break;
             case Double:
-                std::cout << internal.double_;
+                pc << internal.double_;
                 break;
             case String:
-                std::cout << '"' << *internal.string << '"';
+                pc << '"' << *internal.string << '"';
                 break;
         }
     }

@@ -6,46 +6,9 @@
 #include "parser.h"
 #include "AST.h"
 
-template <typename T>
-class unique_ref final {
-private:
-    std::unique_ptr<T> pointer;
-
-public:
-    unique_ref(T& ref) : pointer{&ref} {}
-
-    T* operator->() {
-        return &get();
-    }
-
-    T& get() const {
-        return *pointer.get();
-    }
-
-    const T& cget() const noexcept {
-        return *pointer.get();
-    }
-
-    void reset(T& newRef) noexcept {
-        pointer.reset(&newRef);
-    }
-};
-
-struct Test {
-    int a;
-    int b;
-
-    Test(int a, int b) : a{a}, b{b} {}
-};
 
 int main(int argc, char **argv)
 {
-    unique_ref<Test> test{*(new Test{1, 2})};
-    test.get();
-    test.cget();
-
-    int g = test->a;
-
     std::string filename;
     if (argc > 1) {
         filename = std::string(argv[1]);

@@ -2,6 +2,7 @@
 #define LANG_ast_h
 
 #include "scanner.h" // Token, TokenType
+#include "unique_ref.h"
 
 #include <string>
 #include <vector>
@@ -22,51 +23,10 @@
 
 using std::unique_ptr;
 
-namespace AST {
-    class PrintContext {
-        std::ostream& os;
-        int indentWidth;
-        int indentLevel;
-
-        PrintContext(std::ostream& os, int indentWidth = 4) : os{os}, indentWidth{indentWidth}, indentLevel{0} {}
-
-        void indent() {
-            ++indentLevel;
-        }
-
-        void outdent() {
-            --indentLevel;
-        }
-
-        void startLine() {
-            int nIndent = indentWidth * indentLevel;
-            for (int i = 0; i < nIndent; i++) {
-                os << ' ';
-            }
-            std::fill_n(std::ostream_iterator<char>(os), nIndent, ' ');
-        }
-
-        template <int indent = 0>
-        void newline() {
-            if constexpr (indent != 0) {
-                indentLevel += indent;
-            }
-            int nIndent = indentWidth * indentLevel;
-            os << "\n";
-            std::fill_n(std::ostream_iterator<char>(os), nIndent, ' ');
-        }
-
-        template <typename T>
-        PrintContext& operator<<(T& value) {
-            os << value;
-            return *this;
-        }
-    };
-
-}
 
 namespace AST {
     class Visitor;
+    class PrintContext;
 
     struct Location {
         // TODO: SourceFile reference
@@ -87,9 +47,10 @@ namespace AST {
 
         Location getLocation() { return location; }
 
+        void print(std::ostream& os) const;
+
         virtual void acceptVisitor(Visitor& visitor) = 0;
-        virtual void print(std::ostream& os) const = 0;
-        //virtual void print(PrintContext& pc) const = 0;
+        virtual void print(PrintContext& pc) const = 0;
     };
 }
 
@@ -111,15 +72,12 @@ namespace AST {
 
         TypeLiteral(Token name) : Type{Location{name}}, identifier{name.chars} {}
 
-        void acceptVisitor(Visitor& visitor) {}
-
-        virtual void print(std::ostream& os) const {
-            os << identifier;
-        }
+        virtual void print(PrintContext& pc) const;
+        virtual void acceptVisitor(Visitor& visitor) {}
 
     public:
-        static std::unique_ptr<TypeLiteral> create(Token name) {
-            return std::unique_ptr<TypeLiteral>(new TypeLiteral(name));
+        static unique_ptr<TypeLiteral> create(Token name) {
+            return unique_ptr<TypeLiteral>(new TypeLiteral(name));
         }
 
         virtual ~TypeLiteral() = default;
@@ -130,17 +88,17 @@ namespace AST {
     class Declaration;
     class Block final {
     protected:
-        std::vector<std::unique_ptr<Declaration>> declarations;
+        std::vector<unique_ptr<Declaration>> declarations;
 
     public:
-        Block(std::vector<std::unique_ptr<Declaration>>&& declarations) : declarations{std::move(declarations)} {}
+        Block(std::vector<unique_ptr<Declaration>>&& declarations) : declarations{std::move(declarations)} {}
 
         Block(Block&& other) = default;
         Block& operator=(Block&& other) = default;
         Block(const Block&) = delete;
         Block& operator=(const Block&) = delete;
-        static std::unique_ptr<Block> create(std::vector<std::unique_ptr<Declaration>>&& declarations) {
-            return std::unique_ptr<Block>(new Block(std::move(declarations)));
+        static unique_ptr<Block> create(std::vector<unique_ptr<Declaration>>&& declarations) {
+            return unique_ptr<Block>(new Block(std::move(declarations)));
         }
 
         size_t size() const {
@@ -150,6 +108,8 @@ namespace AST {
         const Declaration& operator[](size_t index) const {
             return *declarations[index].get();
         }
+
+        void print(PrintContext& pc) const;
     };
 
     // Expressions
@@ -165,8 +125,8 @@ namespace AST {
 
         Identifier(Token token) : Expression{token}, name{token.chars} {}
 
+        virtual void print(PrintContext& pc) const;
         virtual void acceptVisitor(Visitor& visitor) {};
-        virtual void print(std::ostream& os) const { os << name; }
     public:
         static unique_ptr<Identifier> create(Token token) {
             return unique_ptr<Identifier>{new Identifier(token)};
@@ -208,7 +168,7 @@ namespace AST {
         Internal internal;
 
         virtual void acceptVisitor(Visitor& visitor) {};
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& pc) const;
     public:
         Literal(Token token, bool boolean) : Expression{Location{token}}, type{Type::Boolean}, internal{.boolean=boolean} {}
         Literal(Token token, int8_t int8) : Expression{Location{token}}, type{Type::Int8}, internal{.int8=int8} {}
@@ -272,12 +232,8 @@ namespace AST {
         BinaryExpression(Token token, BinaryOperator op, unique_ptr<Expression> left, unique_ptr<Expression> right) 
             : Expression{Location{token}}, op{op}, left{std::move(left)}, right{std::move(right)} {}
 
+        void print(PrintContext& pc) const;
         void acceptVisitor(Visitor& visitor) {}
-        void print(std::ostream& os) const{
-            os << *left;
-            os << ' ' << int(op) << ' ';
-            os << *right;
-        }
     public:
         static unique_ptr<BinaryExpression> create(Token token, BinaryOperator op, unique_ptr<Expression>&& left, unique_ptr<Expression>&& right) {
             return unique_ptr<BinaryExpression>{new BinaryExpression(token, op, std::move(left), std::move(right))};
@@ -301,6 +257,7 @@ namespace AST {
             this->right.reset(&right);
         }
     };
+
     // Statements
     class Block;
 
@@ -320,7 +277,7 @@ namespace AST {
             , value{std::move(value)} 
         {}
 
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& os) const;
         virtual void acceptVisitor(Visitor& visitor) {}
 
     public:
@@ -353,7 +310,7 @@ namespace AST {
             assert(this->conditionals.size() > 0 && "if statement must have at least one condition.");
         }
 
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& pc) const;
         virtual void acceptVisitor(Visitor& visitor) {}
 
     public:
@@ -368,7 +325,7 @@ namespace AST {
 
         ReturnStatement(Token token, unique_ptr<Expression>&& expression) : Statement{token}, expression{std::move(expression)} {}
 
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& pc) const;
         virtual void acceptVisitor(Visitor& visitor) {}
     public:
         static unique_ptr<ReturnStatement> create(Token token, unique_ptr<Expression> expression) {
@@ -382,7 +339,7 @@ namespace AST {
 
         ExpressionStatement(unique_ptr<Expression>&& expression) : Statement{expression->getLocation()}, expression{std::move(expression)} {}
 
-        virtual void print(std::ostream& os) const { expression->print(os); }
+        virtual void print(PrintContext& pc) const { expression->print(pc); }
         virtual void acceptVisitor(Visitor& visitor) {}
     public:
         static unique_ptr<ExpressionStatement> create(unique_ptr<Expression>&& expression) {
@@ -425,7 +382,7 @@ namespace AST {
             , declarations{std::move(declarations)} {}
 
         virtual void acceptVisitor(Visitor& visitor) {}
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& pc) const;
     public:
         static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<Type>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) {
             return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(declarations))};
@@ -456,7 +413,7 @@ namespace AST {
             unique_ptr<Expression>&& value
         ) : Declaration{token}, identifier{std::move(identifier)}, type{std::move(type)}, value{std::move(value)} {}
         
-        virtual void print(std::ostream& os) const;
+        virtual void print(PrintContext& pc) const;
         virtual void acceptVisitor(Visitor& visitor) {}
 
     public:
@@ -477,7 +434,7 @@ namespace AST {
         StatementDeclaration(unique_ptr<Statement>&& statement) : Declaration{statement.get()->getLocation()}, statement{std::move(statement)} {}
 
         virtual void acceptVisitor(Visitor& visitor) {}
-        virtual void print(std::ostream& os) const; 
+        virtual void print(PrintContext& pc) const; 
     public:
         static unique_ptr<StatementDeclaration> create(unique_ptr<Statement>&& statement) {
             return unique_ptr<StatementDeclaration>(new StatementDeclaration(std::move(statement)));
@@ -505,5 +462,56 @@ namespace AST {
         virtual void visitBinaryExpression(BinaryExpression& binaryExpression) = 0;
     };
 };
+
+namespace AST {
+    class Node;
+    class PrintContext {
+        std::ostream& os;
+        int indentWidth;
+        int indentLevel;
+
+        PrintContext(std::ostream& os, int indentWidth = 4) : os{os}, indentWidth{indentWidth}, indentLevel{0} {}
+
+        PrintContext(const PrintContext&) = delete;
+        PrintContext& operator=(const PrintContext&) = delete;
+    public:
+        void indent() {
+            ++indentLevel;
+        }
+
+        void outdent() {
+            --indentLevel;
+        }
+
+        void startLine() {
+            int nIndent = indentWidth * indentLevel;
+            //for (int i = 0; i < nIndent; i++) {
+            //    os << ' ';
+            //}
+            std::fill_n(std::ostream_iterator<char>(os), nIndent, ' ');
+        }
+
+        PrintContext& operator<<(const Node& value);
+
+        PrintContext& operator<<(const std::string& str) {
+            os << str;
+            return *this;
+        }
+
+        PrintContext& operator<<(const char *str) {
+            os << str;
+            return *this;
+        }
+
+        template <typename T>
+        PrintContext& operator<<(T value) requires std::is_arithmetic_v<T> {
+            os << value;
+            return *this;
+        }
+
+        friend class Node;
+    };
+
+}
 
 #endif
