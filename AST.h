@@ -3,6 +3,7 @@
 
 #include "scanner.h" // Token, TokenType
 #include "unique_ref.h"
+#include "type.h"
 
 #include <string>
 #include <vector>
@@ -61,16 +62,16 @@ namespace AST {
 
     // Types
 
-    class Type : public Node {
+    class TypeNode : public Node {
     protected:
         using Node::Node;
     };
 
-    class TypeLiteral : public Type {
+    class TypeLiteral : public TypeNode {
     protected:
         std::string identifier;
 
-        TypeLiteral(Token name) : Type{Location{name}}, identifier{name.chars} {}
+        TypeLiteral(Token name) : TypeNode{Location{name}}, identifier{name.chars} {}
 
         virtual void print(PrintContext& pc) const;
         virtual void acceptVisitor(Visitor& visitor) {}
@@ -83,6 +84,48 @@ namespace AST {
         virtual ~TypeLiteral() = default;
     };
 
+    // TODO: Replce with PointerUnion from LLVM
+    class TypeRef {
+        union Internal {
+            TypeNode *node;
+            Type *type;
+            uintptr_t pointer;
+        };
+
+        Internal internal;
+
+    public:
+        ~TypeRef() {
+            if (internal.pointer & 1) {
+                delete internal.node;
+            }
+        }
+
+        TypeRef(TypeNode *node) : internal{.node=node} {
+            internal.pointer |= 1;
+        }
+        TypeRef(unique_ptr<TypeNode>&& node) : internal{.node=node.release()} {
+            internal.pointer |= 1;
+        }
+
+        void setType(Type *type) {
+            if (internal.node) {
+                internal.pointer &= ~1;
+                delete internal.node;
+            }
+            internal.type = type;
+        }
+
+        TypeNode *node() {
+            Internal tmp = internal;
+            tmp.pointer &= ~1;
+            return tmp.node;
+        }
+
+        Type *type() {
+            return internal.type;
+        }
+    };
     // Utilities
     
     class Declaration;
@@ -210,6 +253,28 @@ namespace AST {
         CallExpression& operator=(const CallExpression&) = delete;
     };
 
+    enum class UnaryOperator {
+        Negate,
+        Not,
+    };
+
+    class UnaryExpression : public Expression {
+    protected:
+        UnaryOperator op;
+        unique_ptr<Expression> target;
+
+        UnaryExpression(Token token, UnaryOperator op, unique_ptr<Expression>&& target) 
+            : Expression{token}, op{op}, target{std::move(target)}
+        {}
+
+        void print(PrintContext& pc) const;
+        void acceptVisitor(Visitor& visitor) {}
+    public:
+        static unique_ptr<UnaryExpression> create(Token token, UnaryOperator op, unique_ptr<Expression>&& target) {
+            return unique_ptr<UnaryExpression>{new UnaryExpression(token, op, std::move(target))};
+        }
+    };
+
     enum class BinaryOperator {
         Add,
         Subtract,
@@ -218,10 +283,14 @@ namespace AST {
         Modulo,
 
         Equal,
+        NotEqual,
         Less,
         LessEqual,
         Greater,
         GreaterEqual,
+
+        LogicalAnd,
+        LogicalOr,
     };
 
     class BinaryExpression : public Expression {
@@ -333,6 +402,25 @@ namespace AST {
         }
     };
 
+    class WhileStatement : public Statement {
+    protected:
+        unique_ptr<Expression> condition;
+        Block code;
+
+        WhileStatement(Token token, unique_ptr<Expression>&& condition, Block&& code) 
+            : Statement{token}
+            , condition{std::move(condition)}
+            , code{std::move(code)} 
+        {}
+    
+        virtual void print(PrintContext& pc) const;
+        virtual void acceptVisitor(Visitor& visitor) {}
+    public:
+        static unique_ptr<WhileStatement> create(Token token, unique_ptr<Expression>&& condition, Block&& code) {
+            return unique_ptr<WhileStatement>{new WhileStatement(token, std::move(condition), std::move(code))};
+        }
+    };
+
     class ExpressionStatement : public Statement {
     protected:
         unique_ptr<Expression> expression;
@@ -359,10 +447,10 @@ namespace AST {
         class Parameter {
         public:
             std::string name;
-            unique_ptr<Type> type;
+            unique_ptr<TypeNode> type;
             
             Parameter() {}
-            Parameter(std::string_view& name, unique_ptr<Type>&& type) : name{name}, type{std::move(type)} {}
+            Parameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
             //Parameter(Parameter&& parameter) = default;
             //Parameter& operator=(Parameter&& parameter) = default;
         };
@@ -370,10 +458,10 @@ namespace AST {
         std::string name;
         std::vector<Parameter> parameters;
         int arity;
-        unique_ptr<Type> returnType;
+        unique_ptr<TypeNode> returnType;
         std::vector<unique_ptr<Declaration>> declarations;
 
-        FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<Type>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) 
+        FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) 
             : Declaration{Location{token}}
             , name{token.chars}
             , parameters{std::move(parameters)}
@@ -384,15 +472,51 @@ namespace AST {
         virtual void acceptVisitor(Visitor& visitor) {}
         virtual void print(PrintContext& pc) const;
     public:
-        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<Type>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) {
+        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) {
             return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(declarations))};
         }
 
     };
 
     class StructDeclaration : public Declaration {
+    public:
+        class Field {
+            std::string name;
+            TypeRef type;
 
+            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+        };
+
+    protected:
+        std::string name;
+        std::vector<Field> fields;
+        std::vector<unique_ptr<FunctionDeclaration>> methods;
+
+
+        StructDeclaration(Token token, std::string_view& name, std::vector<Field>&& fields, std::vector<unique_ptr<FunctionDeclaration>>&& methods)
+            : Declaration{Location{token}}
+            , name{name}
+            , fields{std::move(fields)}
+            , methods{std::move(methods)} {}
+    public:
+        static unique_ptr<StructDeclaration> create(Token token, std::string_view& name, std::vector<Field>&& fields, std::vector<unique_ptr<FunctionDeclaration>>&& methods) {
+            return unique_ptr<StructDeclaration>{new StructDeclaration(token, name, std::move(fields), std::move(methods))};
+        }
+
+        virtual void acceptVisitor(Visitor& visitor) {}
+        virtual void print(PrintContext& pc) const;
     };
+
+    class ClassDeclaration : public Declaration {
+    public:
+        class Field {
+            std::string name;
+            TypeRef type;
+
+            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+        };
+    };
+
 
     class EnumDeclaration : public Declaration {
     protected:
@@ -403,13 +527,13 @@ namespace AST {
     class VarDeclaration : public Declaration {
     protected:
         std::string identifier;
-        unique_ptr<Type> type;
+        unique_ptr<TypeNode> type;
         unique_ptr<Expression> value;
 
         VarDeclaration(
             Token token, 
             std::string&& identifier, 
-            unique_ptr<Type>&& type, 
+            unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& value
         ) : Declaration{token}, identifier{std::move(identifier)}, type{std::move(type)}, value{std::move(value)} {}
         
@@ -420,7 +544,7 @@ namespace AST {
         static unique_ptr<VarDeclaration> create(
             Token token, 
             std::string&& identifier, 
-            unique_ptr<Type>&& type, 
+            unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& value
         ) {
             return unique_ptr<VarDeclaration>(new VarDeclaration(token, std::move(identifier), std::move(type), std::move(value)));
@@ -444,11 +568,6 @@ namespace AST {
     class ProtocolDeclaration : public Declaration {
 
     };
-
-    class ClassDeclaration : public Declaration {
-
-    };
-
 
     class Visitor {
         virtual void visitDeclaration(Declaration& declaration) = 0;
@@ -511,7 +630,6 @@ namespace AST {
 
         friend class Node;
     };
-
 }
 
 #endif

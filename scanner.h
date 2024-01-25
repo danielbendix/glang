@@ -22,9 +22,16 @@ enum class TokenType : uint8_t {
     Equal,
 
     // Operators
-    Plus, Minus,
-    Star, Slash,
+    Plus,
+    Minus,
+    Star,
+    Slash,
     Power,
+
+    PlusEqual, 
+    MinusEqual,
+    StarEqual, 
+    SlashEqual,
 
     // Logical operators
     Not,
@@ -43,6 +50,7 @@ enum class TokenType : uint8_t {
     Identifier,
     Enum,
     Struct,
+    Class,
     Let,
     Var,
     If,
@@ -131,6 +139,7 @@ private:
     void skipWhitespace();
     template <auto Predicate> void munchMany();
     template <auto predicate, ScannerException::Cause cause> void munchMany1();
+    [[nodiscard]]
     Token makeToken(TokenType type);
     TokenType identifierType();
     Token identifier();
@@ -138,13 +147,13 @@ private:
     Token number(char first);
 
 public:
-    Scanner(std::string&& string) {
-        _string = std::move(string);
-        start = _string.cbegin();
-        current = start;
-        end = _string.cend();
-        line = 1;
-        offset = 0;
+    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, offset{0} {
+//        _string = std::move(string);
+//        start = _string.cbegin();
+//        current = start;
+//        end = _string.cend();
+//        line = 1;
+//        offset = 0;
     };
 
     Token next();

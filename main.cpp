@@ -23,12 +23,14 @@ int main(int argc, char **argv)
     auto parser = Parser{std::move(testString)};
 
     try {
-        auto d = parser.declaration();
-        std::cout << *d;
-        std::cout << "\n";
+        auto pf = parser.parse();
+        for (const auto &d : pf.declarations) {
+            std::cout << *d;
+        }
     } catch (ParserException exception) {
         std::cout << "EXCEPTION\n";
         std::cout << int(exception.cause) << "\n";
+        std::cout << exception.token.line << ":" << exception.token.offset;
         std::cout << exception.token.chars << "\n";
     }
 

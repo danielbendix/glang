@@ -26,6 +26,10 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(Star)
         TOKEN_TYPE_CASE(Slash)
         TOKEN_TYPE_CASE(Power)
+        TOKEN_TYPE_CASE(PlusEqual) 
+        TOKEN_TYPE_CASE(MinusEqual)
+        TOKEN_TYPE_CASE(StarEqual) 
+        TOKEN_TYPE_CASE(SlashEqual)
         TOKEN_TYPE_CASE(Not)
         TOKEN_TYPE_CASE(And)
         TOKEN_TYPE_CASE(Or)
@@ -37,6 +41,7 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(GreaterEqual)
         TOKEN_TYPE_CASE(Identifier)
         TOKEN_TYPE_CASE(Enum)
+        TOKEN_TYPE_CASE(Class)
         TOKEN_TYPE_CASE(Struct)
         TOKEN_TYPE_CASE(Let)
         TOKEN_TYPE_CASE(Var)
@@ -61,8 +66,7 @@ const char *tokenTypeToString(TokenType tokenType)
 
 std::ostream& operator<<(std::ostream& os, TokenType tokenType)
 {
-    std::cout << tokenTypeToString(tokenType);
-    return os;
+    return os << tokenTypeToString(tokenType);
 }
 
 bool isAlpha(char c)
@@ -237,6 +241,7 @@ Token Scanner::number(char first)
 
 
 Token Scanner::next() {
+    using enum TokenType;
 
     while (current != end) {
         skipWhitespace();
@@ -249,63 +254,84 @@ Token Scanner::next() {
 
         switch (c) {
             case '"': return string();
-            case '{': return makeToken(TokenType::LeftBracket);
-            case '}': return makeToken(TokenType::RightBracket);
-            case '[': return makeToken(TokenType::LeftBrace);
-            case ']': return makeToken(TokenType::RightBrace);
-            case '(': return makeToken(TokenType::LeftParenthesis);
-            case ')': return makeToken(TokenType::RightParenthesis);
-            case ':': return makeToken(TokenType::Colon);
-            case ';': return makeToken(TokenType::Semicolon);
-            case ',': return makeToken(TokenType::Comma);
+            case '{': return makeToken(LeftBracket);
+            case '}': return makeToken(RightBracket);
+            case '[': return makeToken(LeftBrace);
+            case ']': return makeToken(RightBrace);
+            case '(': return makeToken(LeftParenthesis);
+            case ')': return makeToken(RightParenthesis);
+            case ':': return makeToken(Colon);
+            case ';': return makeToken(Semicolon);
+            case ',': return makeToken(Comma);
             case '.': {
                 if (peek() == '.') {
                     advance();
-                    return makeToken(TokenType::DotDot);
+                    return makeToken(DotDot);
                 }
-                return makeToken(TokenType::Dot);
+                return makeToken(Dot);
             }
             case '=': {
                 if (peek() == '=') {
                     advance();
-                    return makeToken(TokenType::EqualEqual);
+                    return makeToken(EqualEqual);
                 }
-                return makeToken(TokenType::Equal);
+                return makeToken(Equal);
             }
-            case '+': return makeToken(TokenType::Comma);
-            case '-': {
-                if (peek() == '>') {
+            case '+': 
+                if (peek() == '=') {
                     advance();
-                    return makeToken(TokenType::Arrow);
+                    return makeToken(PlusEqual);
+
                 }
-                return makeToken(TokenType::Minus);
+                return makeToken(Comma);
+            case '-': {
+                switch (peek()) {
+                    case '=':
+                        advance();
+                        return makeToken(MinusEqual);
+                    case '>':
+                        advance();
+                        return makeToken(Arrow);
+                }
+                return makeToken(Minus);
             }
             case '*': {
+                switch (peek()) {
+                    case '=':
+                        advance();
+                        return makeToken(StarEqual);
+                    case '*':
+                        advance();
+                        return makeToken(Power);
+                }
                 if (peek() == '*') {
                     advance();
-                    return makeToken(TokenType::Power);
+                    return makeToken(Power);
                 }
-                return makeToken(TokenType::Star);
+                return makeToken(Star);
             }
-            case '/': return makeToken(TokenType::Slash);
+            case '/': 
+                if (peek() == '=') {
+                    advance();
+                    return makeToken(SlashEqual);
+                }
+                return makeToken(Slash);
             case '<': {
                 if (peek() == '=') {
                     advance();
-                    return makeToken(TokenType::LessEqual);
+                    return makeToken(LessEqual);
                 }
-                return makeToken(TokenType::Less);
+                return makeToken(Less);
             }
             case '>': {
                 if (peek() == '=') {
                     advance();
-                    return makeToken(TokenType::GreaterEqual);
+                    return makeToken(GreaterEqual);
                 }
-                return makeToken(TokenType::Greater);
+                return makeToken(Greater);
             }
-
             case '\0':
-                return makeToken(TokenType::EndOfFile);
-
+                return makeToken(EndOfFile);
             default: 
                 std::cout << c << "\n";
                 std::cout << int(c) << "\n";
@@ -313,8 +339,6 @@ Token Scanner::next() {
         }
     }
 
-
-
-    return makeToken(TokenType::EndOfFile);
+    return makeToken(EndOfFile);
     
 }

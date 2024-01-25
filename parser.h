@@ -5,17 +5,30 @@
 #include "AST.h"
 
 struct ParsedFile {
-    std::string path;
-    std::vector<AST::Declaration *> declarations;
+    //std::string path;
+public:
+    std::vector<unique_ptr<AST::Declaration>> declarations;
+
+    ParsedFile(std::vector<unique_ptr<AST::Declaration>>&& declarations) : declarations{std::move(declarations)} {}
 };
+
+enum class Precedence;
 
 class ParserException {
 public:
+    enum class During {
+        Declaration,
+        Statement,
+        Expression,
+    };
     enum class Cause {
+        ExpectedExpression,
         ExpectedFunctionName,
         ExpectedClassName,
         ExpectedLiteral,
         InvalidBinaryOperator,
+        InvalidInteger,
+        InvalidFloating,
 
     };
 //private:
@@ -43,7 +56,7 @@ public:
 
     // Types
     [[nodiscard]]
-    unique_ptr<AST::Type> type();
+    unique_ptr<AST::TypeNode> type();
 
     // Declarations
     [[nodiscard]]
@@ -52,6 +65,8 @@ public:
     unique_ptr<AST::FunctionDeclaration> functionDeclaration();
     [[nodiscard]]
     unique_ptr<AST::StructDeclaration> structDeclaration();
+    [[nodiscard]]
+    unique_ptr<AST::ClassDeclaration> classDeclaration();
     [[nodiscard]]
     unique_ptr<AST::EnumDeclaration> enumDeclaration();
     [[nodiscard]]
@@ -67,17 +82,39 @@ public:
     [[nodiscard]]
     unique_ptr<AST::ReturnStatement> returnStatement();
     [[nodiscard]]
-    unique_ptr<AST::ExpressionStatement> expressionStatement();
+    unique_ptr<AST::WhileStatement> whileStatement();
+    [[nodiscard]]
+    unique_ptr<AST::Statement> assignmentOrExpression();
 
     // Expression
     [[nodiscard]]
     unique_ptr<AST::Expression> expression();
+
     [[nodiscard]]
-    unique_ptr<AST::BinaryExpression> binaryExpression();
+    unique_ptr<AST::Expression> binaryExpression();
+
+    // Expression helpers
     [[nodiscard]]
     unique_ptr<AST::Expression> expressionTerminal();
+
+    std::unique_ptr<AST::Expression> parseExpression(Precedence precedence);
+
     [[nodiscard]]
-    unique_ptr<AST::Literal> literal();
+    unique_ptr<AST::Expression> call(unique_ptr<AST::Expression>&& left);
+    [[nodiscard]]
+    unique_ptr<AST::Expression> dot(unique_ptr<AST::Expression>&& left);
+    [[nodiscard]]
+    unique_ptr<AST::Expression> binary(unique_ptr<AST::Expression>&& left);
+
+    [[nodiscard]]
+    unique_ptr<AST::Expression> literal();
+    [[nodiscard]]
+    unique_ptr<AST::Expression> identifier();
+    [[nodiscard]]
+    unique_ptr<AST::Expression> grouping();
+
+    [[nodiscard]]
+    unique_ptr<AST::Expression> unary();
 
     void advance() {
         previous = current;

@@ -1,7 +1,7 @@
 #include "AST.h"
 
 namespace AST {
-    
+
     void Node::print(std::ostream& os) const {
         PrintContext pc{os};
         this->print(pc);
@@ -10,6 +10,38 @@ namespace AST {
     PrintContext& PrintContext::operator<<(const Node& value) {
         value.print(*this);
         return *this;
+    }
+
+    PrintContext& operator<<(PrintContext& pc, UnaryOperator op) {
+        using enum UnaryOperator;
+        switch (op) {
+            case Negate: pc << '-'; break;
+            case Not: pc << "not "; break;
+        }
+        return pc;
+    }
+
+    PrintContext& operator<<(PrintContext& pc, BinaryOperator op) {
+        using enum BinaryOperator;
+        switch (op) {
+            case Add: pc << '+'; break;
+            case Subtract: pc << '-'; break;
+            case Multiply: pc << '*'; break;
+            case Divide: pc << '/'; break;
+            case Modulo: pc << '%'; break;
+
+            case Equal: pc << "=="; break;
+            case NotEqual: pc << "!="; break;
+
+            case Greater: pc << '>'; break;
+            case GreaterEqual: pc << ">="; break;
+            case Less: pc << '<'; break;
+            case LessEqual: pc << "<="; break;
+
+            case LogicalAnd: pc << "and"; break;
+            case LogicalOr: pc << "or"; break;
+        }
+        return pc;
     }
 
     void Block::print(PrintContext& pc) const {
@@ -30,7 +62,11 @@ namespace AST {
     }
 
     void BinaryExpression::print(PrintContext& pc) const {
-        pc << *left << ' ' << int(op) << ' ' << *right;
+        pc << *left << ' ' << op << ' ' << *right;
+    }
+
+    void UnaryExpression::print(PrintContext& pc) const {
+        pc << op << *target;
     }
 
     void FunctionDeclaration::print(PrintContext& pc) const {
@@ -48,10 +84,13 @@ namespace AST {
             pc << *d;
         }
         pc.outdent();
-        pc << "}";
+        pc << "}\n";
     }
+
     void AssignmentStatement::print(PrintContext& pc) const {
-        pc << *target << " = " << *value;
+        // FIXME: Assignment type
+        pc.startLine();
+        pc << *target << " = " << *value << ";\n";
     }
 
     void IfStatement::print(PrintContext& pc) const {
@@ -78,11 +117,20 @@ namespace AST {
         pc << "return " << *expression << ";\n";
     }
 
+    void WhileStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "while " << *condition << " {\n";
+        code.print(pc);
+        pc.startLine();
+        pc << "}\n";
+    }
+
     void StatementDeclaration::print(PrintContext& pc) const {
         pc << *statement;
     }
 
     void VarDeclaration::print(PrintContext& pc) const {
+        pc.startLine();
         pc << "var " << identifier;
         if (type) {
             pc << ": " << *type.get();
@@ -90,13 +138,18 @@ namespace AST {
         if (value) {
             pc << " = " << *value.get();
         }
+        pc << ";\n";
     }
 
     void Literal::print(PrintContext& pc) const {
         using enum Type;
         switch (type) {
             case Boolean: 
-                pc << internal.boolean;
+                if (internal.boolean) {
+                    pc << "true";
+                } else {
+                    pc << "false";
+                }
                 break;
             case Int8:
                 pc << internal.int8;
@@ -108,7 +161,7 @@ namespace AST {
                 pc << internal.int32;
                 break;
             case Int64:
-                pc << internal.int64;;
+                pc << internal.int64;
                 break;
             case UInt8:
                 pc << internal.uint8;
