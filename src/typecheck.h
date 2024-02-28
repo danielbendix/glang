@@ -3,7 +3,7 @@
 
 #include "AST.h"
 
-Type *typeCheckDeclaration(AST::Declaration& declaration);
+bool typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals);
 Type *typeCheckCondition(AST::Expression *expression);
 Type *typeCheckExpression(AST::Expression *condition);
 

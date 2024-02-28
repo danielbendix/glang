@@ -41,8 +41,9 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(GreaterEqual)
         TOKEN_TYPE_CASE(Identifier)
         TOKEN_TYPE_CASE(Enum)
-        TOKEN_TYPE_CASE(Class)
         TOKEN_TYPE_CASE(Struct)
+        TOKEN_TYPE_CASE(Class)
+        TOKEN_TYPE_CASE(Self)
         TOKEN_TYPE_CASE(Let)
         TOKEN_TYPE_CASE(Var)
         TOKEN_TYPE_CASE(If)
@@ -160,7 +161,11 @@ TokenType Scanner::identifierType()
             }
             break;
         }
-        case 's': return testKeyword(it, current, "truct", 5, TokenType::Struct);
+        case 's': 
+            switch (*it++) {
+                case 'e': return testKeyword(it, current, "lf", 2, TokenType::Self);
+                case 't': return testKeyword(it, current, "ruct", 4, TokenType::Struct);
+            }
         case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
         case 'w': return testKeyword(it, current, "hile", 4, TokenType::While);
     }

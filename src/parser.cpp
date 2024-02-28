@@ -20,7 +20,7 @@ AST::Block Parser::block()
 {
     consume(TokenType::LeftBracket);
 
-    std::vector<std::unique_ptr<AST::Declaration>> declarations;
+    std::vector<unique_ptr<AST::Declaration>> declarations;
 
     while (!match(TokenType::RightBracket)) {
         declarations.emplace_back(declaration());
@@ -31,7 +31,7 @@ AST::Block Parser::block()
 
 // Types
 
-std::unique_ptr<AST::TypeNode> Parser::type() 
+unique_ptr<AST::TypeNode> Parser::type() 
 {
     // TODO: Support more than type literals
     Token name = consume(TokenType::Identifier);
@@ -40,7 +40,7 @@ std::unique_ptr<AST::TypeNode> Parser::type()
 
 // Declarations
 
-std::unique_ptr<AST::Declaration> Parser::declaration() 
+unique_ptr<AST::Declaration> Parser::declaration() 
 {
     if (match(TokenType::Fun)) return functionDeclaration();
     if (match(TokenType::Struct)) return structDeclaration();
@@ -60,7 +60,7 @@ AST::FunctionDeclaration::Parameter Parser::parameter()
     return AST::FunctionDeclaration::Parameter(name.chars, std::move(tp));
 }
 
-std::unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
+unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
 {
     auto name = consume(TokenType::Identifier);
 
@@ -68,19 +68,19 @@ std::unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
 
     std::vector<AST::FunctionDeclaration::Parameter> parameters;
     while (!check(TokenType::RightParenthesis)) {
-        parameters.emplace_back(parameter());
+        parameters.emplace_back(std::move(parameter()));
     }
 
     consume(TokenType::RightParenthesis);
 
-    std::unique_ptr<AST::TypeNode> returnType = nullptr;
+    unique_ptr<AST::TypeNode> returnType = nullptr;
     if (match(TokenType::Arrow)) {
         returnType = type();
     }
 
     consume(TokenType::LeftBracket);
 
-    std::vector<std::unique_ptr<AST::Declaration>> declarations;
+    std::vector<unique_ptr<AST::Declaration>> declarations;
 
     while (!match(TokenType::RightBracket)) {
         declarations.emplace_back(declaration());
@@ -91,7 +91,7 @@ std::unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
 
 
 
-std::unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
+unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
 {
     std::vector<AST::StructDeclaration::Field> fields;
     std::vector<unique_ptr<AST::FunctionDeclaration>> methods;
@@ -110,36 +110,37 @@ std::unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
     return nullptr;
 }
 
-std::unique_ptr<AST::ClassDeclaration> Parser::classDeclaration()
+unique_ptr<AST::ClassDeclaration> Parser::classDeclaration()
 {
     return nullptr;
 }
 
-std::unique_ptr<AST::EnumDeclaration> Parser::enumDeclaration()
+unique_ptr<AST::EnumDeclaration> Parser::enumDeclaration()
 {
     return nullptr;
 }
 
-std::unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()
+unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()
 {
     auto token = previous;
+    bool isMutable = token.type == TokenType::Var;
     auto identifier = consume(TokenType::Identifier);
-    std::unique_ptr<AST::TypeNode> tp = nullptr;
+    unique_ptr<AST::TypeNode> tp = nullptr;
     if (match(TokenType::Colon)) {
         tp = type();
     }
 
-    std::unique_ptr<AST::Expression> initial = nullptr;
+    unique_ptr<AST::Expression> initial = nullptr;
     if (match(TokenType::Equal)) {
         initial = expression();
     }
 
     consume(TokenType::Semicolon);
 
-    return AST::VariableDeclaration::create(token, std::string(identifier.chars), std::move(tp), std::move(initial));
+    return AST::VariableDeclaration::create(token, isMutable, std::string(identifier.chars), std::move(tp), std::move(initial));
 }
 
-std::unique_ptr<AST::StatementDeclaration> Parser::statementDeclaration()
+unique_ptr<AST::StatementDeclaration> Parser::statementDeclaration()
 {
     return AST::StatementDeclaration::create(statement());
 }
@@ -161,7 +162,7 @@ bool isAssignmentOperator(TokenType tokenType)
     }
 }
 
-std::unique_ptr<AST::Statement> Parser::statement()
+unique_ptr<AST::Statement> Parser::statement()
 {
     if (match(TokenType::If)) return ifStatement();
     if (match(TokenType::Return)) return returnStatement();
@@ -169,7 +170,7 @@ std::unique_ptr<AST::Statement> Parser::statement()
     return assignmentOrExpression();
 }
 
-std::unique_ptr<AST::IfStatement> Parser::ifStatement()
+unique_ptr<AST::IfStatement> Parser::ifStatement()
 {
     auto token = previous;
     std::vector<AST::IfStatement::Branch> conditionals;
@@ -192,7 +193,7 @@ std::unique_ptr<AST::IfStatement> Parser::ifStatement()
     return AST::IfStatement::create(token, std::move(conditionals), std::move(fallback));
 }
 
-std::unique_ptr<AST::ReturnStatement> Parser::returnStatement()
+unique_ptr<AST::ReturnStatement> Parser::returnStatement()
 {
     auto token = previous;
     auto expr = expression();
@@ -200,7 +201,7 @@ std::unique_ptr<AST::ReturnStatement> Parser::returnStatement()
     return AST::ReturnStatement::create(token, std::move(expr));
 }
 
-std::unique_ptr<AST::WhileStatement> Parser::whileStatement()
+unique_ptr<AST::WhileStatement> Parser::whileStatement()
 {
     auto token = previous;
     auto condition = expression();
@@ -209,17 +210,36 @@ std::unique_ptr<AST::WhileStatement> Parser::whileStatement()
     return AST::WhileStatement::create(token, std::move(condition), std::move(code));
 }
 
+AST::AssignmentOperator assignmentOperatorFromToken(Token token)
+{
+    using enum TokenType;
+    using enum AST::AssignmentOperator;
+    switch (token.type) {
+        case PlusEqual:
+            return AssignAdd;
+        case MinusEqual:
+            return AssignSub;
+        case StarEqual:
+            return AssignMultiply;
+        case SlashEqual:
+            return AssignDivide;
+        default:
+            llvm::llvm_unreachable_internal();
+    }
+}
+
 unique_ptr<AST::Statement> Parser::assignmentOrExpression()
 {
     auto expr = expression();
 
     if (isAssignmentOperator(current.type)) {
         // FIXME: Assignment type
-        auto op = current;
+        auto token = current;
+        auto op = assignmentOperatorFromToken(token);
         advance();
         auto value = expression();
         consume(TokenType::Semicolon);
-        return AST::AssignmentStatement::create(op, std::move(expr), std::move(value));
+        return AST::AssignmentStatement::create(token, op, std::move(expr), std::move(value));
     } else {
         consume(TokenType::Semicolon);
         return AST::ExpressionStatement::create(std::move(expr));
@@ -253,7 +273,7 @@ Precedence operator+(Precedence l, int i)
 
 struct ParseRule {
     typedef unique_ptr<AST::Expression> (Parser::*ExpressionPrefixHandler)();
-    typedef unique_ptr<AST::Expression> (Parser::*ExpressionInfixHandler)(std::unique_ptr<AST::Expression>&& left);
+    typedef unique_ptr<AST::Expression> (Parser::*ExpressionInfixHandler)(unique_ptr<AST::Expression>&& left);
 
     ExpressionPrefixHandler prefixHandler;
     ExpressionInfixHandler infixHandler;
@@ -265,11 +285,11 @@ struct ParseRule {
 
 
 
-std::unique_ptr<AST::Expression> Parser::expression()
+unique_ptr<AST::Expression> Parser::expression()
 {
     return parseExpression(Precedence::Or);
     /*
-    std::unique_ptr<AST::Expression> left = expressionTerminal();;
+    unique_ptr<AST::Expression> left = expressionTerminal();;
     auto op = operatorFromToken(current);
     if (op.has_value()) {
         advance();
@@ -277,13 +297,13 @@ std::unique_ptr<AST::Expression> Parser::expression()
         return left;
     }
     auto token = previous;
-    std::unique_ptr<AST::Expression> right = expression();
+    unique_ptr<AST::Expression> right = expression();
 
     return AST::BinaryExpression::create(token, op.value(), std::move(left), std::move(right));
     */
 }
 
-std::unique_ptr<AST::Expression> Parser::parseExpression(Precedence precedence)
+unique_ptr<AST::Expression> Parser::parseExpression(Precedence precedence)
 {
     advance();
     ParseRule rule = ParseRule::expressionRules[static_cast<int>(previous.type)];
@@ -415,9 +435,9 @@ std::optional<char> escapeCharacter(char c)
     }
 }
 
-std::unique_ptr<AST::Literal> createStringLiteral(const Token& token)
+unique_ptr<AST::Literal> createStringLiteral(const Token& token)
 {
-    unique_ptr<std::string> string{new std::string()};
+    std::unique_ptr<std::string> string{new std::string()};
     string->reserve(token.chars.length() - 2); // Don't reserve for quotes
     
     // NOTE: This currently only supports double quotes as separators
@@ -444,7 +464,7 @@ std::unique_ptr<AST::Literal> createStringLiteral(const Token& token)
 }
 
 // This should be renamed to something like terminal or expressionTerminal
-std::unique_ptr<AST::Expression> Parser::literal()
+unique_ptr<AST::Expression> Parser::literal()
 {
     // FIXME: Check overflow of numerical literals
     using enum TokenType;

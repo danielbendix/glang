@@ -1,6 +1,70 @@
 #include "AST.h"
 
 namespace AST {
+    void Node::deleteNode(AST::Node *node) {
+        switch (node->getKind()) {
+            case NK_Decl_Variable:
+                delete static_cast<VariableDeclaration *>(node);
+                break;
+            case NK_Decl_Function:
+                delete static_cast<FunctionDeclaration *>(node);
+                break;
+            case NK_Decl_Struct:
+                delete static_cast<StructDeclaration *>(node);
+                break;
+            case NK_Decl_Enum:
+                delete static_cast<EnumDeclaration *>(node);
+                break;
+            case NK_Decl_Class:
+                delete static_cast<ClassDeclaration *>(node);
+                break;
+            case NK_Decl_Protocol:
+                delete static_cast<ProtocolDeclaration *>(node);
+                break;
+            case NK_Decl_Statement:
+                delete static_cast<StatementDeclaration *>(node);
+                break;
+
+            // TODO: reorder statements
+            case NK_Stmt_Assignment:
+                delete static_cast<AssignmentStatement *>(node);
+                break;
+            case NK_Stmt_If:
+                delete static_cast<IfStatement *>(node);
+                break;
+            case NK_Stmt_For:
+                delete static_cast<ForStatement *>(node);
+                break;
+            case NK_Stmt_While:
+                delete static_cast<WhileStatement *>(node);
+                break;
+            case NK_Stmt_Return:
+                delete static_cast<ReturnStatement *>(node);
+                break;
+            case NK_Stmt_Expression:
+                delete static_cast<ExpressionStatement *>(node);
+                break;
+
+           // TODO: Reorder expressions
+            case NK_Expr_Literal:
+                return delete static_cast<Literal *>(node);
+            case NK_Expr_Identifier:
+                return delete static_cast<Identifier *>(node);
+            case NK_Expr_Unary:
+                return delete static_cast<UnaryExpression *>(node);
+            case NK_Expr_Binary:
+                return delete static_cast<BinaryExpression *>(node);
+            case NK_Expr_Call:
+                return delete static_cast<CallExpression *>(node);
+
+            case NK_Type_Literal:
+                return delete static_cast<TypeLiteral *>(node);
+                break;
+        }
+    }
+}
+
+namespace AST {
 
     void Node::print(std::ostream& os) const {
         PrintContext pc{os};
@@ -70,13 +134,14 @@ namespace AST {
     }
 
     void FunctionDeclaration::print(PrintContext& pc) const {
-        pc << name << "(";
+        pc << "fun " << name << "(";
         for (auto& p : parameters) {
-            pc << p.name << ": " << *p.type;
+            // This could fail after type checking
+            pc << p.name << ": " << *p.type.node();
         }
         pc << ")";
-        if (returnType) {
-            pc << " -> " << *returnType;
+        if (returnType.node()) {
+            pc << " -> " << *returnType.node();
         }
         pc << " {\n";
         pc.indent();
@@ -87,10 +152,36 @@ namespace AST {
         pc << "}\n";
     }
 
+    void StructDeclaration::print(PrintContext& pc) const {
+
+    }
+
+    void ClassDeclaration::print(PrintContext& pc) const {
+
+    }
+
+    void ProtocolDeclaration::print(PrintContext& pc) const {
+
+    }
+
+    void EnumDeclaration::print(PrintContext& pc) const {
+
+    }
+
     void AssignmentStatement::print(PrintContext& pc) const {
         // FIXME: Assignment type
         pc.startLine();
-        pc << *target << " = " << *value << ";\n";
+        char const *opString;
+        using enum AssignmentOperator;
+        switch (this->op) {
+            case Assign: opString = " = "; break;
+            case AssignAdd: opString = " += "; break;
+            case AssignSub: opString = " -= "; break;
+            case AssignMultiply: opString = " *= "; break;
+            case AssignDivide: opString = " /= "; break;
+        }
+
+        pc << *target << opString << *value << ";\n";
     }
 
     void IfStatement::print(PrintContext& pc) const {
@@ -120,6 +211,23 @@ namespace AST {
     void WhileStatement::print(PrintContext& pc) const {
         pc.startLine();
         pc << "while " << *condition << " {\n";
+        code.print(pc);
+        pc.startLine();
+        pc << "}\n";
+    }
+
+    void ForStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "for (";
+        if (auto *initialization = getInitialization()) {
+            pc << *initialization;
+        }
+        pc << "; ";
+        pc << getCondition() << ";";
+        if (auto *increment = getIncrement()) {
+            pc << *increment;
+        }
+        pc << ") {\n";
         code.print(pc);
         pc.startLine();
         pc << "}\n";

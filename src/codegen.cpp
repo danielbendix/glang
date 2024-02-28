@@ -1,4 +1,5 @@
 #include "AST.h"
+#include "AST_Visitor.h"
 #include "type.h"
 
 #include "llvm/ADT/StringSet.h"
@@ -37,7 +38,7 @@ public:
 };
 
 
-using namespace llvm;
+//using namespace llvm;
 
 class CompilingFunction {
     Context& context;
@@ -89,7 +90,7 @@ class CompilingFunction {
 };
 
 
-class DeclarationTableVisitor : public AST::DeclarationVisitor {
+class DeclarationTableVisitor2 : public AST::DeclarationVisitorT<DeclarationTableVisitor2, void> {
 
     llvm::StringMap<AST::Declaration *>& table;
     // TODO: Should we store duplicates here?
@@ -104,58 +105,69 @@ class DeclarationTableVisitor : public AST::DeclarationVisitor {
             // show initial and attempt to replace.
         }
     }
-
-
-    virtual void visitFunctionDeclaration(AST::FunctionDeclaration& functionDeclaration) override {
-        addDeclaration(functionDeclaration.getName(), functionDeclaration);
+public:
+    void visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        addDeclaration(variable.getName(), variable);
     }
 
-    virtual void visitVariableDeclaration(AST::VariableDeclaration& variableDeclaration) override {
-        addDeclaration(variableDeclaration.getName(), variableDeclaration);
+    void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        addDeclaration(function.getName(), function);
     }
 
-    virtual void visitStructDeclaration(AST::StructDeclaration& structDeclaration) override {
+    void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
         addDeclaration(structDeclaration.getName(), structDeclaration);
     }
 
-    virtual void visitStatementDeclaration(AST::StatementDeclaration& statementDeclaration) override {
+    void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
 
     }
-public:
+
+    void visitClassDeclaration(AST::ClassDeclaration& classDeclaration) {
+
+    }
+
+    void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+
+    }
+
+    void visitStatementDeclaration(AST::StatementDeclaration& statement) {
+
+    }
+
     bool duplicateDetected = false;
-    DeclarationTableVisitor(llvm::StringMap<AST::Declaration *>& table) : table{table} {}
+    DeclarationTableVisitor2(llvm::StringMap<AST::Declaration *>& table) : table{table} {}
 };
 
-class DeclarationCodeGen : public AST::DeclarationVisitor {
-
-};
-
-class StatementCodeGen : public AST::StatementVisitor {
+class DeclarationCodeGen : public AST::DeclarationVisitorT<DeclarationCodeGen, llvm::Value *> {
 
 };
 
-class ExpressionCodeGen : public AST::ExpressionVisitor {
+class StatementCodeGen : public AST::StatementVisitorT<StatementCodeGen, llvm::Value *> {
 
-    virtual void visitBinaryExpression(AST::BinaryExpression& binaryExpression) override {
+};
 
+class ExpressionCodeGen : public AST::ExpressionVisitorT<ExpressionCodeGen, llvm::Value *> {
+
+    llvm::Value *visitBinaryExpression(AST::BinaryExpression& binaryExpression) {
+        return nullptr;
     }
 
-    virtual void visitCallExpression(AST::CallExpression& callExpression) override {
-
+    llvm::Value *visitCallExpression(AST::CallExpression& callExpression) {
+        return nullptr;
     }
 
-    virtual void visitUnaryExpression(AST::UnaryExpression& unaryExpression) override {
-
+    llvm::Value *visitUnaryExpression(AST::UnaryExpression& unaryExpression) {
+        return nullptr;
     }
 
-    virtual void visitLiteral(AST::Literal& literal) override {
-
+    llvm::Value *visitLiteral(AST::Literal& literal) {
+        return nullptr;
     }
 };
 
-bool populateSymbolTable(std::vector<unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& table)
+bool populateSymbolTable(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& table)
 {
-    DeclarationTableVisitor visitor{table};
+    DeclarationTableVisitor2 visitor{table};
 
     for (const auto& declaration : declarations) {
         declaration->acceptVisitor(visitor);
@@ -164,7 +176,7 @@ bool populateSymbolTable(std::vector<unique_ptr<AST::Declaration>>& declarations
     return !visitor.duplicateDetected;
 }
 
-FunctionType *createFunctionType(AST::FunctionDeclaration& functionDeclaration)
+llvm::FunctionType *createFunctionType(AST::FunctionDeclaration& functionDeclaration)
 {
     llvm::Type *parameterTypes[functionDeclaration.getParameterCount()];
 
@@ -172,22 +184,21 @@ FunctionType *createFunctionType(AST::FunctionDeclaration& functionDeclaration)
         parameterTypes[i] = defaultType->type;
     }
 
-    auto a = ArrayRef(parameterTypes, functionDeclaration.getParameterCount());
-    return FunctionType::get(defaultType->type, a, false);
+    auto a = llvm::ArrayRef(parameterTypes, functionDeclaration.getParameterCount());
+    return llvm::FunctionType::get(defaultType->type, a, false);
 
 }
 
-std::unique_ptr<llvm::Module> generateCode(std::vector<unique_ptr<AST::Declaration>>& declarations)
+std::unique_ptr<llvm::Module> generateCode(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
 {
-    LLVMContext llvmContext;
+    llvm::LLVMContext llvmContext;
     instantiateDefaultType(llvmContext);
 
     llvm::StringMap<AST::Declaration *> globals;
 
     populateSymbolTable(declarations, globals);
 
-    auto module = std::make_unique<Module>("test", llvmContext);
-
+    auto module = std::make_unique<llvm::Module>("test", llvmContext);
 
     return module;
 }

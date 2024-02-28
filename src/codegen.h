@@ -4,6 +4,6 @@
 #import "AST.h"
 #import "llvm/IR/Module.h"
 
-std::unique_ptr<llvm::Module> generateCode(std::vector<unique_ptr<AST::Declaration>>& declarations);
+std::unique_ptr<llvm::Module> generateCode(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
 
 #endif // LANG_codegen_h

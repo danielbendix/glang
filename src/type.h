@@ -1,37 +1,44 @@
 #ifndef LANG_type_h
 #define LANG_type_h
 
+#include "common.h"
+
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 
-enum class TypeKind {
-    Primitive,
-    Class,
-    Struct,
-    Enum,
-    Protocol,
+enum TypeKind {
+    TK_Void,
+    TK_Boolean,
+    TK_Num_Integer,
+    TK_Num_Floating,
+    TK_Function,
+    TK_String,
+    TK_Struct,
+    TK_Class,
+    TK_Protocol,
 };
 
-enum class PrimitiveKind {
-    Boolean,
-    Integer,
-    Floating,
-    String,
+class Type {
+    TypeKind kind;
+protected:
+    Type(TypeKind kind) : kind{kind} {}
+
+public:
+    TypeKind getKind() const {
+        return kind;
+    }
 };
 
-class alignas(4) Type {
-    //int a;
-
+class VoidType : public Type {
+public:
+    VoidType() : Type{TK_Void} {}
 };
 
-class PrimitiveType : public Type {
-
-};
-
-class BooleanType : public PrimitiveType {
+class BooleanType : public Type {
     llvm::IntegerType *type;
 public:
-    BooleanType(llvm::IntegerType *type = nullptr) : type{type} {}
+    BooleanType(llvm::IntegerType *type = nullptr) : Type{TK_Boolean}, type{type} {}
 
     llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) {
         if (!type) {
@@ -39,17 +46,36 @@ public:
         }
         return type;
     }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Boolean;
+    }
 };
 
-class IntegerType : public PrimitiveType {
+class NumericType : public Type {
+protected:
+    using Type::Type;
+
+public:
+    static bool classof(const Type *type) {
+        TypeKind kind = type->getKind();
+        return kind == TK_Num_Integer || kind == TK_Num_Floating;
+    }
+};
+
+class IntegerType : public NumericType {
 public: // TODO: Remove
     unsigned bitWidth;
     bool isSigned;
 
-    llvm::IntegerType *type;
+    mutable llvm::IntegerType *type;
 
 public:
-    IntegerType(unsigned bitWidth, bool isSigned, llvm::IntegerType *type = nullptr) : bitWidth{bitWidth}, isSigned{isSigned}, type{type} {}
+    IntegerType(unsigned bitWidth, bool isSigned, llvm::IntegerType *type = nullptr) 
+        : NumericType{TK_Num_Integer}
+        , bitWidth{bitWidth}
+        , isSigned{isSigned}
+        , type{type} {}
 
     // FIXME: Currently this only supports positive values.
     // Signed integer types have an "extra" value in the negative because of two's complement.
@@ -65,7 +91,10 @@ public:
         return (64 - leadingZeros) <= bits;
     }
 
-    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) {
+    unsigned getBitWidth() const { return bitWidth; }
+    bool getIsSigned() const { return isSigned; }
+
+    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) const {
         if (!type) {
             type = llvm::Type::getIntNTy(context, bitWidth);
         }
@@ -73,20 +102,54 @@ public:
     }
 };
 
-class FloatingType : public PrimitiveType {
+class FunctionType : public Type {
+    Type *returnType;
+    std::vector<Type *> parameters;
+public:
+    FunctionType(Type *returnType, std::vector<Type *>&& parameters) : Type{TK_Function}, returnType{returnType}, parameters{std::move(parameters)} {}
+
+    Type *getReturnType() const {
+        return returnType;
+    }
+
+    int parameterCount() const {
+        return parameters.size();
+    }
+
+    Type *getParameter(int i) {
+        return parameters[i];
+    }
+
+    Type *getParameter(int i) const {
+        return parameters[i];
+    }
+
+    Iterable<Type *> getParameters() {
+        return Iterable<Type *>(parameters);
+    }
+
+    ConstIterable<Type *> getParameters() const {
+        return ConstIterable<Type *>(parameters);
+    }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Function;
+    }
+};
+
+class FloatingType : public NumericType {
     unsigned bitWidth;
     llvm::Type *type;
 
 public:
-    FloatingType(unsigned bitWidth, llvm::Type *type) : bitWidth{bitWidth}, type{type} {}
+    FloatingType(unsigned bitWidth, llvm::Type *type) 
+        : NumericType{TK_Num_Floating}
+        , bitWidth{bitWidth}
+        , type{type} {}
 };
 
-class StringType : public PrimitiveType {
-
-};
-
-class BuiltinType : public Type {
-
+class StringType : public Type {
+    StringType() : Type{TK_String} {}
 };
 
 void createPrimitiveTypes(llvm::LLVMContext& context, llvm::StringMap<Type>& table);

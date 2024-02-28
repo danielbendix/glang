@@ -5,6 +5,7 @@ add_executable(arith
     AST_Visitor.cpp
     scanner.cpp
     parser.cpp
+    namespace.cpp
     codegen.cpp
     type.cpp
     typecheck.cpp

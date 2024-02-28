@@ -1,9 +1,33 @@
+#include "AST.h"
+#include "AST_Visitor.h"
 #include "typecheck.h"
 #include "type.h"
-#include "AST.h"
 
+using llvm::dyn_cast;
+
+VoidType void_;
 BooleanType boolean;
 IntegerType signed64{64, true};
+
+Type *resolveType(AST::TypeNode& typeNode) {
+    if (AST::TypeLiteral* literal = dyn_cast<AST::TypeLiteral>(&typeNode)) {
+        if (literal->getName() == "int64") {
+            return &signed64;
+        } else if (literal->getName() == "int") {
+            return &signed64;
+        } else if (literal->getName() == "bool") {
+            return &boolean;
+        }
+        std::cout << "Unknown type literal: " << literal->getName() << "\n";
+    }
+    return &signed64;
+}
+
+/* For now, we implement type checking with the caveat that declarations must be in order,
+ * and not rely on types of later declarations for inference.
+ *
+ *
+ */
 
 template <typename T>
 struct Global {
@@ -135,65 +159,120 @@ public:
             return nullptr;
         }
     }
-
-    
 };
 
-
-
-Type *resolveType(AST::TypeNode& typeNode) {
-    if (AST::TypeLiteral* literal = dynamic_cast<AST::TypeLiteral*>(&typeNode)) {
-        if (literal->getName() == "int64") {
-            return &signed64;
-        } else if (literal->getName() == "bool") {
-            return &boolean;
-        }
-    }
-    return &signed64;
-}
-
-class DeclarationTypeChecker : public AST::DeclarationVisitor {
-
-
-};
-
-class ExpressionTypeChecker : public AST::ExpressionVisitor {
+class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, Type *> {
 
     ScopeManager<Type *>& scopeManager;
+    const Type * const declaredType;
+public:
 
     ExpressionTypeChecker(ScopeManager<Type *>& scopeManager, Type *declaredType) : scopeManager{scopeManager}, declaredType{declaredType} {}
 
-    const Type * const declaredType;
-    Type *returnValue;
     Type *typeCheckExpression(AST::Expression *expression) {
-        expression->acceptVisitor(*this);
-        return returnValue;
+        return expression->acceptVisitor(*this);
     }
 
-    virtual void visitUnaryExpression(AST::UnaryExpression& unaryExpression) override {
+    Type *visitUnaryExpression(AST::UnaryExpression& unary) {
+        Type *targetType = unary.getTarget().acceptVisitor(*this);
 
+        using enum AST::UnaryOperator;
+        switch (unary.getOp()) {
+            case Not:
+                if (targetType == &boolean) {
+                    return &boolean;
+                } else {
+                    return nullptr;
+                }
+            case Negate:
+                // Fixme ensure that type is numeric.
+                return targetType;
+        }
     }
 
-    virtual void visitBinaryExpression(AST::BinaryExpression& expression) override {
+    Type *visitBinaryExpression(AST::BinaryExpression& binary) {
+        Type *leftType = binary.getLeft().acceptVisitor(*this);
+        Type *rightType = binary.getRight().acceptVisitor(*this);
 
+
+        /* TODO: type checking integer and floating point types should 
+         * perhaps have an extra type for unconstrained types for literals. */
+
+        if (leftType != rightType) {
+            // TODO: Error
+            return nullptr;
+        }
+
+        using enum AST::BinaryOperator;
+        switch (binary.getOp()) {
+
+            case LogicalOr:
+            case LogicalAnd:
+                if (leftType != &boolean) {
+                    // TODO: Error
+                } else {
+                    return &boolean;
+                }
+            case Less:
+            case LessEqual:
+            case Greater:
+            case GreaterEqual:
+                break;
+
+            case Equal:
+            case NotEqual:
+                break;
+
+            case Add:
+                break;
+            case Subtract:
+            case Multiply:
+            case Divide:
+            case Modulo:
+                break;
+        }
+
+        binary.setType(leftType);
+        return leftType;
     }
 
-    virtual void visitCallExpression(AST::CallExpression& expression) override {
+    Type *visitCallExpression(AST::CallExpression& expression) {
+        // Verify that function exists, and call matches arity.
+        // Return return type of function.
+        auto type = expression.getTarget().acceptVisitor(*this);
+        if (FunctionType *functionType = dyn_cast<FunctionType>(type)) {
+            if (functionType->parameterCount() != expression.argumentCount()) {
+                return nullptr;
+            }
 
+            for (int i = 0; i < functionType->parameterCount(); ++i) {
+                Type *argumentType = expression.getArgument(i).acceptVisitor(*this);
+                Type *parameterType = functionType->getParameter(i);
+                if (argumentType != parameterType) {
+                    return nullptr;
+                }
+            }
+
+            Type *type = functionType->getReturnType();
+            expression.setType(type);
+            return type;
+        } else {
+            // TODO: Error
+            return nullptr;
+        }
     }
 
-    virtual void visitLiteral(AST::Literal& literal) override {
+    Type *visitLiteral(AST::Literal& literal) {
         using enum AST::Literal::Type;
         // TODO: Validate against declaration type.
         switch (literal.getLiteralType()) {
             case Boolean:
-                returnValue = &boolean;
-                break;
+                return &boolean;
             case Integer:
-                // TODO: Check declared integer type
+                // FIXME: Check declared integer type
                 // Can be converted to smaller integer types or a floating point value.
-                returnValue = &signed64;
-                break;
+                literal.setType(&signed64);
+                return &signed64;
             case Double:
                 std::cout << "Unsupported literal type: double";
                 exit(-1);
@@ -203,35 +282,154 @@ class ExpressionTypeChecker : public AST::ExpressionVisitor {
                 exit(-1);
                 break;
         }
-
     }
 
-    virtual void visitIdentifier(AST::Identifier& identifier) override {
-        returnValue = scopeManager.resolve(identifier.getName());
+    Type *visitIdentifier(AST::Identifier& identifier) {
+        return scopeManager.resolve(identifier.getName());
     }
-
 };
 
-class FunctionTypeChecker : public AST::DeclarationVisitor, public AST::StatementVisitor, public AST::ExpressionVisitor {
+// TODO: Make one combined declaration type checker, that has get and set variables, push and pop scopes
+
+class GlobalDeclarationTypeChecker : public AST::DeclarationVisitorT<GlobalDeclarationTypeChecker, bool> {
+
+    llvm::StringMap<AST::Declaration *>& globals;
+
+public:
+    GlobalDeclarationTypeChecker(llvm::StringMap<AST::Declaration *>& globals) : globals{globals} {}
+
+    bool visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        Type *declaredType = nullptr;
+        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
+            declaredType = resolveType(*typeDeclaration);
+        }
+
+        Type *initialType = nullptr;
+        if (AST::Expression *initial = variable.getInitialValue()) {
+            // TODO: Verify that declaration can be without value.
+        }
+
+        if (declaredType) {
+            variable.setType(declaredType);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        bool success = true;
+        if (auto returnTypeNode = function.getReturnType()) {
+            Type *returnType = resolveType(*returnTypeNode);
+            if (!returnType) success = false;
+            function.setReturnType(*returnType);
+        } else {
+            function.setReturnType(void_);
+        }
+
+        for (int i = 0; i < function.getParameterCount(); ++i) {
+            auto& parameter = function.getParameter(i);
+            Type *type = resolveType(*parameter.type.node());
+            if (!type) success = false;
+            parameter.type.setType(type);
+        }
+        return success;
+    }
+
+    bool visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        // Store type as struct type.
+    }
+
+    bool visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        // Store type as enum type.
+    }
+
+    bool visitClassDeclaration(AST::ClassDeclaration& classDeclaration) {
+        // Store type as class type.
+    }
+
+    bool visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        // Store type as protocol type.
+    }
+
+    bool visitStatementDeclaration(AST::StatementDeclaration& statement) {
+        // Should we allow top-level statements?
+    }
+};
+
+class DeclarationTypeChecker : public AST::DeclarationVisitorT<DeclarationTypeChecker, void> {
+
     ScopeManager<Type *> scopeManager;
 
-    virtual void visitVariableDeclaration(AST::VariableDeclaration& variable) override {
+    void visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        Type *declaredType = nullptr;
+        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
+            declaredType = resolveType(*typeDeclaration);
+        }
+
+        Type *initialType = nullptr;
+        if (AST::Expression *initial = variable.getInitialValue()) {
+            // TODO: Verify that declaration can be without value.
+            ExpressionTypeChecker checker{scopeManager, declaredType};
+            initialType = initial->acceptVisitor(checker);
+        }
+    }
+
+    void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        if (auto returnTypeNode = function.getReturnType()) {
+            Type *returnType = resolveType(*returnTypeNode);
+            function.setReturnType(*returnType);
+        } else {
+            function.setReturnType(void_);
+        }
+
+        for (int i = 0; i < function.getParameterCount(); ++i) {
+            auto& parameter = function.getParameter(i);
+            Type *type = resolveType(*parameter.type.node());
+            parameter.type.setType(type);
+        }
+        // Resolve type names, and create function type.
+    }
+
+    void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        // Store type as struct type.
+    }
+
+    void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        // Store type as enum type.
+    }
+
+    void visitClassDeclaration(AST::ClassDeclaration& classDeclaration) {
+        // Store type as class type.
+    }
+
+    void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        // Store type as protocol type.
+    }
+
+    void visitStatementDeclaration(AST::StatementDeclaration& statement) {
+        // Should we allow top-level statements?
+    }
+};
+
+
+class FunctionTypeChecker {
+    ScopeManager<Type *> scopeManager;
+
+    void visitVariableDeclaration(AST::VariableDeclaration& variable) {
         scopeManager.addLocal(variable.getName(), nullptr);
 
         Type *declaredType = nullptr;
-        if (AST::TypeNode *typeDeclaration = variable.getTypeDeclaration()) {
-            // Resolve type
+        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
+            resolveType(*typeDeclaration);
         }
 
-
+        Type *initialType = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
-            // Typecheck initial value
-
+            ExpressionTypeChecker checker{scopeManager, declaredType};
+            initialType = initial->acceptVisitor(checker);
         }
-
     }
-
-
 };
 
 template <class T>
@@ -241,45 +439,30 @@ concept TypeResolver = requires(T t, std::string& s)
     { t.getIdentifier(s) } -> std::same_as<Type *>;
 };
 
-template <TypeResolver T>
-class ExpressionChecker : public AST::ExpressionVisitor {
-
-    T& resolver;
-
-    virtual void visitUnaryExpression(AST::UnaryExpression& unaryExpression) override {
-
-    }
-
-    virtual void visitBinaryExpression(AST::BinaryExpression& expression) override {
-
-    }
-
-    virtual void visitCallExpression(AST::CallExpression& expression) override {
-
-    }
-
-    virtual void visitLiteral(AST::Literal& literal) override {
-
-    }
-
-    virtual void visitIdentifier(AST::Identifier& identifier) override {
-        Type *type = resolver(identifier.getName());
-
-
-
-    }
-};
-
-
-
-
-
-
-
-Type * typeCheckDeclaration(AST::Declaration& declaration)
+bool typeCheckDeclaration(AST::Declaration& declaration, llvm::StringMap<AST::Declaration *> globals)
 {
-    return nullptr;
+    return true;
 }
+
+bool typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals)
+{
+    GlobalDeclarationTypeChecker typeChecker{globals};
+    
+    bool success = true;
+    for (const auto& declaration : declarations) {
+        if (!declaration->acceptVisitor(typeChecker)) {
+            success = false;
+        }
+    }
+
+    return success;
+}
+
+bool typeCheckBodies(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals)
+{
+    
+}
+
 
 Type *typeCheckCondition(AST::Expression *expression)
 {

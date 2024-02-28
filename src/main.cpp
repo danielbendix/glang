@@ -1,12 +1,40 @@
 #include <fstream>
 #include <iostream>
 
-
-
 #include "scanner.h"
 #include "parser.h"
+#include "namespace.h"
+#include "typecheck.h"
 #include "AST.h"
 
+
+
+void compile(std::string&& string)
+{
+    auto parser = Parser{std::move(string)};
+
+    try {
+        auto pf = parser.parse();
+
+        auto globals = globalTable(pf.declarations);
+
+        for (const auto &d : pf.declarations) {
+            std::cout << *d;
+        }
+
+        bool typeCheckedGlobals = typeCheckDeclarations(pf.declarations, *globals);
+
+
+        std::cout << typeCheckedGlobals;
+
+
+    } catch (ParserException exception) {
+        std::cout << "EXCEPTION CAUGHT:\n";
+        std::cout << int(exception.cause) << "\n";
+        std::cout << exception.token.line << ":" << exception.token.offset;
+        std::cout << exception.token.chars << "\n";
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -19,28 +47,5 @@ int main(int argc, char **argv)
 
     std::ifstream file(filename, std::ios::in | std::ios::binary);
     std::string testString((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
-    auto parser = Parser{std::move(testString)};
-
-    try {
-        auto pf = parser.parse();
-        for (const auto &d : pf.declarations) {
-            std::cout << *d;
-        }
-    } catch (ParserException exception) {
-        std::cout << "EXCEPTION CAUGHT:\n";
-        std::cout << int(exception.cause) << "\n";
-        std::cout << exception.token.line << ":" << exception.token.offset;
-        std::cout << exception.token.chars << "\n";
-    }
-
-    return 0;
-    std::cout << testString << "\n";
-    Scanner scanner(std::move(testString));
-
-    Token t = scanner.next();
-    while (t.type != TokenType::EndOfFile) {
-        std::cout << t.chars << " " << int(t.type) << "\n";
-        t = scanner.next();
-    }
+    compile(std::move(testString));
 }

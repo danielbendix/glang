@@ -7,9 +7,9 @@
 struct ParsedFile {
     //std::string path;
 public:
-    std::vector<unique_ptr<AST::Declaration>> declarations;
+    std::vector<AST::unique_ptr<AST::Declaration>> declarations;
 
-    ParsedFile(std::vector<unique_ptr<AST::Declaration>>&& declarations) : declarations{std::move(declarations)} {}
+    ParsedFile(std::vector<AST::unique_ptr<AST::Declaration>>&& declarations) : declarations{std::move(declarations)} {}
 };
 
 enum class Precedence;
@@ -39,7 +39,8 @@ public:
     ParserException(Token token, Cause cause) : cause{cause}, token{token}  {}
 };
 
-using std::unique_ptr;
+template <typename T>
+using unique_ptr = AST::unique_ptr<T>;
 
 class Parser {
 //private:
@@ -94,7 +95,7 @@ public:
     unique_ptr<AST::Expression> binaryExpression();
 
     // Expression helpers
-    std::unique_ptr<AST::Expression> parseExpression(Precedence precedence);
+    unique_ptr<AST::Expression> parseExpression(Precedence precedence);
 
     [[nodiscard]]
     unique_ptr<AST::Expression> call(unique_ptr<AST::Expression>&& left);
