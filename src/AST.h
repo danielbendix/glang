@@ -137,46 +137,6 @@ namespace AST {
         }
     };
 
-    // TODO: Replce with PointerUnion from LLVM
-    class TypeRef {
-        llvm::PointerUnion<TypeNode *, Type *> internal;
-
-    public:
-        ~TypeRef() {
-            if (TypeNode *p = internal.dyn_cast<TypeNode *>()) {
-                Node::deleteNode(p);
-            }
-        }
-
-        TypeRef(const TypeRef&) = delete;
-        TypeRef& operator=(const TypeRef&) = delete;
-        TypeRef(TypeRef&& typeRef) {
-            internal = typeRef.internal;
-            typeRef.internal = nullptr;
-        }
-
-        TypeRef(TypeNode *node) : internal{} {
-            internal = node;
-        }
-        TypeRef(unique_ptr<TypeNode>&& node) : internal{} {
-            internal = node.release();
-        }
-
-        void setType(Type *type) {
-            if (TypeNode *p = internal.dyn_cast<TypeNode *>()) {
-                Node::deleteNode(p);
-            }
-            internal = type;
-        }
-
-        TypeNode *node() const {
-            return internal.get<TypeNode *>();
-        }
-
-        Type *type() const {
-            return internal.get<Type *>();
-        }
-    };
     // Utilities
     
     class Declaration;
@@ -640,7 +600,8 @@ namespace AST {
     class VariableDeclaration : public Declaration {
     protected:
         std::string identifier;
-        TypeRef type;
+        Type* type = nullptr;
+        unique_ptr<TypeNode> typeDeclaration;
         unique_ptr<Expression> initial;
         bool isMutable;
 
@@ -650,7 +611,7 @@ namespace AST {
             std::string&& identifier, 
             unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& initial
-        ) : Declaration{NK_Decl_Variable, token}, isMutable{isMutable}, identifier{std::move(identifier)}, type{std::move(type)}, initial{std::move(initial)} {}
+        ) : Declaration{NK_Decl_Variable, token}, isMutable{isMutable}, identifier{std::move(identifier)}, typeDeclaration{std::move(type)}, initial{std::move(initial)} {}
         
         virtual void print(PrintContext& pc) const override;
 
@@ -674,15 +635,15 @@ namespace AST {
         }
 
         TypeNode *getTypeDeclaration() const {
-            return type.node();
+            return typeDeclaration.get();
         }
 
         Type *getType() const {
-            return type.type();
+            return type;
         }
 
-        void setType(Type *type) {
-            this->type.setType(type);
+        void setType(Type& type) {
+            this->type = &type;
         }
 
         static bool classof(const Node *node) {
@@ -695,9 +656,10 @@ namespace AST {
         class Parameter {
         public:
             std::string name;
-            TypeRef type;
+            unique_ptr<TypeNode> typeDeclaration;
+            Type *type = nullptr;
             
-            Parameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+            Parameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
             //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
             //Parameter& operator=(Parameter&& parameter) = default;
         };
@@ -705,7 +667,8 @@ namespace AST {
         std::string name;
         std::vector<Parameter> parameters;
         int arity;
-        TypeRef returnType;
+        unique_ptr<TypeNode> returnTypeDeclaration;
+        Type *returnType;
         std::vector<unique_ptr<Declaration>> declarations;
 
         FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) 
@@ -713,7 +676,7 @@ namespace AST {
             , name{token.chars}
             , parameters{std::move(parameters)}
             , arity{int(this->parameters.size())}
-            , returnType{std::move(returnType)}
+            , returnTypeDeclaration{std::move(returnType)}
             , declarations{std::move(declarations)} {}
 
         virtual void print(PrintContext& pc) const override;
@@ -726,12 +689,12 @@ namespace AST {
             return name;
         }
 
-        TypeNode *getReturnType() const {
-            return returnType.node();
+        TypeNode *getReturnTypeDeclaration() const {
+            return returnTypeDeclaration.get();
         }
 
         void setReturnType(Type& type) {
-            returnType.setType(&type);
+            returnType = &type;
         }
 
         int getParameterCount() const {
@@ -755,9 +718,10 @@ namespace AST {
     public:
         class Field {
             std::string name;
-            TypeRef type;
+            unique_ptr<TypeNode> typeDeclaration;
+            Type *type;
 
-            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
         };
 
     protected:
@@ -790,9 +754,10 @@ namespace AST {
     public:
         class Field {
             std::string name;
-            TypeRef type;
+            unique_ptr<TypeNode> typeDeclaration;
+            Type *type;
 
-            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
         };
 
         virtual void print(PrintContext& pc) const override;

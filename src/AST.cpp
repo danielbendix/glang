@@ -137,11 +137,11 @@ namespace AST {
         pc << "fun " << name << "(";
         for (auto& p : parameters) {
             // This could fail after type checking
-            pc << p.name << ": " << *p.type.node();
+            pc << p.name << ": " << *p.typeDeclaration;
         }
         pc << ")";
-        if (returnType.node()) {
-            pc << " -> " << *returnType.node();
+        if (returnTypeDeclaration) {
+            pc << " -> " << *returnTypeDeclaration;
         }
         pc << " {\n";
         pc.indent();
@@ -240,8 +240,8 @@ namespace AST {
     void VariableDeclaration::print(PrintContext& pc) const {
         pc.startLine();
         pc << (isMutable ? "var " : "let ") << identifier;
-        if (type.node()) {
-            pc << ": " << *type.node();
+        if (typeDeclaration) {
+            pc << ": " << *typeDeclaration;
         }
         if (initial) {
             pc << " = " << *initial;

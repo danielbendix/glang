@@ -310,7 +310,7 @@ public:
         }
 
         if (declaredType) {
-            variable.setType(declaredType);
+            variable.setType(*declaredType);
             return true;
         } else {
             return false;
@@ -319,7 +319,7 @@ public:
 
     bool visitFunctionDeclaration(AST::FunctionDeclaration& function) {
         bool success = true;
-        if (auto returnTypeNode = function.getReturnType()) {
+        if (auto returnTypeNode = function.getReturnTypeDeclaration()) {
             Type *returnType = resolveType(*returnTypeNode);
             if (!returnType) success = false;
             function.setReturnType(*returnType);
@@ -329,9 +329,9 @@ public:
 
         for (int i = 0; i < function.getParameterCount(); ++i) {
             auto& parameter = function.getParameter(i);
-            Type *type = resolveType(*parameter.type.node());
+            Type *type = resolveType(*parameter.typeDeclaration);
             if (!type) success = false;
-            parameter.type.setType(type);
+            parameter.type = type;
         }
         return success;
     }
@@ -376,7 +376,7 @@ class DeclarationTypeChecker : public AST::DeclarationVisitorT<DeclarationTypeCh
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
-        if (auto returnTypeNode = function.getReturnType()) {
+        if (auto returnTypeNode = function.getReturnTypeDeclaration()) {
             Type *returnType = resolveType(*returnTypeNode);
             function.setReturnType(*returnType);
         } else {
@@ -385,8 +385,8 @@ class DeclarationTypeChecker : public AST::DeclarationVisitorT<DeclarationTypeCh
 
         for (int i = 0; i < function.getParameterCount(); ++i) {
             auto& parameter = function.getParameter(i);
-            Type *type = resolveType(*parameter.type.node());
-            parameter.type.setType(type);
+            Type *type = resolveType(*parameter.typeDeclaration);
+            parameter.type = type;
         }
         // Resolve type names, and create function type.
     }
