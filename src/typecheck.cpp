@@ -1,7 +1,14 @@
 #include "AST.h"
 #include "AST_Visitor.h"
+#include "diagnostic.h"
 #include "typecheck.h"
 #include "type.h"
+
+
+#include "llvm/ADT/TypeSwitch.h"
+
+using enum PassResultKind;
+using Result = PassResult;
 
 using llvm::dyn_cast;
 
@@ -23,161 +30,84 @@ Type *resolveType(AST::TypeNode& typeNode) {
     return &signed64;
 }
 
-/* For now, we implement type checking with the caveat that declarations must be in order,
- * and not rely on types of later declarations for inference.
- *
- *
- */
-
-template <typename T>
-struct Global {
-    bool isExternal;
-
-    T meta;
-
-    T& get() {
-        return meta;
-    }
-};
-
-template <typename Metadata>
-struct Local {
-    const std::string& name;
-    int scope;
-    int depth;
-    int shadows;
-
-    Metadata meta;
-
-    Metadata& get() {
-        return meta;
-    }
-
-    Local(const std::string& name, int scope, int depth, int shadows, Metadata meta) 
-        : name{name}
-        , scope{scope}
-        , depth{depth}
-        , shadows{shadows}
-        , meta{meta} {}
-};
-
-enum class ScopedVariableType {
-    Global,
-    Local,
-};
-
-template <typename Metadata>
-class ScopedVariable {
-    Metadata metadata;
-
-    Metadata& get() {
-        return metadata;
-    }
-    virtual const Metadata& get() const {
-        return metadata;
-    }
-};
-
-template <typename Metadata>
-class ScopeManager2 {
-
-
-};
-
-template <typename Metadata>
-class ScopeManager {
-    int currentScope;
-    int currentDepth;
-
-    llvm::StringMap<int> symbols;
-    std::vector<Local<Metadata>> locals;
-
+class ExpressionAssignmentTypeChecker : public AST::ExpressionVisitorT<ExpressionAssignmentTypeChecker, Type *> {
+    DiagnosticWriter& diagnostic;
+    // TODO: We need an expression type checker once we implement member access.
+    
 public:
-    void pushScope() {
-        currentDepth += 1;
-    }
+    ExpressionAssignmentTypeChecker(DiagnosticWriter& diagnostic) : diagnostic{diagnostic} {}
 
-    void popScope() {
-        for (int i = locals.size() - 1; i >= 0; --i) {
-            if (locals[i].depth == currentDepth) {
-                int shadows = locals[i].shadows;
-                if (shadows != -1) {
-                    symbols.insert_or_assign(locals[i].name, shadows);
-                }
-                locals.pop_back();
-            }
-        }
-    }
-
-    void addLocal(const std::string& name, Metadata meta) {
-        auto it = symbols.find(name);
-
-        if (it != symbols.end()) {
-            int shadows = it->getValue();
-            it->setValue(locals.size());
-            locals.emplace_back(name, currentScope, currentDepth, shadows, meta);
-        } else {
-            symbols.insert(std::make_pair(name, locals.size()));
-            locals.emplace_back(name, currentScope, currentDepth, -1, meta);
-        }
-    }
-
-    void addLocal(const std::string& name) {
-        addLocal(name, Metadata{});
-    }
-
-    // TODO: Figure out how this works
-    template <typename M = Metadata, typename = std::enable_if_t<!std::is_pointer_v<M>>>
-    Metadata& resolve(const std::string& name) {
-        auto it = symbols.find(name);
-
-        if (it != symbols.end()) {
-            int index = it->getValue();
-            if (index >= 0) {
-                return locals[index].meta;
-            } else {
-
-            }
-        } else {
-            return Metadata{};
-        }
-    }
-
-    template <typename M = Metadata, typename = std::enable_if_t<std::is_pointer_v<M>>>
-    Metadata resolve(const std::string& name) {
-        auto it = symbols.find(name);
-
-        if (it != symbols.end()) {
-            int index = it->getValue();
-            if (index >= 0) {
-                return locals[index].meta;
-            } else {
-                // TODO: return global
-                return nullptr;
-            }
-        } else {
-            return nullptr;
-        }
-    }
-};
-
-class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, Type *> {
-
-    ScopeManager<Type *>& scopeManager;
-    const Type * const declaredType;
-public:
-
-    ExpressionTypeChecker(ScopeManager<Type *>& scopeManager, Type *declaredType) : scopeManager{scopeManager}, declaredType{declaredType} {}
-
-    Type *typeCheckExpression(AST::Expression *expression) {
-        return expression->acceptVisitor(*this);
+    Type *typeCheckExpression(AST::Expression& expression) {
+        return expression.acceptVisitor(*this);
     }
 
     Type *visitUnaryExpression(AST::UnaryExpression& unary) {
-        Type *targetType = unary.getTarget().acceptVisitor(*this);
+        diagnostic.error(unary, "Cannot assign to result of unary expression.");
+        return nullptr;
+    }
+
+    Type *visitBinaryExpression(AST::BinaryExpression& binary) {
+        diagnostic.error(binary, "Cannot assign to result of binary expression.");
+        return nullptr;
+    }
+
+    Type *visitCallExpression(AST::CallExpression& call) {
+        diagnostic.error(call, "Cannot assign to result of function call.");
+        return nullptr;
+    }
+
+    Type *visitLiteral(AST::Literal& literal) {
+        diagnostic.error(literal, "Cannot assign to literal.");
+        return nullptr;
+    }
+
+    Type *visitIdentifier(AST::Identifier& identifier) {
+        auto* resolution = identifier.getResolution();
+        Type *type = llvm::TypeSwitch<IdentifierResolution *, Type *>(resolution)
+            .Case<LocalResolution>([this, &identifier](auto local) {
+                auto &var = local->getVariableDeclaration();
+                if (var.getIsMutable()) {
+                    return local->getVariableDeclaration().getType();
+                } else {
+                    // TODO: Should this have the entire assignment statement?
+                    diagnostic.error(identifier, "Cannot assign to let constant.");
+                    return (Type *) nullptr;
+                }
+            })
+            .Case<FunctionResolution>([this, &identifier](auto functionResolution) {
+                diagnostic.error(identifier, "Cannot assign to global function. Functions are immutable.");
+                return nullptr;
+            })
+            .Case<FunctionParameterResolution>([this, &identifier](auto parameter) {
+                diagnostic.error(identifier, "Cannot assign to function parameter.");
+                return nullptr;
+                //return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
+            })
+        ;
+        identifier.setType(type);
+        return type;
+    }
+};
+
+class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, Type *, Type *> {
+
+    DiagnosticWriter& diagnostic;
+
+public:
+    ExpressionTypeChecker(DiagnosticWriter& diagnostic) : diagnostic{diagnostic} {}
+
+    Type *typeCheckExpression(AST::Expression& expression, Type *declaredType = nullptr) {
+        return expression.acceptVisitor(*this, declaredType);
+    }
+
+    Type *visitUnaryExpression(AST::UnaryExpression& unary, Type *declaredType) {
+        // TODO: Just passing on the declared type will not be sufficient
+        Type *targetType = unary.getTarget().acceptVisitor(*this, declaredType);
 
         using enum AST::UnaryOperator;
         switch (unary.getOp()) {
+            case AddressOf:
+                assert(false);
             case Not:
                 if (targetType == &boolean) {
                     return &boolean;
@@ -190,25 +120,26 @@ public:
         }
     }
 
-    Type *visitBinaryExpression(AST::BinaryExpression& binary) {
-        Type *leftType = binary.getLeft().acceptVisitor(*this);
-        Type *rightType = binary.getRight().acceptVisitor(*this);
-
+    Type *visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
+        Type *leftType = typeCheckExpression(binary.getLeft());
+        Type *rightType = typeCheckExpression(binary.getRight());
 
         /* TODO: type checking integer and floating point types should 
          * perhaps have an extra type for unconstrained types for literals. */
 
         if (leftType != rightType) {
+
+            std::cout << "Non-matching types in binary operation.\n" << leftType->getKind() << " " << rightType->getKind() << "\n";
             // TODO: Error
             return nullptr;
         }
 
         using enum AST::BinaryOperator;
         switch (binary.getOp()) {
-
             case LogicalOr:
             case LogicalAnd:
                 if (leftType != &boolean) {
+                    return nullptr;
                     // TODO: Error
                 } else {
                     return &boolean;
@@ -217,18 +148,29 @@ public:
             case LessEqual:
             case Greater:
             case GreaterEqual:
+                if (leftType != &signed64) {
+                    diagnostic.error(binary, "Attempting to compare non-integer types.");
+                    return nullptr;
+                } else {
+                    return &boolean;
+                }
                 break;
 
             case Equal:
             case NotEqual:
+                return &boolean;
                 break;
-
             case Add:
-                break;
             case Subtract:
             case Multiply:
             case Divide:
             case Modulo:
+                if (leftType != &signed64) {
+                    diagnostic.error(binary, "Attempting to perform arithmetic on non-integer types.");
+                    return nullptr;
+                } else {
+                    return &signed64;
+                }
                 break;
         }
 
@@ -236,33 +178,36 @@ public:
         return leftType;
     }
 
-    Type *visitCallExpression(AST::CallExpression& expression) {
+    Type *visitCallExpression(AST::CallExpression& call, Type *declaredType) {
         // Verify that function exists, and call matches arity.
         // Return return type of function.
-        auto type = expression.getTarget().acceptVisitor(*this);
+        auto type = typeCheckExpression(call.getTarget());
         if (FunctionType *functionType = dyn_cast<FunctionType>(type)) {
-            if (functionType->parameterCount() != expression.argumentCount()) {
+            if (functionType->parameterCount() != call.argumentCount()) {
+                std::cout << "Non-matching number of arguments in call.";
                 return nullptr;
             }
 
+            // This needs to be whether one type can be converted to the other.
             for (int i = 0; i < functionType->parameterCount(); ++i) {
-                Type *argumentType = expression.getArgument(i).acceptVisitor(*this);
+                Type *argumentType = typeCheckExpression(call.getArgument(i));
                 Type *parameterType = functionType->getParameter(i);
                 if (argumentType != parameterType) {
+                    std::cout << "Wrong argument type in call." << argumentType->getKind() << " " << parameterType->getKind();
                     return nullptr;
                 }
             }
 
             Type *type = functionType->getReturnType();
-            expression.setType(type);
+            call.setType(type);
             return type;
         } else {
-            // TODO: Error
+            diagnostic.error(call, "Attempting to call non-function value.");
             return nullptr;
         }
     }
 
-    Type *visitLiteral(AST::Literal& literal) {
+    Type *visitLiteral(AST::Literal& literal, Type *declaredType) {
         using enum AST::Literal::Type;
         // TODO: Validate against declaration type.
         switch (literal.getLiteralType()) {
@@ -274,34 +219,59 @@ public:
                 literal.setType(&signed64);
                 return &signed64;
             case Double:
-                std::cout << "Unsupported literal type: double";
+                diagnostic.error(literal, "Floating-point literals are currently not supported.");
                 exit(-1);
                 break;
             case String:
-                std::cout << "Unsupported literal type: string";
+                diagnostic.error(literal, "String literals are currently not supported.");
                 exit(-1);
                 break;
         }
     }
 
-    Type *visitIdentifier(AST::Identifier& identifier) {
-        return scopeManager.resolve(identifier.getName());
+    Type *visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
+        auto* resolution = identifier.getResolution();
+        Type *type = llvm::TypeSwitch<IdentifierResolution *, Type *>(resolution)
+            .Case<LocalResolution>([](auto local) {
+                return local->getVariableDeclaration().getType();
+            })
+            .Case<FunctionResolution>([](auto functionResolution) {
+                AST::FunctionDeclaration *function = functionResolution->getFunctionDeclaration();
+                return function->getType();
+//                std::vector<Type *> parameterTypes;
+//                for (int i = 0; i < function->getParameterCount(); ++i) {
+//                    parameterTypes.push_back(function->getParameter(i).type);
+//                }
+//                // FIXME: THIS IS A LEAK
+//                return new FunctionType(function->getReturnType(), std::move(parameterTypes));
+            })
+            .Case<FunctionParameterResolution>([](auto parameter) {
+                return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
+            })
+        ;
+        identifier.setType(type);
+        return type;
     }
 };
 
-// TODO: Make one combined declaration type checker, that has get and set variables, push and pop scopes
+class GlobalDeclarationTypeChecker : public AST::DeclarationVisitorT<GlobalDeclarationTypeChecker, Result> {
 
-class GlobalDeclarationTypeChecker : public AST::DeclarationVisitorT<GlobalDeclarationTypeChecker, bool> {
-
+    DiagnosticWriter& diagnostic;
     llvm::StringMap<AST::Declaration *>& globals;
 
-public:
-    GlobalDeclarationTypeChecker(llvm::StringMap<AST::Declaration *>& globals) : globals{globals} {}
+    // TODO: Add check stack here, to support recursive checking.
 
-    bool visitVariableDeclaration(AST::VariableDeclaration& variable) {
+public:
+    GlobalDeclarationTypeChecker(llvm::StringMap<AST::Declaration *>& globals, DiagnosticWriter& diagnostic) : globals{globals}, diagnostic{diagnostic} {}
+
+    Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
             declaredType = resolveType(*typeDeclaration);
+            if (!declaredType) {
+                std::cout << "Unable to resolve type annotation.\n";
+                return ERROR;
+            }
         }
 
         Type *initialType = nullptr;
@@ -311,96 +281,129 @@ public:
 
         if (declaredType) {
             variable.setType(*declaredType);
-            return true;
+            return OK;
         } else {
-            return false;
+            return ERROR;
         }
     }
 
-    bool visitFunctionDeclaration(AST::FunctionDeclaration& function) {
-        bool success = true;
+    Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        Result result = OK;
+        Type *returnType;
         if (auto returnTypeNode = function.getReturnTypeDeclaration()) {
-            Type *returnType = resolveType(*returnTypeNode);
-            if (!returnType) success = false;
-            function.setReturnType(*returnType);
+            returnType = resolveType(*returnTypeNode);
+            if (!returnType) {
+                result = ERROR;
+                // TODO: Emit error
+            }
         } else {
-            function.setReturnType(void_);
+            returnType = &void_;
         }
+
+        std::vector<Type *> parameterTypes;
+        parameterTypes.reserve(function.getParameterCount());
 
         for (int i = 0; i < function.getParameterCount(); ++i) {
             auto& parameter = function.getParameter(i);
             Type *type = resolveType(*parameter.typeDeclaration);
-            if (!type) success = false;
+            if (!type) {
+                result = ERROR;
+                // TODO: Emit error
+            }
             parameter.type = type;
+            parameterTypes.push_back(type);
         }
-        return success;
+        if (result.ok()) {
+            auto* functionType = new FunctionType{returnType, std::move(parameterTypes)};
+            function.setType(*functionType);
+        }
+        return result;
     }
 
-    bool visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+    Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        assert(false);
         // Store type as struct type.
     }
 
-    bool visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+    Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        assert(false);
         // Store type as enum type.
     }
 
-    bool visitClassDeclaration(AST::ClassDeclaration& classDeclaration) {
-        // Store type as class type.
-    }
-
-    bool visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+    Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        assert(false);
         // Store type as protocol type.
     }
 
-    bool visitStatementDeclaration(AST::StatementDeclaration& statement) {
+    Result visitStatementDeclaration(AST::StatementDeclaration& statement) {
+        assert(false);
         // Should we allow top-level statements?
     }
 };
 
-class DeclarationTypeChecker : public AST::DeclarationVisitorT<DeclarationTypeChecker, void> {
+class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker, void>, public AST::StatementVisitorT<FunctionTypeChecker, void> {
 
-    ScopeManager<Type *> scopeManager;
+    Result result;
+    AST::FunctionDeclaration *currentFunction;
+
+    DiagnosticWriter& diagnostic;
+
+    void visitBlock(const AST::Block& block) {
+        for (int bi = 0; bi < block.size(); bi++) {
+            block[bi].acceptVisitor(*this);
+        }
+    }
+
+public:
+    FunctionTypeChecker(DiagnosticWriter& diagnostic) : result{OK}, diagnostic{diagnostic} {}
+
+    Result typeCheckFunctionBody(AST::FunctionDeclaration& function) {
+        result = OK;
+        currentFunction = &function;
+        for (auto& declaration : function.getCode()) {
+            declaration.acceptVisitor(*this);
+        }
+        return result;
+    }
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
             declaredType = resolveType(*typeDeclaration);
+
+            if (!declaredType) {
+                diagnostic.error(*typeDeclaration, "Unable to resolve type declaration.");
+                // TODO: Emit error
+                result = ERROR;
+                return;
+            }
         }
 
         Type *initialType = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
-            // TODO: Verify that declaration can be without value.
-            ExpressionTypeChecker checker{scopeManager, declaredType};
-            initialType = initial->acceptVisitor(checker);
+            ExpressionTypeChecker checker{diagnostic};
+            initialType = checker.typeCheckExpression(*initial);
+
+            if (!initialType) {
+                // TODO: Remove
+                diagnostic.error(*initial, "Unable to resolve type for expression.");
+                result = ERROR;
+            }
         }
+
+        variable.setType(*initialType);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
-        if (auto returnTypeNode = function.getReturnTypeDeclaration()) {
-            Type *returnType = resolveType(*returnTypeNode);
-            function.setReturnType(*returnType);
-        } else {
-            function.setReturnType(void_);
-        }
-
-        for (int i = 0; i < function.getParameterCount(); ++i) {
-            auto& parameter = function.getParameter(i);
-            Type *type = resolveType(*parameter.typeDeclaration);
-            parameter.type = type;
-        }
-        // Resolve type names, and create function type.
+        assert(false);
     }
 
     void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-        // Store type as struct type.
+        assert(false);
     }
 
     void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
         // Store type as enum type.
-    }
-
-    void visitClassDeclaration(AST::ClassDeclaration& classDeclaration) {
-        // Store type as class type.
     }
 
     void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
@@ -408,28 +411,85 @@ class DeclarationTypeChecker : public AST::DeclarationVisitorT<DeclarationTypeCh
     }
 
     void visitStatementDeclaration(AST::StatementDeclaration& statement) {
-        // Should we allow top-level statements?
+        statement.getStatement().acceptVisitor(*this);
     }
-};
 
+    // Statements
 
-class FunctionTypeChecker {
-    ScopeManager<Type *> scopeManager;
-
-    void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        scopeManager.addLocal(variable.getName(), nullptr);
-
-        Type *declaredType = nullptr;
-        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
-            resolveType(*typeDeclaration);
+    void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
+        ExpressionAssignmentTypeChecker assignmentChecker{diagnostic};
+        ExpressionTypeChecker typeChecker{diagnostic};
+        Type *targetType = assignmentChecker.typeCheckExpression(assignment.getTarget());
+        if (!targetType) {
+            result = ERROR;
         }
-
-        Type *initialType = nullptr;
-        if (AST::Expression *initial = variable.getInitialValue()) {
-            ExpressionTypeChecker checker{scopeManager, declaredType};
-            initialType = initial->acceptVisitor(checker);
+        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), targetType);
+        if (!valueType) {
+            result = ERROR;
         }
     }
+
+    void visitIfStatement(AST::IfStatement& ifStatement) {
+        ExpressionTypeChecker typeChecker{diagnostic};
+        for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
+            auto& branch = ifStatement.getCondition(ci);
+            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), &boolean);
+            if (!type) {
+                result = ERROR;
+            } else if (type != &boolean) {
+                diagnostic.error(branch.getCondition(), "Condition in if statement is not a boolean");
+                result = ERROR;
+            }
+            visitBlock(branch.getBlock());
+        }
+        if (auto* fallback = ifStatement.getFallback()) {
+            visitBlock(*fallback);
+        }
+    }
+
+    void visitReturnStatement(AST::ReturnStatement& returnStatement) {
+        Type *returnType = currentFunction->getReturnType();
+        if (auto* value = returnStatement.getValue()) {
+            if (returnType == &void_) {
+                diagnostic.error(returnStatement, "Returning non-void value in function with void return type.");
+                result = ERROR;
+            }
+            ExpressionTypeChecker typeChecker{diagnostic};
+            Type *type = typeChecker.typeCheckExpression(*value,  currentFunction->getReturnType());
+            if (!type) {
+                result = ERROR;
+            }
+        } else {
+            if (currentFunction->getReturnType() != &void_) {
+                diagnostic.error(returnStatement, "No return value in function with non-void return type.");
+                result = ERROR;
+            }
+        }
+    }
+
+    void visitWhileStatement(AST::WhileStatement& whileStatement) {
+        ExpressionTypeChecker typeChecker{diagnostic};
+        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), &boolean);
+        if (!type) {
+            result = ERROR;
+        }
+        visitBlock(whileStatement.getBlock());
+    }
+
+    void visitForStatement(AST::ForStatement& forStatement) {
+        // TODO: Implement this.
+    }
+
+    void visitExpressionStatement(AST::ExpressionStatement& expression) {
+        ExpressionTypeChecker typeChecker{diagnostic};
+        Type *type = typeChecker.typeCheckExpression(expression.getExpression(), nullptr);
+        if (!type) {
+            result = ERROR;
+        } else if (type != &void_) {
+            std::cout << "Discarding non-void result.";
+        }
+    }
+    
 };
 
 template <class T>
@@ -439,38 +499,22 @@ concept TypeResolver = requires(T t, std::string& s)
     { t.getIdentifier(s) } -> std::same_as<Type *>;
 };
 
-bool typeCheckDeclaration(AST::Declaration& declaration, llvm::StringMap<AST::Declaration *> globals)
+PassResult typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals, DiagnosticWriter& diagnostic)
 {
-    return true;
-}
-
-bool typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals)
-{
-    GlobalDeclarationTypeChecker typeChecker{globals};
-    
-    bool success = true;
+    GlobalDeclarationTypeChecker typeChecker{globals, diagnostic};
+   
+    PassResult result = OK;
     for (const auto& declaration : declarations) {
-        if (!declaration->acceptVisitor(typeChecker)) {
-            success = false;
+        result |= declaration->acceptVisitor(typeChecker);
+    }
+
+    FunctionTypeChecker bodyTypeChecker{diagnostic};
+
+    for (const auto& declaration : declarations) {
+        if (auto* function = dyn_cast<AST::FunctionDeclaration>(declaration.get())) {
+            result |= bodyTypeChecker.typeCheckFunctionBody(*function);
         }
     }
 
-    return success;
-}
-
-bool typeCheckBodies(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals)
-{
-    
-}
-
-
-Type *typeCheckCondition(AST::Expression *expression)
-{
-    // Verify that condition is boolean variable or comparison binary operator
-    return &boolean;
-}
-
-Type *typeCheckExpression(AST::Expression *condition)
-{
-    return nullptr;
+    return result;
 }

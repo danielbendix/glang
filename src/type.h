@@ -5,6 +5,7 @@
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Type.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
 enum TypeKind {
@@ -21,12 +22,28 @@ enum TypeKind {
 
 class Type {
     TypeKind kind;
+    mutable llvm::Type *llvmType;
+    
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context);
+
 protected:
     Type(TypeKind kind) : kind{kind} {}
 
 public:
     TypeKind getKind() const {
         return kind;
+    }
+
+    llvm::Type *getLLVMType(llvm::LLVMContext& context) {
+        if (llvmType) {
+            return llvmType;
+        } else {
+            return (llvmType = _getLLVMType(context));
+        }
+    }
+
+    bool isVoid() {
+        return kind == TK_Void;
     }
 };
 
@@ -102,6 +119,8 @@ public:
     }
 };
 
+#include <iostream>
+
 class FunctionType : public Type {
     Type *returnType;
     std::vector<Type *> parameters;
@@ -123,6 +142,8 @@ public:
     Type *getParameter(int i) const {
         return parameters[i];
     }
+
+    llvm::FunctionType *getFunctionType(llvm::LLVMContext& context);
 
     Iterable<Type *> getParameters() {
         return Iterable<Type *>(parameters);

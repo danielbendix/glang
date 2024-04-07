@@ -1,10 +1,11 @@
 #ifndef LANG_typecheck_h
 #define LANG_typecheck_h
 
-#include "AST.h"
+#include "common.h"
 
-bool typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals);
-Type *typeCheckCondition(AST::Expression *expression);
-Type *typeCheckExpression(AST::Expression *condition);
+#include "AST.h"
+#include "diagnostic.h"
+
+PassResult typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals, DiagnosticWriter& diagnostic);
 
 #endif // LANG_typecheck_h

@@ -1,7 +1,9 @@
 #ifndef LANG_ast_h
 #define LANG_ast_h
 
+#include "common.h"
 #include "scanner.h" // Token, TokenType
+#include "resolution.h"
 #include "unique_ref.h"
 #include "type.h"
 
@@ -45,7 +47,6 @@ namespace AST {
             NK_Decl_Function,
             NK_Decl_Struct,
             NK_Decl_Enum,
-            NK_Decl_Class,
             NK_Decl_Protocol,
             NK_Decl_Statement,
 
@@ -59,6 +60,7 @@ namespace AST {
 
             // Expression
             NK_Expr_Identifier,
+            NK_Expr_Self,
             NK_Expr_Literal,
             NK_Expr_Unary,
             NK_Expr_Binary,
@@ -83,19 +85,17 @@ namespace AST {
 
         void print(std::ostream& os) const;
 
+        // TODO: Implement lldb output
+        //void dump();
+
         virtual void print(PrintContext& pc) const = 0;
 
         static void deleteNode(AST::Node *node);
-    };
-
-    struct Deleter {
-        void operator()(AST::Node *node) const {
-            AST::Node::deleteNode(node);
-        }
+        static void deleteValue(AST::Node *node) { deleteNode(node); }
     };
 
     template <typename T>
-    using unique_ptr = std::unique_ptr<T, Deleter>;
+    using unique_ptr = std::unique_ptr<T, Deleter<AST::Node, AST::Node::deleteValue>>;
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);
 std::ostream& operator<<(std::ostream& os, AST::Node& node);
@@ -140,7 +140,7 @@ namespace AST {
     // Utilities
     
     class Declaration;
-    class Block final {
+    class Block {
     protected:
         std::vector<unique_ptr<Declaration>> declarations;
 
@@ -161,20 +161,91 @@ namespace AST {
             return declarations.size();
         }
 
-        const Declaration& operator[](size_t index) const {
+        Declaration& operator[](size_t index) const {
             return *declarations[index].get();
+        }
+
+        void resize(size_t newSize) {
+            assert(newSize < declarations.size());
+            declarations.resize(newSize);
+        }
+
+        // Iterator
+
+        class iterator {
+            using internal = std::vector<unique_ptr<Declaration>>::iterator;
+            internal it;
+
+            iterator(internal it) : it{it} {}
+        public:
+            Declaration& operator*() {
+                return **it;
+            }
+
+            iterator& operator++() {
+                ++it;
+                return *this;
+            }
+
+            friend bool operator==(const iterator& lhs, const iterator& rhs) {
+                return lhs.it == rhs.it;
+            }
+            friend bool operator!=(const iterator& lhs, const iterator& rhs) {
+                return lhs.it != rhs.it;
+            }
+            friend class Block;
+        };
+
+        iterator begin() {
+            return iterator(declarations.begin());
+        }
+
+        iterator end() {
+            return iterator(declarations.end());
+        }
+
+        class const_iterator {
+            using internal = std::vector<unique_ptr<Declaration>>::const_iterator;
+            internal it;
+
+            const_iterator(internal it) : it{it} {}
+        public:
+            const Declaration& operator*() const {
+                return **it;
+            }
+
+            const_iterator& operator++() {
+                ++it;
+                return *this;
+            }
+
+            friend bool operator==(const const_iterator& lhs, const const_iterator& rhs) {
+                return lhs.it == rhs.it;
+            }
+            friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) {
+                return lhs.it != rhs.it;
+            }
+            friend class Block;
+        };
+
+        const_iterator cbegin() const {
+            return const_iterator(declarations.cbegin());
+        }
+
+        const_iterator cend() const {
+            return const_iterator(declarations.cend());
         }
     };
 
     // Expressions
     
-    template <typename Subclass, typename ReturnType>
+    template <typename Subclass, typename ReturnType, typename... Args>
     class ExpressionVisitorT;
 
     class Expression : public Node {
     public:
-        template <typename Subclass, typename ReturnType>
-        ReturnType acceptVisitor(ExpressionVisitorT<Subclass, ReturnType>& visitor);
+        template <typename Subclass, typename ReturnType, typename... Args>
+        ReturnType acceptVisitor(ExpressionVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
         Type *getType() const {
             return type;
@@ -195,6 +266,8 @@ namespace AST {
 
     class Identifier : public Expression {
     protected:
+        std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> resolution = nullptr;
+
         std::string name;
 
         Identifier(Token token) : Expression{NK_Expr_Identifier, token}, name{token.chars} {}
@@ -209,8 +282,30 @@ namespace AST {
             return name;
         }
 
+        IdentifierResolution *getResolution() const {
+            return resolution.get();
+        }
+
+        void setResolution(std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>>&& resolution) {
+            this->resolution = std::move(resolution);
+        }
+
         static bool classof(const Node *node) {
             return node->getKind() == NK_Expr_Identifier;
+        }
+    };
+
+    class Self : public Expression {
+        Self(Token token) : Expression{NK_Expr_Self, token} {}
+
+        virtual void print(PrintContext& pc) const override;
+    public:
+        static unique_ptr<Self> create(Token token) {
+            return unique_ptr<Self>{new Self(token)};
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Expr_Self;
         }
     };
 
@@ -318,6 +413,7 @@ namespace AST {
     };
 
     enum class UnaryOperator {
+        AddressOf,
         Negate,
         Not,
     };
@@ -406,13 +502,13 @@ namespace AST {
     };
 
     // Statements
-    template <typename Subclass, typename ReturnType>
+    template <typename Subclass, typename ReturnType, typename... Args>
     class StatementVisitorT;
 
     class Statement : public Node {
     public:
-        template <typename Subclass, typename ReturnType>
-        ReturnType acceptVisitor(StatementVisitorT<Subclass, ReturnType>& visitor);
+        template <typename Subclass, typename ReturnType, typename... Args>
+        ReturnType acceptVisitor(StatementVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args);
     protected:
         using Node::Node;
     };
@@ -443,6 +539,18 @@ namespace AST {
         static unique_ptr<AssignmentStatement> create(Token token, AssignmentOperator op, unique_ptr<Expression> target, unique_ptr<Expression> value) {
             return unique_ptr<AssignmentStatement>{new AssignmentStatement(token, op, std::move(target), std::move(value))};
         }
+
+        const AssignmentOperator getOp() const {
+            return op;
+        }
+
+        Expression& getTarget() const {
+            return *target;
+        }
+
+        Expression& getValue() const {
+            return *value;
+        }
     };
 
     class IfStatement : public Statement {
@@ -454,9 +562,22 @@ namespace AST {
         public:
             Branch(unique_ptr<Expression>&& condition, Block&& block) : condition{std::move(condition)}, block{std::move(block)} {}
 
+            Expression& getCondition() const {
+                return *condition;
+            }
+
+            Block& getBlock() {
+                return block;
+            }
+
+            const Block& getBlock() const {
+                return block;
+            }
+
             friend class IfStatement;
         };
     protected:
+        // TODO: Rename to branches
         std::vector<Branch> conditionals;
         std::optional<Block> fallback;
 
@@ -475,6 +596,45 @@ namespace AST {
             return unique_ptr<IfStatement>{new IfStatement(token, std::move(conditionals), std::move(fallback))};
         }
 
+        size_t getConditionCount() const {
+            return conditionals.size();
+        }
+
+        Branch& getBranch(size_t i) {
+            return conditionals.at(i);
+        }
+
+        const Branch& getBranch(size_t i) const {
+            return conditionals.at(i);
+        }
+
+        // TODO: Remove these
+        Branch& getCondition(size_t i) {
+            return conditionals.at(i);
+        }
+
+        const Branch& getCondition(size_t i) const {
+            return conditionals.at(i);
+        }
+
+        Block* getFallback() {
+            if (fallback.has_value()) {
+                Block& block = fallback.value();
+                return &block;
+            } else {
+                return nullptr;
+            }
+        }
+
+        const Block* getFallback() const {
+            if (fallback.has_value()) {
+                const Block& block = fallback.value();
+                return &block;
+            } else {
+                return nullptr;
+            }
+        }
+
         static bool classof(const Node *node) {
             return node->getKind() == NK_Stmt_If;
         }
@@ -490,6 +650,10 @@ namespace AST {
     public:
         static unique_ptr<ReturnStatement> create(Token token, unique_ptr<Expression> expression) {
             return unique_ptr<ReturnStatement>{new ReturnStatement(token, std::move(expression))};
+        }
+
+        Expression *getValue() const {
+            return expression.get();
         }
 
         static bool classof(const Node *node) {
@@ -514,8 +678,12 @@ namespace AST {
             return unique_ptr<WhileStatement>{new WhileStatement(token, std::move(condition), std::move(code))};
         }
 
-        const Expression& getCondition() const {
+        Expression& getCondition() const {
             return *condition;
+        }
+
+        Block& getBlock() {
+            return code;
         }
 
         const Block& getBlock() const {
@@ -560,6 +728,14 @@ namespace AST {
         const Statement *getIncrement() const {
             return increment.get();
         }
+
+        Block& getBlock() {
+            return code;
+        }
+
+        const Block& getBlock() const {
+            return code;
+        }
     };
 
     class ExpressionStatement : public Statement {
@@ -574,6 +750,10 @@ namespace AST {
             return unique_ptr<ExpressionStatement>{new ExpressionStatement{std::move(expression)}};
         }
 
+        Expression& getExpression() {
+            return *expression;
+        }
+
         static bool classof(const Node *node) {
             return node->getKind() == NK_Stmt_Expression;
         }
@@ -581,13 +761,13 @@ namespace AST {
 
     // Declarations
     
-    template <typename Subclass, typename ReturnType>
+    template <typename Subclass, typename ReturnType, typename... Args>
     class DeclarationVisitorT;
 
     class Declaration : public Node {
     public:
-        template <typename Subclass, typename ReturnType>
-        ReturnType acceptVisitor(DeclarationVisitorT<Subclass, ReturnType>& visitor);
+        template <typename Subclass, typename ReturnType, typename... Args>
+        ReturnType acceptVisitor(DeclarationVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args);
     protected:
         using Node::Node;
 
@@ -624,6 +804,10 @@ namespace AST {
             unique_ptr<Expression>&& initial
         ) {
             return unique_ptr<VariableDeclaration>(new VariableDeclaration(token, isMutable, std::move(identifier), std::move(type), std::move(initial)));
+        }
+
+        const bool getIsMutable() const {
+            return isMutable;
         }
 
         const std::string& getName() const {
@@ -668,21 +852,22 @@ namespace AST {
         std::vector<Parameter> parameters;
         int arity;
         unique_ptr<TypeNode> returnTypeDeclaration;
+        FunctionType *type;
         Type *returnType;
-        std::vector<unique_ptr<Declaration>> declarations;
+        Block code;
 
-        FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) 
+        FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
             , name{token.chars}
             , parameters{std::move(parameters)}
             , arity{int(this->parameters.size())}
             , returnTypeDeclaration{std::move(returnType)}
-            , declarations{std::move(declarations)} {}
+            , code{std::move(code)} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, std::vector<unique_ptr<Declaration>>&& declarations) {
-            return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(declarations))};
+        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
+            return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(code))};
         }
 
         const std::string& getName() const {
@@ -693,8 +878,16 @@ namespace AST {
             return returnTypeDeclaration.get();
         }
 
-        void setReturnType(Type& type) {
-            returnType = &type;
+        Type *getReturnType() const {
+            return type->getReturnType();
+        }
+
+        void setType(FunctionType& type) {
+            this->type = &type;
+        }
+
+        FunctionType *getType() const {
+            return type;
         }
 
         int getParameterCount() const {
@@ -707,6 +900,14 @@ namespace AST {
 
         const Parameter& getParameter(int i) const {
             return parameters[i];
+        }
+
+        Block& getCode() {
+            return code;
+        }
+
+        const Block& getCode() const {
+            return code;
         }
 
         static bool classof(const Node *node) {
@@ -750,20 +951,6 @@ namespace AST {
         }
     };
 
-    class ClassDeclaration : public Declaration {
-    public:
-        class Field {
-            std::string name;
-            unique_ptr<TypeNode> typeDeclaration;
-            Type *type;
-
-            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
-        };
-
-        virtual void print(PrintContext& pc) const override;
-    };
-
-
     class EnumDeclaration : public Declaration {
     protected:
         std::string name;
@@ -781,6 +968,10 @@ namespace AST {
     public:
         static unique_ptr<StatementDeclaration> create(unique_ptr<Statement>&& statement) {
             return unique_ptr<StatementDeclaration>(new StatementDeclaration(std::move(statement)));
+        }
+
+        Statement& getStatement() const {
+            return *statement;
         }
         
         static bool classof(const Node *node) {

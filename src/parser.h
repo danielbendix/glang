@@ -40,7 +40,7 @@ public:
 };
 
 template <typename T>
-using unique_ptr = AST::unique_ptr<T>;
+using unique_ptr = unique_ptr_t<T>;
 
 class Parser {
 //private:
@@ -66,8 +66,6 @@ public:
     unique_ptr<AST::FunctionDeclaration> functionDeclaration();
     [[nodiscard]]
     unique_ptr<AST::StructDeclaration> structDeclaration();
-    [[nodiscard]]
-    unique_ptr<AST::ClassDeclaration> classDeclaration();
     [[nodiscard]]
     unique_ptr<AST::EnumDeclaration> enumDeclaration();
     [[nodiscard]]
@@ -108,6 +106,8 @@ public:
     unique_ptr<AST::Expression> literal();
     [[nodiscard]]
     unique_ptr<AST::Expression> identifier();
+    [[nodiscard]]
+    unique_ptr<AST::Expression> self();
     [[nodiscard]]
     unique_ptr<AST::Expression> grouping();
 

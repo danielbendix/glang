@@ -1,10 +1,10 @@
-fun fac(n: int64) -> int64 {
+fn fac(n: int64) -> int64 {
     if n == 0 {
         return 1;
     }
     return n * fac(n - 1);
 }
 
-fun main() -> int64 {
+fn main() -> int64 {
     return fac(4);
 }

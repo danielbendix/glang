@@ -42,9 +42,8 @@ unique_ptr<AST::TypeNode> Parser::type()
 
 unique_ptr<AST::Declaration> Parser::declaration() 
 {
-    if (match(TokenType::Fun)) return functionDeclaration();
+    if (match(TokenType::Fn)) return functionDeclaration();
     if (match(TokenType::Struct)) return structDeclaration();
-    if (match(TokenType::Class)) return classDeclaration();
     if (match(TokenType::Var)) return variableDeclaration();
     if (match(TokenType::Let)) return variableDeclaration();
 
@@ -78,18 +77,10 @@ unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
         returnType = type();
     }
 
-    consume(TokenType::LeftBracket);
+    auto code = block();
 
-    std::vector<unique_ptr<AST::Declaration>> declarations;
-
-    while (!match(TokenType::RightBracket)) {
-        declarations.emplace_back(declaration());
-    }
-
-    return AST::FunctionDeclaration::create(name, std::move(parameters), std::move(returnType), std::move(declarations));
+    return AST::FunctionDeclaration::create(name, std::move(parameters), std::move(returnType), std::move(code));
 }
-
-
 
 unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
 {
@@ -102,16 +93,11 @@ unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
             // TODO: READ FIELD
         }
 
-        if (match(TokenType::Fun)) {
+        if (match(TokenType::Fn)) {
             methods.emplace_back(functionDeclaration());
         }
     }
 
-    return nullptr;
-}
-
-unique_ptr<AST::ClassDeclaration> Parser::classDeclaration()
-{
     return nullptr;
 }
 
@@ -215,6 +201,8 @@ AST::AssignmentOperator assignmentOperatorFromToken(Token token)
     using enum TokenType;
     using enum AST::AssignmentOperator;
     switch (token.type) {
+        case Equal:
+            return Assign;
         case PlusEqual:
             return AssignAdd;
         case MinusEqual:
@@ -288,19 +276,6 @@ struct ParseRule {
 unique_ptr<AST::Expression> Parser::expression()
 {
     return parseExpression(Precedence::Or);
-    /*
-    unique_ptr<AST::Expression> left = expressionTerminal();;
-    auto op = operatorFromToken(current);
-    if (op.has_value()) {
-        advance();
-    } else {
-        return left;
-    }
-    auto token = previous;
-    unique_ptr<AST::Expression> right = expression();
-
-    return AST::BinaryExpression::create(token, op.value(), std::move(left), std::move(right));
-    */
 }
 
 unique_ptr<AST::Expression> Parser::parseExpression(Precedence precedence)
@@ -495,7 +470,8 @@ unique_ptr<AST::Expression> Parser::unary()
     switch (previous.type) {
         case TokenType::Not: op = AST::UnaryOperator::Not; break;
         case TokenType::Minus: op = AST::UnaryOperator::Negate; break;
-        default: break; // FIXME: throw exception
+        case TokenType::Ampersand: op = AST::UnaryOperator::AddressOf; break;
+        default: llvm_unreachable("Token type is not a unary operator");
     }
 
     auto target = parseExpression(Precedence::Unary);
@@ -506,6 +482,11 @@ unique_ptr<AST::Expression> Parser::unary()
 unique_ptr<AST::Expression> Parser::identifier()
 {
     return AST::Identifier::create(previous);
+}
+
+unique_ptr<AST::Expression> Parser::self()
+{
+    return AST::Self::create(previous);
 }
 
 unique_ptr<AST::Expression> Parser::grouping()
@@ -529,6 +510,8 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Star)]                  = {NULL,                &Parser::binary,    Precedence::Factor},
     [static_cast<int>(Slash)]                 = {NULL,                &Parser::binary,    Precedence::Factor},
 
+    [static_cast<int>(Ampersand)]             = {&Parser::unary,      NULL,               Precedence::None},
+
     [static_cast<int>(And)]                   = {NULL,                &Parser::binary,    Precedence::And},
     [static_cast<int>(Or)]                    = {NULL,                &Parser::binary,    Precedence::Or},
 
@@ -551,15 +534,18 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(False)]                 = {&Parser::literal,    NULL,               Precedence::None},
 
     [static_cast<int>(Identifier)]            = {&Parser::identifier, NULL,               Precedence::None},
+    [static_cast<int>(Self)]                  = {&Parser::self,       NULL,               Precedence::None},
 
     [static_cast<int>(Equal)]                 = {NULL,                NULL,               Precedence::None},
 
     [static_cast<int>(Semicolon)]             = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(EndOfFile)]             = {NULL,                NULL,               Precedence::None},
+    [static_cast<int>(Enum)]                  = {NULL,                NULL,               Precedence::None},
+    [static_cast<int>(Struct)]                = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(Var)]                   = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(If)]                    = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(Else)]                  = {NULL,                NULL,               Precedence::None},
-    [static_cast<int>(Fun)]                   = {NULL,                NULL,               Precedence::None},
+    [static_cast<int>(Fn)]                   = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(For)]                   = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(While)]                 = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(Return)]                = {NULL,                NULL,               Precedence::None},

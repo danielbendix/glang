@@ -1,4 +1,46 @@
+#ifndef LANG_common_h
+#define LANG_common_h
+
+#include "templates.h"
 #include <vector>
+
+
+enum class PassResultKind {
+    OK = 0,
+    ERROR = 1,
+};
+
+class PassResult {
+    PassResultKind kind;
+
+public:
+    PassResult(PassResultKind kind) : kind{kind} {}
+
+    bool ok() const {
+        return kind == PassResultKind::OK;
+    }
+
+    bool failed() const {
+        return kind != PassResultKind::OK;
+    }
+
+    // TODO: Consider implicit conversion to bool, where error is true,
+    // Just like functions that return 0 on success.
+
+    friend PassResult operator|(PassResult lhs, PassResult rhs);
+    friend PassResult& operator|=(PassResult& lhs, PassResult rhs);
+};
+
+template <typename T, void (*deleter)(T*) = T::deleteValue>
+struct Deleter {
+    void operator()(T *value) const {
+        deleter(value);
+    }
+};
+
+
+template <typename T, typename Base = Templates::DeleteValueArgType_t<T>>
+using unique_ptr_t = std::unique_ptr<T, Deleter<Base>>;
 
 template <typename T>
 class Iterable {
@@ -55,3 +97,5 @@ public:
         return vector.cend();
     }
 };
+
+#endif // LANG_common_h

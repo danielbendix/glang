@@ -26,6 +26,7 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(Star)
         TOKEN_TYPE_CASE(Slash)
         TOKEN_TYPE_CASE(Power)
+        TOKEN_TYPE_CASE(Ampersand)
         TOKEN_TYPE_CASE(PlusEqual) 
         TOKEN_TYPE_CASE(MinusEqual)
         TOKEN_TYPE_CASE(StarEqual) 
@@ -40,15 +41,14 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(LessEqual)
         TOKEN_TYPE_CASE(GreaterEqual)
         TOKEN_TYPE_CASE(Identifier)
+        TOKEN_TYPE_CASE(Self)
         TOKEN_TYPE_CASE(Enum)
         TOKEN_TYPE_CASE(Struct)
-        TOKEN_TYPE_CASE(Class)
-        TOKEN_TYPE_CASE(Self)
         TOKEN_TYPE_CASE(Let)
         TOKEN_TYPE_CASE(Var)
         TOKEN_TYPE_CASE(If)
         TOKEN_TYPE_CASE(Else)
-        TOKEN_TYPE_CASE(Fun)
+        TOKEN_TYPE_CASE(Fn)
         TOKEN_TYPE_CASE(For)
         TOKEN_TYPE_CASE(While)
         TOKEN_TYPE_CASE(Repeat)
@@ -144,7 +144,7 @@ TokenType Scanner::identifierType()
         case 'f': {
             switch (*it++) {
                 case 'o': return testKeyword(it, current, "r", 1, TokenType::For);
-                case 'u': return testKeyword(it, current, "n", 1, TokenType::Fun);
+                case 'n': return testKeyword(it, current, "", 0, TokenType::Fn);
             }
             break;
         }

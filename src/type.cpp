@@ -28,3 +28,33 @@ void createPrimitiveTypes(llvm::LLVMContext& context, llvm::StringMap<std::uniqu
     createNumericTypes(context, table);
     createStringType(context, table);
 }
+
+llvm::FunctionType *FunctionType::getFunctionType(llvm::LLVMContext& context) {
+    auto llvmReturnType = returnType->getLLVMType(context);
+    if (parameters.size() > 0) {
+        llvm::Type *parameterTypes[parameters.size()];
+        int i = 0;
+        for (auto* type : parameters) {
+            parameterTypes[i] = type->getLLVMType(context);
+            ++i;
+        }
+        return llvm::FunctionType::get(llvmReturnType, llvm::ArrayRef(parameterTypes, parameters.size()), false);
+    } else {
+        return llvm::FunctionType::get(llvmReturnType, false);
+    }
+}
+
+llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) {
+    switch (kind) {
+        case TK_Void:
+            return llvm::Type::getVoidTy(context);
+        case TK_Boolean:
+            return static_cast<BooleanType *>(this)->getIntegerType(context);
+        case TK_Num_Integer:
+            return static_cast<IntegerType *>(this)->getIntegerType(context);
+        case TK_Function:
+            return static_cast<FunctionType *>(this)->getFunctionType(context);
+        default:
+            assert(false);
+    }
+}

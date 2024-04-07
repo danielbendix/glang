@@ -23,3 +23,5 @@ a.out*
 **/*.cbp
 **/CMakeScripts
 **/compile_commands.json
+
+.cache/

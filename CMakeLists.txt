@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-project(arith)
+project(glang)
 
 set(CMAKE_BUILD_TYPE Debug)
 
@@ -24,4 +24,4 @@ llvm_map_components_to_libnames(llvm_libs support core irreader)
 
 add_subdirectory(src)
 
-target_link_libraries(arith ${llvm_libs})
+target_link_libraries(glang ${llvm_libs})

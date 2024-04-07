@@ -26,12 +26,15 @@ enum class TokenType : uint8_t {
     Minus,
     Star,
     Slash,
-    Power,
+    Power, // TODO: Rename to caret
+
+    Ampersand,
 
     PlusEqual, 
     MinusEqual,
     StarEqual, 
     SlashEqual,
+
 
     // Logical operators
     Not,
@@ -48,15 +51,14 @@ enum class TokenType : uint8_t {
 
     // Keywords
     Identifier,
+    Self,
     Enum,
     Struct,
-    Class,
-    Self,
     Let,
     Var,
     If,
     Else,
-    Fun,
+    Fn,
     For,
     While,
     Repeat,
