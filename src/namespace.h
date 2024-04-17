@@ -4,38 +4,27 @@
 #include "AST.h"
 #include "AST_Visitor.h"
 
+#include "containers/string_map.h"
+#include "diagnostic.h"
 
-std::unique_ptr<llvm::StringMap<AST::Declaration *>> globalTable(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
+#include "type.h"
 
-class DeclarationTableVisitor : public AST::DeclarationVisitorT<DeclarationTableVisitor, void> {
+struct ModuleDef {
+    StringMap<AST::Declaration *> all;
 
-    llvm::StringMap<AST::Declaration *>& table;
-    // TODO: Should we store duplicates here?
+    StringMap<AST::Declaration *> definitions;
+    StringMap<Type *> types;
 
-    void addDeclaration(const std::string& name, AST::Declaration& declaration) {
-        auto it = table.insert(std::make_pair(name, &declaration));
+    std::vector<unique_ptr_t<Type>> _types;
+    std::vector<unique_ptr_t<AST::VariableDeclaration>> globals;
+    std::vector<unique_ptr_t<AST::FunctionDeclaration>> functions;
 
-        if (!it.second) {
-            duplicateDetected = true;
-
-            
-
-            // EMIT diagnostic
-            // Global namespace conflict
-            // show initial declaration and declaration that replaces it.
-        }
-    }
-public:
-    void visitVariableDeclaration(AST::VariableDeclaration& variable);
-    void visitFunctionDeclaration(AST::FunctionDeclaration& function);
-    void visitStructDeclaration(AST::StructDeclaration& structDeclaration);
-    void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration);
-    void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration);
-    void visitStatementDeclaration(AST::StatementDeclaration& statement);
-    bool duplicateDetected = false;
-    DeclarationTableVisitor(llvm::StringMap<AST::Declaration *>& table) : table{table} {}
+    // TODO: Do not rely on these, but save a source file anchor or equivalent.
+    std::vector<unique_ptr_t<AST::Declaration>> saved;
 };
 
-bool resolveNames(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *> *globals);
+std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
+
+PassResult resolveNamesInModuleDefinitiion(ModuleDef& moduleDefinition);
 
 #endif // LANG_namespace_h

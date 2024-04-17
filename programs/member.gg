@@ -1,0 +1,24 @@
+
+
+
+/*
+/*
+    this is a comment
+
+*/
+*/
+
+struct Test {
+    var a: int;
+    var b: int;
+
+}
+
+fn test(a: Test) -> int {
+    return a.b;
+}
+
+
+fn main() -> int {
+    return 0;
+}

@@ -1,9 +1,10 @@
 #ifndef LANG_codegen_h
 #define LANG_codegen_h
 
-#import "AST.h"
-#import "llvm/IR/Module.h"
+#include "AST.h"
+#include "llvm/IR/Module.h"
+#include "namespace.h"
 
-std::unique_ptr<llvm::Module> generateCode(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
+std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition);
 
 #endif // LANG_codegen_h

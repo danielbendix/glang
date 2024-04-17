@@ -17,34 +17,39 @@ void compile(std::string&& string)
 
     try {
         IODiagnosticWriter writer{std::cout};
+        Diagnostic::setWriter(writer);
+
         auto pf = parser.parse();
 
         for (const auto &d : pf.declarations) {
             std::cout << *d;
         }
 
-        auto globals = globalTable(pf.declarations);
-        if (resolveNames(pf.declarations, globals.get())) {
+        auto moduleDef = createModuleDefinition(pf.declarations);
+        if (resolveNamesInModuleDefinitiion(*moduleDef).failed()) {
             exit(1);
         }
         std::cout << "Name resolution succeeded.\n";
-        if (typeCheckDeclarations(pf.declarations, *globals, writer).failed()) {
+        if (typecheckModuleDefinition(*moduleDef).failed()) {
+            std::cout << "Type checking failed. Exiting...\n";
             exit(1);
         }
         std::cout << "Type check succeeded.\n";
-        if (analyzeControlFlow(pf.declarations, writer)) {
+        if (analyzeControlFlow(*moduleDef).failed()) {
+            std::cout << "Control flow analysis failed. Exiting...\n";
             exit(1);
         }
         std::cout << "Control flow analysis succeeded\n";
-        auto module = generateCode(pf.declarations);
+        auto module = generateCode(*moduleDef);
         if (!module) {
+            std::cout << "Codegen failed. Exiting...\n";
             exit(1);
         }
         std::cout << "Code generation succeeded.\n";
     } catch (ParserException exception) {
         std::cout << "EXCEPTION CAUGHT:\n";
         std::cout << int(exception.cause) << "\n";
-        std::cout << exception.token.line << ":" << exception.token.offset;
+        std::cout << exception.token.line << ":" << exception.token.offset << "\n";
         std::cout << exception.token.chars << "\n";
     }
 }
@@ -59,6 +64,13 @@ int main(int argc, char **argv)
     std::cout << "Using " << filename << "\n";
 
     std::ifstream file(filename, std::ios::in | std::ios::binary);
+
+    std::cout << file.good() << file.bad() << "\n";
+    if (file.fail()) {
+        std::cout << "File " << filename << " does not exist. Exiting...\n";
+        return 1;
+    }
+
     std::string testString((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     compile(std::move(testString));
 }

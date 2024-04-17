@@ -2,8 +2,9 @@
 #define LANG_ast_h
 
 #include "common.h"
-#include "scanner.h" // Token, TokenType
-#include "resolution.h"
+#include "token.h"
+#include "resolution/identifier.h"
+#include "resolution/member.h"
 #include "unique_ref.h"
 #include "type.h"
 
@@ -27,6 +28,15 @@
  *  Expression:
  *  Type:
  */
+
+struct DeclarationAttributes {
+    bool static_ : 1;
+    bool private_ : 1;
+
+    void zero() {
+        memset(this, 0, sizeof(DeclarationAttributes));
+    }
+};
 
 namespace AST {
     class PrintContext;
@@ -53,6 +63,7 @@ namespace AST {
             // Statements
             NK_Stmt_Assignment,
             NK_Stmt_If,
+            NK_Stmt_Guard,
             NK_Stmt_Return,
             NK_Stmt_While,
             NK_Stmt_For,
@@ -65,6 +76,7 @@ namespace AST {
             NK_Expr_Unary,
             NK_Expr_Binary,
             NK_Expr_Call,
+            NK_Expr_Member_Access,
 
             // Type nodes
             NK_Type_Literal,
@@ -96,13 +108,69 @@ namespace AST {
 
     template <typename T>
     using unique_ptr = std::unique_ptr<T, Deleter<AST::Node, AST::Node::deleteValue>>;
+
+    template <typename T>
+    class iterator {
+        using internal = std::vector<unique_ptr<T>>::iterator;
+        internal it;
+
+    public:
+        iterator(internal it) : it{it} {}
+
+        T& operator*() {
+            return **it;
+        }
+
+        iterator& operator++() {
+            ++it;
+            return *this;
+        }
+
+        friend bool operator==(const iterator& lhs, const iterator& rhs) {
+            return lhs.it == rhs.it;
+        }
+        friend bool operator!=(const iterator& lhs, const iterator& rhs) {
+            return lhs.it != rhs.it;
+        }
+        friend class Block;
+    };
+
+    template <typename T>
+    class const_iterator {
+        using internal = std::vector<unique_ptr<T>>::const_iterator;
+        internal it;
+
+    public:
+        const_iterator(internal it) : it{it} {}
+
+        const T& operator*() const {
+            return **it;
+        }
+
+        const_iterator& operator++() {
+            ++it;
+            return *this;
+        }
+
+        friend bool operator==(const const_iterator& lhs, const const_iterator& rhs) {
+            return lhs.it == rhs.it;
+        }
+        friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) {
+            return lhs.it != rhs.it;
+        }
+        friend class Block;
+    };
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);
 std::ostream& operator<<(std::ostream& os, AST::Node& node);
 
+
 namespace AST {
 
     // Types
+
+    template <typename Subclass, typename ReturnType, typename... Args>
+    class TypeNodeVisitorT;
 
     class TypeNode : public Node {
     protected:
@@ -110,6 +178,9 @@ namespace AST {
 
         ~TypeNode() = default;
     public:
+        template <typename Subclass, typename ReturnType, typename... Args>
+        ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
+
         static bool classof(const Node *node) {
             return node->getKind() >= NK_Type_Literal && node->getKind() <= NK_Type_Literal;
         }
@@ -172,68 +243,28 @@ namespace AST {
 
         // Iterator
 
-        class iterator {
-            using internal = std::vector<unique_ptr<Declaration>>::iterator;
-            internal it;
-
-            iterator(internal it) : it{it} {}
-        public:
-            Declaration& operator*() {
-                return **it;
-            }
-
-            iterator& operator++() {
-                ++it;
-                return *this;
-            }
-
-            friend bool operator==(const iterator& lhs, const iterator& rhs) {
-                return lhs.it == rhs.it;
-            }
-            friend bool operator!=(const iterator& lhs, const iterator& rhs) {
-                return lhs.it != rhs.it;
-            }
-            friend class Block;
-        };
-
-        iterator begin() {
-            return iterator(declarations.begin());
+        iterator<Declaration> begin() {
+            return iterator<Declaration>(declarations.begin());
         }
 
-        iterator end() {
-            return iterator(declarations.end());
+        iterator<Declaration> end() {
+            return iterator<Declaration>(declarations.end());
         }
 
-        class const_iterator {
-            using internal = std::vector<unique_ptr<Declaration>>::const_iterator;
-            internal it;
-
-            const_iterator(internal it) : it{it} {}
-        public:
-            const Declaration& operator*() const {
-                return **it;
-            }
-
-            const_iterator& operator++() {
-                ++it;
-                return *this;
-            }
-
-            friend bool operator==(const const_iterator& lhs, const const_iterator& rhs) {
-                return lhs.it == rhs.it;
-            }
-            friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) {
-                return lhs.it != rhs.it;
-            }
-            friend class Block;
-        };
-
-        const_iterator cbegin() const {
-            return const_iterator(declarations.cbegin());
+        const_iterator<Declaration> begin() const {
+            return const_iterator<Declaration>(declarations.cbegin());
         }
 
-        const_iterator cend() const {
-            return const_iterator(declarations.cend());
+        const_iterator<Declaration> end() const {
+            return const_iterator<Declaration>(declarations.cend());
+        }
+
+        const_iterator<Declaration> cbegin() const {
+            return const_iterator<Declaration>(declarations.cbegin());
+        }
+
+        const_iterator<Declaration> cend() const {
+            return const_iterator<Declaration>(declarations.cend());
         }
     };
 
@@ -260,7 +291,7 @@ namespace AST {
         Type *type = nullptr;
 
         static bool classof(const Node *node) {
-            return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Call;
+            return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Member_Access;
         }
     };
 
@@ -412,6 +443,43 @@ namespace AST {
         }
     };
 
+    class MemberAccessExpression : public Expression {
+        unique_ptr<Expression> target;
+        std::string memberName;
+        unique_ptr_t<MemberResolution> resolution = nullptr;
+
+        virtual void print(PrintContext& pc) const override;
+    protected:
+        MemberAccessExpression(Token token, unique_ptr<Expression>&& target, Token member) 
+            : Expression{NK_Expr_Member_Access, token}
+            , target{std::move(target)}
+            , memberName{member.chars} {}
+    public:
+        static unique_ptr<MemberAccessExpression> create(Token token, unique_ptr<Expression>&& target, Token member) {
+            return unique_ptr<MemberAccessExpression>{new MemberAccessExpression(token, std::move(target), member)};
+        }
+
+        Expression& getTarget() const {
+            return *target;
+        }
+
+        const std::string& getMemberName() const {
+            return memberName;
+        }
+
+        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
+            this->resolution = std::move(resolution);
+        }
+
+        const MemberResolution& getResolution() const {
+            return *resolution;
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Expr_Member_Access;
+        }
+    };
+
     enum class UnaryOperator {
         AddressOf,
         Negate,
@@ -452,6 +520,10 @@ namespace AST {
         Multiply,
         Divide,
         Modulo,
+
+        BitwiseAnd,
+        BitwiseOr,
+        BitwiseXor,
 
         Equal,
         NotEqual,
@@ -637,6 +709,35 @@ namespace AST {
 
         static bool classof(const Node *node) {
             return node->getKind() == NK_Stmt_If;
+        }
+    };
+
+    class GuardStatement : public Statement {
+        unique_ptr<Expression> condition;
+        Block block;
+    protected:
+        GuardStatement(Token token, unique_ptr<Expression>&& condition, Block&& block) : Statement{NK_Stmt_Guard, token}, condition{std::move(condition)}, block{std::move(block)} {}
+
+        virtual void print(PrintContext& pc) const override;
+    public:
+        static unique_ptr<GuardStatement> create(Token token, unique_ptr<Expression>&& condition, Block&& block) {
+            return unique_ptr<GuardStatement>{new GuardStatement(token, std::move(condition), std::move(block))};
+        }
+
+        Expression& getCondition() {
+            return *condition;
+        }
+
+        const Expression& getCondition() const {
+            return *condition;
+        }
+
+        Block& getBlock() {
+            return block;
+        }
+
+        const Block& getBlock() const {
+            return block;
         }
     };
 
@@ -927,17 +1028,15 @@ namespace AST {
 
     protected:
         std::string name;
-        std::vector<Field> fields;
-        std::vector<unique_ptr<FunctionDeclaration>> methods;
+        std::vector<unique_ptr<Declaration>> declarations;
 
-        StructDeclaration(Token token, std::string_view& name, std::vector<Field>&& fields, std::vector<unique_ptr<FunctionDeclaration>>&& methods)
+        StructDeclaration(Token token, std::string_view& name, std::vector<unique_ptr<Declaration>>&& declarations)
             : Declaration{NK_Decl_Struct, Location{token}}
             , name{name}
-            , fields{std::move(fields)}
-            , methods{std::move(methods)} {}
+            , declarations{std::move(declarations)} {}
     public:
-        static unique_ptr<StructDeclaration> create(Token token, std::string_view& name, std::vector<Field>&& fields, std::vector<unique_ptr<FunctionDeclaration>>&& methods) {
-            return unique_ptr<StructDeclaration>{new StructDeclaration(token, name, std::move(fields), std::move(methods))};
+        static unique_ptr<StructDeclaration> create(Token token, std::string_view& name, std::vector<unique_ptr<Declaration>>&& declarations) {
+            return unique_ptr<StructDeclaration>{new StructDeclaration(token, name, std::move(declarations))};
         }
 
         virtual void print(PrintContext& pc) const override;
@@ -948,6 +1047,22 @@ namespace AST {
 
         static bool classof(const Node *node) {
             return node->getKind() == NK_Decl_Struct;
+        }
+
+        iterator<Declaration> begin() {
+            return iterator<Declaration>(declarations.begin());
+        }
+
+        iterator<Declaration> end() {
+            return iterator<Declaration>(declarations.end());
+        }
+
+        const_iterator<Declaration> cbegin() const {
+            return const_iterator<Declaration>(declarations.cbegin());
+        }
+
+        const_iterator<Declaration> cend() const {
+            return const_iterator<Declaration>(declarations.cend());
         }
     };
 

@@ -1,74 +1,10 @@
 #include "scanner.h"
 
 #include <iostream>
+#include <format>
 
-#define TOKEN_TYPE_CASE(t) case t: return #t;
-
-const char *tokenTypeToString(TokenType tokenType)
-{
-    using enum TokenType;
-    switch (tokenType) {
-        TOKEN_TYPE_CASE(LeftBrace)
-        TOKEN_TYPE_CASE(RightBrace)
-        TOKEN_TYPE_CASE(LeftBracket)
-        TOKEN_TYPE_CASE(RightBracket)
-        TOKEN_TYPE_CASE(LeftParenthesis)
-        TOKEN_TYPE_CASE(RightParenthesis)
-        TOKEN_TYPE_CASE(Comma)
-        TOKEN_TYPE_CASE(Dot)
-        TOKEN_TYPE_CASE(DotDot)
-        TOKEN_TYPE_CASE(Colon)
-        TOKEN_TYPE_CASE(Semicolon)
-        TOKEN_TYPE_CASE(Arrow)
-        TOKEN_TYPE_CASE(Equal)
-        TOKEN_TYPE_CASE(Plus)
-        TOKEN_TYPE_CASE(Minus)
-        TOKEN_TYPE_CASE(Star)
-        TOKEN_TYPE_CASE(Slash)
-        TOKEN_TYPE_CASE(Power)
-        TOKEN_TYPE_CASE(Ampersand)
-        TOKEN_TYPE_CASE(PlusEqual) 
-        TOKEN_TYPE_CASE(MinusEqual)
-        TOKEN_TYPE_CASE(StarEqual) 
-        TOKEN_TYPE_CASE(SlashEqual)
-        TOKEN_TYPE_CASE(Not)
-        TOKEN_TYPE_CASE(And)
-        TOKEN_TYPE_CASE(Or)
-        TOKEN_TYPE_CASE(NotEqual)
-        TOKEN_TYPE_CASE(EqualEqual)
-        TOKEN_TYPE_CASE(Less)
-        TOKEN_TYPE_CASE(Greater)
-        TOKEN_TYPE_CASE(LessEqual)
-        TOKEN_TYPE_CASE(GreaterEqual)
-        TOKEN_TYPE_CASE(Identifier)
-        TOKEN_TYPE_CASE(Self)
-        TOKEN_TYPE_CASE(Enum)
-        TOKEN_TYPE_CASE(Struct)
-        TOKEN_TYPE_CASE(Let)
-        TOKEN_TYPE_CASE(Var)
-        TOKEN_TYPE_CASE(If)
-        TOKEN_TYPE_CASE(Else)
-        TOKEN_TYPE_CASE(Fn)
-        TOKEN_TYPE_CASE(For)
-        TOKEN_TYPE_CASE(While)
-        TOKEN_TYPE_CASE(Repeat)
-        TOKEN_TYPE_CASE(Break)
-        TOKEN_TYPE_CASE(Return)
-        TOKEN_TYPE_CASE(True)
-        TOKEN_TYPE_CASE(False)
-        TOKEN_TYPE_CASE(Integer)
-        TOKEN_TYPE_CASE(Floating)
-        TOKEN_TYPE_CASE(Hexadecimal)
-        TOKEN_TYPE_CASE(Binary)
-        TOKEN_TYPE_CASE(String)
-        TOKEN_TYPE_CASE(EndOfFile)
-    }
-}
-
-std::ostream& operator<<(std::ostream& os, TokenType tokenType)
-{
-    return os << tokenTypeToString(tokenType);
-}
+using enum Scanner::ErrorCause;
+const Scanner::ErrorCause Scanner::NO_ERROR = None;
 
 bool isAlpha(char c)
 {
@@ -85,9 +21,48 @@ bool isBinaryDigit(char c)
     return c == '0' || c == '1';
 }
 
+bool isOctalDigit(char c)
+{
+    return c >= '0' && c <= '7';
+}
+
 bool isHexDigit(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+}
+
+void Scanner::multilineComment() {
+    // Keep this for a potential error token.
+    start = current;
+    advance();
+    advance();
+    int depth = 1;
+    while (depth) {
+        if (isAtEnd()) {
+            error(UnterminatedBlockComment);
+            return;
+        }
+        switch(peek()) {
+            case '*':
+                if (peekNext() == '/') {
+                    depth--;
+                    advance();
+                    advance();
+                    break;
+                }
+            case '/':
+                if (peekNext() == '*') {
+                    depth++;
+                    advance();
+                    advance();
+                }
+                break;
+            case '\n':
+                newline();
+            default:
+                advance();
+        }
+    }
 }
 
 void Scanner::skipWhitespace() {
@@ -104,10 +79,15 @@ void Scanner::skipWhitespace() {
                 advance();
                 break;
             case '/':
-                if (peekNext() == '/') {
-                    while (peek() != '\n' && !isAtEnd()) advance();
-                } else {
-                    return;
+                switch (peekNext()) {
+                    case '/': 
+                        while (peek() != '\n' && !isAtEnd()) advance();
+                        break;
+                    case '*':
+                        multilineComment();
+                        break;
+                    default:
+                        return;
                 }
                 break;
             default:
@@ -148,6 +128,9 @@ TokenType Scanner::identifierType()
             }
             break;
         }
+        case 'g': {
+            return testKeyword(it, current, "uard", 4, TokenType::Guard);
+        }
         case 'i': return testKeyword(it, current, "f", 1, TokenType::If);
         case 'l': return testKeyword(it, current, "et", 2, TokenType::Let);
         case 'n': return testKeyword(it, current, "ot", 2, TokenType::Not);
@@ -176,9 +159,21 @@ TokenType Scanner::identifierType()
 Token Scanner::identifier()
 {
     char c;
-    while (isAlpha(c = peek()) || isdigit(c)) advance();
+    while (isAlpha(c = peek()) || isDigit(c)) advance();
 
     return makeToken(identifierType());
+}
+
+Token Scanner::escapedIdentifier()
+{
+    char c;
+    while (isAlpha(c = peek()) || isDigit(c)) advance();
+    
+    if (c != '`') {
+        // TODO: Throw error
+    }
+    
+    return makeToken(TokenType::Identifier);
 }
 
 Token Scanner::string()
@@ -196,7 +191,10 @@ Token Scanner::string()
         c = peek();
     }
     
-    if (isAtEnd()) throw ScannerException(ScannerException::Cause::UnterminatedString, line, offset);
+    if (isAtEnd()) {
+        error(UnterminatedStringLiteral, std::format("{}:{}: error: unterminated string literal", this->line, this->offset));
+        return errorToken();
+    }
 
     advance();
 
@@ -210,12 +208,13 @@ void Scanner::munchMany()
     while (predicate(c = peek())) advance();
 }
 
-template <auto predicate, ScannerException::Cause cause>
-void Scanner::munchMany1() 
+template <auto predicate>
+bool Scanner::munchMany1() 
 {
     char c = peek();
-    if (!predicate(c)) throw ScannerException(cause, line, offset);
+    if (!predicate(c)) return false;
     while (predicate(c = peek())) advance();
+    return true;
 }
 
 Token Scanner::number(char first)
@@ -226,11 +225,21 @@ Token Scanner::number(char first)
         switch (c) {
             case 'b':
                 advance();
-                munchMany1<isBinaryDigit, ScannerException::Cause::ExpectedDigit>();
+                if (!munchMany1<isBinaryDigit>()) {
+                    return errorToken(EmptyBinaryLiteral);
+                }
+                return makeToken(TokenType::Binary);
+            case 'o':
+                advance();
+                if (!munchMany1<isOctalDigit>()) {
+                    return errorToken(EmptyOctalLiteral);
+                }
                 return makeToken(TokenType::Binary);
             case 'x':
                 advance();
-                munchMany1<isHexDigit, ScannerException::Cause::ExpectedDigit>();
+                if (!munchMany1<isHexDigit>()) {
+                    return errorToken(EmptyHexadecimalLiteral);
+                }
                 return makeToken(TokenType::Hexadecimal);
         }
     }
@@ -239,23 +248,33 @@ Token Scanner::number(char first)
 
     c = peek();
     if (c == '.') {
-        munchMany1<isDigit, ScannerException::Cause::ExpectedDigit>();
+        if (!munchMany1<isDigit>()) {
+            // We may need to consume more to avoid spurious errors.
+            return errorToken(EmptyFloatingPointFraction);
+        }
     }
 
     c = peek();
     if (c == 'e' || c == 'E') {
-        munchMany1<isDigit, ScannerException::Cause::ExpectedDigit>();
+        if (!munchMany1<isDigit>()) {
+            // We may need to consume more to avoid spurious errors.
+            return errorToken(EmptyFloatingPointExponent);
+        }
     }
 
     return makeToken(TokenType::Integer);
 }
 
 
-Token Scanner::next() {
+Token Scanner::next() noexcept {
     using enum TokenType;
 
     while (current != end) {
         skipWhitespace();
+        if (_error != None) {
+            return errorToken();
+        }
+
         start = current;
 
         char c = advance();
@@ -264,6 +283,7 @@ Token Scanner::next() {
         if (isDigit(c)) return number(c);
 
         switch (c) {
+            case '`': return escapedIdentifier();
             case '"': return string();
             case '{': return makeToken(LeftBracket);
             case '}': return makeToken(RightBracket);
@@ -274,6 +294,10 @@ Token Scanner::next() {
             case ':': return makeToken(Colon);
             case ';': return makeToken(Semicolon);
             case ',': return makeToken(Comma);
+            case '?': return makeToken(Question);
+            case '&': return makeToken(Ampersand);
+            case '|': return makeToken(Pipe);
+            case '^': return makeToken(Caret);
             case '.': {
                 if (peek() == '.') {
                     advance();
@@ -307,17 +331,9 @@ Token Scanner::next() {
                 return makeToken(Minus);
             }
             case '*': {
-                switch (peek()) {
-                    case '=':
-                        advance();
-                        return makeToken(StarEqual);
-                    case '*':
-                        advance();
-                        return makeToken(Power);
-                }
-                if (peek() == '*') {
+                if (peek() == '=') {
                     advance();
-                    return makeToken(Power);
+                    return makeToken(Caret);
                 }
                 return makeToken(Star);
             }
@@ -346,10 +362,28 @@ Token Scanner::next() {
             default: 
                 std::cout << c << "\n";
                 std::cout << int(c) << "\n";
-                throw ScannerException(ScannerException::Cause::UnrecognizedCharacter, line, offset);
+                return errorToken(UnrecognizedCharacter);
         }
     }
 
     return makeToken(EndOfFile);
-    
+}
+
+Token Scanner::errorToken() {
+    assert(_error != None);
+    return makeToken(TokenType::Error);
+}
+
+Token Scanner::errorToken(ErrorCause cause) {
+    _error = cause;
+    return makeToken(TokenType::Error);
+}
+
+void Scanner::error(ErrorCause cause) {
+    _error = cause;
+}
+
+void Scanner::error(ErrorCause cause, const std::string& message) {
+    _error = cause;
+    std::cerr << message << "\n";
 }

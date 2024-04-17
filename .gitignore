@@ -7,6 +7,7 @@ a.out*
 *.lo
 *.o
 *.obj
+*.ll
 
 # Executables
 *.exe
@@ -23,5 +24,7 @@ a.out*
 **/*.cbp
 **/CMakeScripts
 **/compile_commands.json
+
+build/
 
 .cache/

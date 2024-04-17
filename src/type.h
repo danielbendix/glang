@@ -13,16 +13,15 @@ enum TypeKind {
     TK_Boolean,
     TK_Num_Integer,
     TK_Num_Floating,
-    TK_Function,
     TK_String,
+    TK_Function,
     TK_Struct,
-    TK_Class,
     TK_Protocol,
 };
 
 class Type {
     TypeKind kind;
-    mutable llvm::Type *llvmType;
+    mutable llvm::Type *llvmType = nullptr;
     
     llvm::Type *_getLLVMType(llvm::LLVMContext& context);
 
@@ -45,6 +44,8 @@ public:
     bool isVoid() {
         return kind == TK_Void;
     }
+
+    static void deleteValue(Type *type);
 };
 
 class VoidType : public Type {
@@ -53,11 +54,11 @@ public:
 };
 
 class BooleanType : public Type {
-    llvm::IntegerType *type;
+    mutable llvm::IntegerType *type;
 public:
     BooleanType(llvm::IntegerType *type = nullptr) : Type{TK_Boolean}, type{type} {}
 
-    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) {
+    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) const {
         if (!type) {
             type = llvm::Type::getInt1Ty(context);
         }
@@ -160,13 +161,11 @@ public:
 
 class FloatingType : public NumericType {
     unsigned bitWidth;
-    llvm::Type *type;
 
 public:
-    FloatingType(unsigned bitWidth, llvm::Type *type) 
+    FloatingType(unsigned bitWidth) 
         : NumericType{TK_Num_Floating}
-        , bitWidth{bitWidth}
-        , type{type} {}
+        , bitWidth{bitWidth} {}
 };
 
 class StringType : public Type {

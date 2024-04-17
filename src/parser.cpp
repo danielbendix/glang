@@ -3,6 +3,11 @@
 #include <cstdlib>
 #include <charconv>
 
+/* TODO:
+ * - Implement error messages
+ * - Implement error recovery to parse entire file.
+ */
+
 ParsedFile Parser::parse() 
 {
     std::vector<unique_ptr<AST::Declaration>> declarations;
@@ -66,7 +71,9 @@ unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
     consume(TokenType::LeftParenthesis);
 
     std::vector<AST::FunctionDeclaration::Parameter> parameters;
+    if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
     while (!check(TokenType::RightParenthesis)) {
+        consume(TokenType::Comma);
         parameters.emplace_back(std::move(parameter()));
     }
 
@@ -84,21 +91,15 @@ unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
 
 unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
 {
-    std::vector<AST::StructDeclaration::Field> fields;
-    std::vector<unique_ptr<AST::FunctionDeclaration>> methods;
+    auto name = consume(TokenType::Identifier);
 
-    consume(TokenType::LeftBrace);
-    while (!match(TokenType::RightBrace)) {
-        if (match(TokenType::Var)) {
-            // TODO: READ FIELD
-        }
-
-        if (match(TokenType::Fn)) {
-            methods.emplace_back(functionDeclaration());
-        }
+    consume(TokenType::LeftBracket);
+    std::vector<unique_ptr<AST::Declaration>> declarations;
+    while (!match(TokenType::RightBracket)) {
+        declarations.push_back(declaration());
     }
 
-    return nullptr;
+    return AST::StructDeclaration::create(name, name.chars, std::move(declarations));
 }
 
 unique_ptr<AST::EnumDeclaration> Parser::enumDeclaration()
@@ -153,6 +154,7 @@ unique_ptr<AST::Statement> Parser::statement()
     if (match(TokenType::If)) return ifStatement();
     if (match(TokenType::Return)) return returnStatement();
     if (match(TokenType::While)) return whileStatement();
+    if (match(TokenType::Guard)) return guardStatement();
     return assignmentOrExpression();
 }
 
@@ -177,6 +179,19 @@ unique_ptr<AST::IfStatement> Parser::ifStatement()
     }
 
     return AST::IfStatement::create(token, std::move(conditionals), std::move(fallback));
+}
+
+unique_ptr<AST::GuardStatement> Parser::guardStatement() 
+{
+    auto token = previous;
+
+    auto condition = expression();
+
+    consume(TokenType::Else); // TODO: Expected 'else' after condition in guard
+
+    auto code = block();
+
+    return AST::GuardStatement::create(token, std::move(condition), std::move(code));
 }
 
 unique_ptr<AST::ReturnStatement> Parser::returnStatement()
@@ -238,14 +253,17 @@ unique_ptr<AST::Statement> Parser::assignmentOrExpression()
 
 enum class Precedence {
     None,
-    Or,            // or
-    And,           // and
-    Equality,      // == !=
-    Comparison,    // < > <= >=
-    Term,          // + -
-    Factor,        // * /
-    Unary,         // ! -
-    Call,          // . ()
+    LogicalOr,      // or
+    LogicalAnd,     // and
+    Equality,       // == !=
+    Comparison,     // < > <= >=
+    Term,           // + -
+    Factor,         // * /
+    BitwiseAnd,     // &
+    BitwiseXor,     // ^
+    BitwiseOr,      // |
+    Unary,          // ! -
+    Call,           // . ()
     Primary
 };
 
@@ -275,7 +293,7 @@ struct ParseRule {
 
 unique_ptr<AST::Expression> Parser::expression()
 {
-    return parseExpression(Precedence::Or);
+    return parseExpression(Precedence::LogicalOr);
 }
 
 unique_ptr<AST::Expression> Parser::parseExpression(Precedence precedence)
@@ -324,7 +342,10 @@ unique_ptr<AST::Expression> Parser::call(unique_ptr<AST::Expression>&& left)
 
 unique_ptr<AST::Expression> Parser::dot(unique_ptr<AST::Expression>&& left)
 {
-    return nullptr;
+    auto token = previous;
+    auto name = consume(TokenType::Identifier);
+
+    return AST::MemberAccessExpression::create(token, std::move(left), name);
 }
 
 std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
@@ -337,6 +358,10 @@ std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
         case Star: return {BinaryOperator::Multiply, Precedence::Factor};
         case Slash: return {BinaryOperator::Divide, Precedence::Factor};
 
+        case Ampersand: return {BinaryOperator::BitwiseAnd, Precedence::BitwiseAnd};
+        case Pipe: return {BinaryOperator::BitwiseOr, Precedence::BitwiseOr};
+        case Caret: return {BinaryOperator::BitwiseXor, Precedence::BitwiseXor};
+
         case EqualEqual: return {BinaryOperator::Equal, Precedence::Equality};
         case NotEqual: return {BinaryOperator::NotEqual, Precedence::Equality};
         case Less: return {BinaryOperator::Less, Precedence::Comparison};
@@ -344,8 +369,8 @@ std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
         case Greater: return {BinaryOperator::Greater, Precedence::Comparison};
         case GreaterEqual: return {BinaryOperator::GreaterEqual, Precedence::Comparison};
 
-        case And: return {BinaryOperator::LogicalAnd, Precedence::And};
-        case Or: return {BinaryOperator::LogicalOr, Precedence::Or};
+        case And: return {BinaryOperator::LogicalAnd, Precedence::LogicalAnd};
+        case Or: return {BinaryOperator::LogicalOr, Precedence::LogicalOr};
 
         default: return {};
     }
@@ -448,6 +473,7 @@ unique_ptr<AST::Expression> Parser::literal()
     switch (previous.type) {
         case Integer: return Literal::create(previous, parseNumber<uint64_t>(previous));
         case Binary: return Literal::create(previous, parseNumber<uint64_t, 2, 2>(previous));
+        case Octal: return Literal::create(previous, parseNumber<uint64_t, 2, 8>(previous));
         case Hexadecimal: return Literal::create(previous, parseNumber<uint64_t, 2, 16>(previous));
         case Floating: return Literal::create(previous, parseNumber<double>(previous));
 
@@ -491,7 +517,7 @@ unique_ptr<AST::Expression> Parser::self()
 
 unique_ptr<AST::Expression> Parser::grouping()
 {
-    auto expr = parseExpression(Precedence::Or);
+    auto expr = expression();
     consume(TokenType::RightParenthesis);
     return expr;
 }
@@ -510,10 +536,12 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Star)]                  = {NULL,                &Parser::binary,    Precedence::Factor},
     [static_cast<int>(Slash)]                 = {NULL,                &Parser::binary,    Precedence::Factor},
 
-    [static_cast<int>(Ampersand)]             = {&Parser::unary,      NULL,               Precedence::None},
+    [static_cast<int>(Ampersand)]             = {&Parser::unary,      &Parser::binary,    Precedence::BitwiseAnd},
+    [static_cast<int>(Caret)]                 = {NULL,                &Parser::binary,    Precedence::BitwiseXor},
+    [static_cast<int>(Pipe)]                  = {NULL,                &Parser::binary,    Precedence::BitwiseOr},
 
-    [static_cast<int>(And)]                   = {NULL,                &Parser::binary,    Precedence::And},
-    [static_cast<int>(Or)]                    = {NULL,                &Parser::binary,    Precedence::Or},
+    [static_cast<int>(And)]                   = {NULL,                &Parser::binary,    Precedence::LogicalAnd},
+    [static_cast<int>(Or)]                    = {NULL,                &Parser::binary,    Precedence::LogicalOr},
 
     [static_cast<int>(NotEqual)]              = {NULL,                &Parser::binary,    Precedence::Equality},
     [static_cast<int>(EqualEqual)]            = {NULL,                &Parser::binary,    Precedence::Equality},
@@ -528,6 +556,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(String)]                = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(Integer)]               = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(Binary)]                = {&Parser::literal,    NULL,               Precedence::None},
+    [static_cast<int>(Octal)]                 = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(Hexadecimal)]           = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(Floating)]              = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(True)]                  = {&Parser::literal,    NULL,               Precedence::None},
@@ -545,14 +574,12 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Var)]                   = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(If)]                    = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(Else)]                  = {NULL,                NULL,               Precedence::None},
-    [static_cast<int>(Fn)]                   = {NULL,                NULL,               Precedence::None},
+    [static_cast<int>(Fn)]                    = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(For)]                   = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(While)]                 = {NULL,                NULL,               Precedence::None},
     [static_cast<int>(Return)]                = {NULL,                NULL,               Precedence::None},
 
-
 /*
-    [TOKEN_CLASS]         = {NULL,     NULL,   PREC_NONE},
     [TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},
     [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
     [TOKEN_SELF]          = {this_,    NULL,   PREC_NONE},

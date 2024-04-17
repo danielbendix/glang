@@ -2,26 +2,30 @@
 
 #include "AST_Visitor.h"
 
+#include "diagnostic.h"
+
+using Result = PassResult;
+using enum PassResultKind;
+
+/// Returns true iff the statement as a whole will return on all paths.
 class FunctionBodyAnalyzer : public AST::DeclarationVisitorT<FunctionBodyAnalyzer, bool>,
                              public AST::StatementVisitorT<FunctionBodyAnalyzer, bool> {
-    DiagnosticWriter& diagnostic;
-
-    bool error = false;
+    Result result = OK;
     bool isVoid;
 public:
-    FunctionBodyAnalyzer(DiagnosticWriter& diagnostic) : diagnostic{diagnostic} {}
+    FunctionBodyAnalyzer() {}
 
-    bool analyzeFunction(AST::FunctionDeclaration& function) {
+    Result analyzeFunction(AST::FunctionDeclaration& function) {
         isVoid = function.getType()->getReturnType()->isVoid();
 
         bool returns = visitBlock(function.getCode());
 
         if (!isVoid && !returns) {
-            diagnostic.error(function, "Control reaches end of non-void function.");
-            error = true;
+            Diagnostic::error(function, "Control reaches end of non-void function.");
+            result = ERROR;
         }
 
-        return error;
+        return result;
     }
 
     /// Returns true iff the declaration as a whole will return.
@@ -33,7 +37,7 @@ public:
         for (int i = 0; i < block.size(); ++i) {
             if (willReturn(block[i])) {
                 if (i + 1 < block.size()) {
-                    diagnostic.warning(block[i + 1], "Code after [[GET STATEMENT NAME]] will not be executed");
+                    Diagnostic::warning(block[i + 1], "Code after [[GET STATEMENT NAME]] will not be executed");
                     block.resize(i + 1);
                 }
                 return true;
@@ -80,6 +84,17 @@ public:
         return allReturn;
     }
 
+    bool visitGuardStatement(AST::GuardStatement& guardStatement) {
+        bool returns = visitBlock(guardStatement.getBlock());
+
+        if (!returns) {
+            Diagnostic::error(guardStatement, "Guard statement must return.");
+            result = ERROR;
+        }
+
+        return false;
+    }
+
     bool visitWhileStatement(AST::WhileStatement& whileStatement) {
         // TODO: This can be evaluated differently if condition is the literal 'true'
         visitBlock(whileStatement.getBlock());
@@ -96,36 +111,48 @@ public:
 
 };
 
-class GlobalDeclarationAnalyzer : public AST::DeclarationVisitorT<GlobalDeclarationAnalyzer, bool> {
-    DiagnosticWriter& diagnostic;
-
+class GlobalDeclarationAnalyzer : public AST::DeclarationVisitorT<GlobalDeclarationAnalyzer, Result> {
 public:
-    GlobalDeclarationAnalyzer(DiagnosticWriter& diagnostic) : diagnostic{diagnostic} {}
+    GlobalDeclarationAnalyzer() {}
 
-    bool visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return false; }
-    bool visitVariableDeclaration(AST::VariableDeclaration& variable) { return false; }
-    bool visitStatementDeclaration(AST::StatementDeclaration& statement) { assert(false); }
+    Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return OK; }
+    Result visitVariableDeclaration(AST::VariableDeclaration& variable) { return OK; }
+    Result visitStatementDeclaration(AST::StatementDeclaration& statement) { llvm_unreachable("Should not exist at this point"); }
 
-    bool visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+    Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
         // TODO: Visit methods
-        return false;
+        return OK;
     }
 
-    bool visitFunctionDeclaration(AST::FunctionDeclaration& function) { 
-        FunctionBodyAnalyzer analyzer{diagnostic};
+    Result visitFunctionDeclaration(AST::FunctionDeclaration& function) { 
+        FunctionBodyAnalyzer analyzer;
 
         return analyzer.analyzeFunction(function);
     }
 };
 
-bool analyzeControlFlow(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, DiagnosticWriter& diagnostic)
+PassResult analyzeControlFlow(ModuleDef& moduleDefinition)
 {
-    GlobalDeclarationAnalyzer analyzer{diagnostic};
+    GlobalDeclarationAnalyzer analyzer;
 
-    bool error = false;
-    for (auto& declaration : declarations) {
-        error = declaration->acceptVisitor(analyzer) || error;
+    Result result = OK;
+    for (auto& declaration : moduleDefinition.functions) {
+        result |= declaration->acceptVisitor(analyzer);
     }
 
-    return error;
+    return result;
+}
+
+PassResult analyzeControlFlow(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
+{
+    GlobalDeclarationAnalyzer analyzer;
+
+    Result result = OK;
+    for (auto& declaration : declarations) {
+        result |= declaration->acceptVisitor(analyzer);
+    }
+
+    // TODO: Go through types and visit their functions.
+
+    return result;
 }

@@ -1,113 +1,42 @@
 #ifndef LANG_scanner_h
 #define LANG_scanner_h
 
+#include "token.h"
+
+#include <cassert>
 #include <string>
-#include <string_view>
 
-enum class TokenType : uint8_t {
-    // Brackets
-    /// []
-    LeftBrace, RightBrace,
-    /// {}
-    LeftBracket, RightBracket,
-    LeftParenthesis, RightParenthesis,
-
-    // Symbols
-    Comma, 
-    Dot,
-    DotDot,
-    Colon,
-    Semicolon,
-    Arrow,
-    Equal,
-
-    // Operators
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    Power, // TODO: Rename to caret
-
-    Ampersand,
-
-    PlusEqual, 
-    MinusEqual,
-    StarEqual, 
-    SlashEqual,
-
-
-    // Logical operators
-    Not,
-    And,
-    Or,
-
-    // Comparison
-    NotEqual,
-    EqualEqual,
-    Less,
-    Greater,
-    LessEqual,
-    GreaterEqual,
-
-    // Keywords
-    Identifier,
-    Self,
-    Enum,
-    Struct,
-    Let,
-    Var,
-    If,
-    Else,
-    Fn,
-    For,
-    While,
-    Repeat,
-    Break,
-    Return,
-
-    // Literals
-    True,
-    False,
-    Integer, 
-    Floating, 
-    Hexadecimal,
-    Binary,
-    String,
-
-    EndOfFile,
-};
-
-std::ostream& operator<<(std::ostream& os, TokenType tokenType);
-
-struct Token {
-public:
-    int line;
-    int offset;
-    std::string_view chars;
-    TokenType type;
-
-    Token(TokenType type, std::string_view chars, int line, int offset) 
-        : type{type}, chars{chars}, line{line}, offset{offset} {}
-};
-
-class ScannerException : public std::exception {
-public:
-    enum class Cause {
-        ExpectedDigit,
-        UnterminatedString,
-        UnrecognizedCharacter,
-    };
-
-private:
-    Cause cause;
-    int line;
-    int offset;
-
-public:
-    ScannerException(Cause cause, int line, int offset) : cause{cause}, line{line}, offset{offset} {}
-};
+//class ScannerException : public std::exception {
+//public:
+//    enum class Cause {
+//        ExpectedDigit,
+//        UnterminatedString,
+//        UnrecognizedCharacter,
+//    };
+//
+//private:
+//    Cause cause;
+//    int line;
+//    int offset;
+//
+//public:
+//    ScannerException(Cause cause, int line, int offset) : cause{cause}, line{line}, offset{offset} {}
+//};
 
 class Scanner {
+public:
+    enum class ErrorCause;
+    static const ErrorCause NO_ERROR;
+
+    // TODO: Maybe we don't need to move the string here.
+    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, offset{0} {}
+
+    Token next() noexcept;
+
+    ErrorCause getErrorCause() const noexcept {
+        assert(_error != NO_ERROR);
+        return _error;
+    }
 private:
     using iterator = std::string::const_iterator;
     std::string _string;
@@ -116,6 +45,7 @@ private:
     iterator end;
     int line;
     int offset;
+    ErrorCause _error;
 
     bool isAtEnd() {
         return current == end;
@@ -124,12 +54,18 @@ private:
     char advance() {
         offset += 1;
         return *current++;
+        int a = 0x3;
     }
 
     void newline() {
         line += 1;
         offset = -1;
     }
+
+//    void markStart() {
+//        start = current;
+//        // TODO: Set starting location
+//    }
 
     char peek() {
         return *current;
@@ -139,27 +75,37 @@ private:
         return *(current + 1);
     }
 
+    void multilineComment();
     void skipWhitespace();
     template <auto Predicate> void munchMany();
-    template <auto predicate, ScannerException::Cause cause> void munchMany1();
+    template <auto predicate> bool munchMany1();
     [[nodiscard]]
     Token makeToken(TokenType type);
     TokenType identifierType();
     Token identifier();
+    Token escapedIdentifier();
     Token string();
     Token number(char first);
 
-public:
-    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, offset{0} {
-//        _string = std::move(string);
-//        start = _string.cbegin();
-//        current = start;
-//        end = _string.cend();
-//        line = 1;
-//        offset = 0;
-    };
+    [[nodiscard]]
+    Token errorToken();
+    [[nodiscard]]
+    Token errorToken(ErrorCause cause);
+    void error(ErrorCause errorType);
+    void error(ErrorCause errorType, const std::string& message);
+};
 
-    Token next();
+enum class Scanner::ErrorCause {
+    None = 0,
+    InvalidIntegerLiteralPrefix,
+    EmptyBinaryLiteral,
+    EmptyOctalLiteral,
+    EmptyHexadecimalLiteral,
+    EmptyFloatingPointFraction,
+    EmptyFloatingPointExponent,
+    UnterminatedStringLiteral,
+    UnterminatedBlockComment,
+    UnrecognizedCharacter,
 };
 
 #endif

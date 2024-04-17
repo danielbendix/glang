@@ -29,6 +29,9 @@ namespace AST {
             case NK_Stmt_If:
                 delete static_cast<IfStatement *>(node);
                 break;
+            case NK_Stmt_Guard:
+                delete static_cast<GuardStatement *>(node);
+                break;
             case NK_Stmt_For:
                 delete static_cast<ForStatement *>(node);
                 break;
@@ -55,6 +58,8 @@ namespace AST {
                 return delete static_cast<BinaryExpression *>(node);
             case NK_Expr_Call:
                 return delete static_cast<CallExpression *>(node);
+            case NK_Expr_Member_Access:
+                return delete static_cast<MemberAccessExpression *>(node);
 
             case NK_Type_Literal:
                 return delete static_cast<TypeLiteral *>(node);
@@ -93,6 +98,10 @@ namespace AST {
             case Multiply: pc << '*'; break;
             case Divide: pc << '/'; break;
             case Modulo: pc << '%'; break;
+                         
+            case BitwiseAnd: pc << '&'; break;
+            case BitwiseOr: pc << '|'; break;
+            case BitwiseXor: pc << '^'; break;
 
             case Equal: pc << "=="; break;
             case NotEqual: pc << "!="; break;
@@ -138,7 +147,7 @@ namespace AST {
     }
 
     void FunctionDeclaration::print(PrintContext& pc) const {
-        pc << "fun " << name << "(";
+        pc << "fn " << name << "(";
         for (auto& p : parameters) {
             // This could fail after type checking
             pc << p.name << ": " << *p.typeDeclaration;
@@ -148,14 +157,19 @@ namespace AST {
             pc << " -> " << *returnTypeDeclaration;
         }
         pc << " {\n";
-        pc.indent();
         code.print(pc);
-        pc.outdent();
         pc << "}\n";
     }
 
     void StructDeclaration::print(PrintContext& pc) const {
-
+        pc << "struct " << name << " {\n";
+        pc.indent();
+        for (auto& declaration : declarations) {
+            pc << *declaration;
+        }
+        pc.outdent();
+        pc.startLine();
+        pc << "}\n";
     }
 
     void ProtocolDeclaration::print(PrintContext& pc) const {
@@ -183,7 +197,6 @@ namespace AST {
     }
 
     void IfStatement::print(PrintContext& pc) const {
-        auto it = conditionals.cbegin();
         bool isElse = false;
         for (auto const& branch : conditionals) {
             if (isElse) {
@@ -199,6 +212,14 @@ namespace AST {
             isElse = true;
         }
         pc << "\n";
+    }
+
+    void GuardStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "guard " << *condition << " else {\n";
+        block.print(pc);
+        pc.startLine();
+        pc << "}\n";
     }
 
     void ReturnStatement::print(PrintContext& pc) const {
@@ -282,6 +303,10 @@ namespace AST {
             pc << *argument;
         }
         pc << ")";
+    }
+
+    void MemberAccessExpression::print(PrintContext& pc) const {
+        pc << *target << '.' << memberName;
     }
 }
 

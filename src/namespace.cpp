@@ -1,52 +1,131 @@
 #include "namespace.h"
-#include "resolution.h"
+#include "resolution/identifier.h"
+
 
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-std::unique_ptr<llvm::StringMap<AST::Declaration *>> globalTable(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
-{
-    auto table = std::make_unique<llvm::StringMap<AST::Declaration *>>();
+#include "namespace/struct.h"
 
-    DeclarationTableVisitor visitor{*table};
+using Result = PassResult;
+using enum PassResultKind;
 
-    for (const auto& declaration : declarations) {
-        declaration->acceptVisitor(visitor);
+
+class NamespaceBuilder {
+    ModuleDef& names;
+public:
+    NamespaceBuilder(ModuleDef& names) : names{names} {}
+   
+    Result addDeclaration(const std::string& name, AST::Declaration &declaration) {
+        if (!names.all.insert(name, &declaration)) {
+            Diagnostic::error(declaration, "Duplicate declaration.");
+            auto& existing = *names.all[name];
+            Diagnostic::note(existing, "Previously declared here.");
+            return ERROR;
+        }
+
+        return OK;
     }
 
-    for (const auto& value : *table) {
-        std::cout << ((std::string_view) value.first()) << ":\n";
-        std::cout << *value.second;
+    Result addVariable(const std::string& name, unique_ptr_t<AST::VariableDeclaration>&& variable) {
+        Result result = OK;
+        result |= addDeclaration(name, *variable);
+        // TODO: Create an ambiguous value
+        assert(names.definitions.insert(name, *variable));
+        names.globals.push_back(std::move(variable));
+        return result;
     }
 
-    return table;
-}
+    Result addFunction(const std::string& name, unique_ptr_t<AST::FunctionDeclaration>&& function) {
+        Result result = OK;
+        result |= addDeclaration(name, *function);
+        // TODO: Create an ambiguous value
+        assert(names.definitions.insert(name, *function));
+        names.functions.push_back(std::move(function));
+        return result;
+    }
 
-void DeclarationTableVisitor::visitVariableDeclaration(AST::VariableDeclaration& variable) {
-    addDeclaration(variable.getName(), variable);
-}
+    Result addType(const std::string& name, unique_ptr_t<Type>&& type) {
+        // TODO: Create an ambiguous value
+        assert(names.types.insert(name, type.get()));
+        names._types.push_back(std::move(type));
+        return OK;
+    }
 
-void DeclarationTableVisitor::visitFunctionDeclaration(AST::FunctionDeclaration& function) {
-    addDeclaration(function.getName(), function);
-}
+    Result addStructType(const std::string& name, unique_ptr_t<StructType>&& structType, unique_ptr_t<AST::StructDeclaration>&& declaration) {
+        Result result = OK;
+        result |= addDeclaration(name, *declaration);
+        result |= addType(name, std::move(structType));
+        names.saved.push_back(std::move(declaration));
+        return result;
+    }
+};
 
-void DeclarationTableVisitor::visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-    addDeclaration(structDeclaration.getName(), structDeclaration);
-}
 
-void DeclarationTableVisitor::visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+/// Create map for global namespace, and ensure that no duplicate declarations exist.
+class DeclarationTableVisitor : public AST::DeclarationVisitorT<DeclarationTableVisitor, Result> {
+    ModuleDef& names;
+    NamespaceBuilder builder;
     
+    Result addDeclaration(const std::string& name, AST::Declaration& declaration) {
+        if (!names.all.insert(name, declaration)) {
+            Diagnostic::error(declaration, "Duplicate declaration.");
+            auto& existing = *names.all[name];
+            Diagnostic::note(existing, "Previously declared here.");
+            return ERROR;
+        }
+        return OK;
+    }
+public:
+    DeclarationTableVisitor(ModuleDef& names) : names{names}, builder{names} {}
+
+    Result takeDeclaration(unique_ptr_t<AST::Declaration>&& declaration) {
+        return declaration.release()->acceptVisitor(*this);
+    }
+
+    Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        return builder.addVariable(variable.getName(), unique_ptr_t<AST::VariableDeclaration>{&variable});
+    }
+
+    Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        return builder.addFunction(function.getName(), unique_ptr_t<AST::FunctionDeclaration>{&function});
+    }
+
+    Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        auto structType = resolveStructType(structDeclaration);
+        return builder.addStructType(structDeclaration.getName(), std::move(structType), unique_ptr_t<AST::StructDeclaration>{&structDeclaration});
+    }
+
+    Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        Diagnostic::error(enumDeclaration, "Enums are not currently supported.");
+        AST::Node::deleteValue(&enumDeclaration);
+        return ERROR;
+    }
+
+    Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        Diagnostic::error(protocolDeclaration, "Protocols are not currently supported.");
+        AST::Node::deleteValue(&protocolDeclaration);
+        return ERROR;
+    }
+
+    Result visitStatementDeclaration(AST::StatementDeclaration& statement) {
+        Diagnostic::error(statement, "Top-level statements are not allowed.");
+        return ERROR;
+    }
+};
+
+std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
+{
+    auto names = std::make_unique<ModuleDef>();
+
+    DeclarationTableVisitor visitor{*names};
+
+    for (auto&& declaration : declarations) {
+        visitor.takeDeclaration(std::move(declaration));
+    }
+
+    return names;
 }
-
-void DeclarationTableVisitor::visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
-
-}
-
-void DeclarationTableVisitor::visitStatementDeclaration(AST::StatementDeclaration& statement) {
-    // TODO: Emit error
-}
-
-
 
 class ScopeManager {
     
@@ -70,11 +149,11 @@ class ScopeManager {
     int scopeLevel = -1;
     std::vector<Local> locals = {};
 
-    llvm::StringMap<AST::Declaration *>& globals;
+    ModuleDef& moduleDefinition;
 
 public:
 
-    ScopeManager(llvm::StringMap<AST::Declaration *>& globals) : globals{globals} {}
+    ScopeManager(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition} {}
 
     void reset() {
         locals.clear();
@@ -124,9 +203,8 @@ public:
             }
         }
         
-        auto it = globals.find(identifier);
-        if (it != globals.end()) {
-            auto result =llvm::TypeSwitch<AST::Declaration *, unique_ptr_t<IdentifierResolution>>(it->second)
+        if (auto declaration = moduleDefinition.definitions.lookup(identifier)) {
+            auto result =llvm::TypeSwitch<AST::Declaration *, unique_ptr_t<IdentifierResolution>>(*declaration)
                 .Case<AST::FunctionDeclaration>([](auto function) {
                     return FunctionResolution::create(*function);
                 })
@@ -147,48 +225,58 @@ public:
 
 };
 
-class FunctionBodyVisitor 
-    : public AST::DeclarationVisitorT<FunctionBodyVisitor, void>
-    , public AST::StatementVisitorT<FunctionBodyVisitor, void>
-    , public AST::ExpressionVisitorT<FunctionBodyVisitor, void>
+class CodeVisitor 
+    : public AST::DeclarationVisitorT<CodeVisitor, void>
+    , public AST::StatementVisitorT<CodeVisitor, void>
+    , public AST::ExpressionVisitorT<CodeVisitor, void>
 {
     ScopeManager manager;
 
-    bool hadError = false;
+    Result result = OK;
 
-    void visitBlock(const AST::Block& block) {
+    void visitBlock(AST::Block& block) {
         manager.pushInnerScope();
-        for (int bi = 0; bi < block.size(); bi++) {
-            block[bi].acceptVisitor(*this);
+        for (auto& declaration : block) {
+            declaration.acceptVisitor(*this);
         }
         manager.popOuterScope();
     }
 
 public:
     
-    FunctionBodyVisitor(llvm::StringMap<AST::Declaration *>& globals) : manager{globals} {}
+    CodeVisitor(ModuleDef& moduleDefinition) : manager{moduleDefinition} {}
 
-    bool resolveScopeInFunction(AST::FunctionDeclaration *function) {
+    Result resolveScopeInGlobal(AST::VariableDeclaration& global) {
         manager.reset();
-        hadError = false;
+        result = OK;
+
+        if (auto *initial = global.getInitialValue()) {
+            initial->acceptVisitor(*this);
+        }
+
+        return result;
+    }
+
+    Result resolveScopeInFunction(AST::FunctionDeclaration& function) {
+        manager.reset();
+        result = OK;
         manager.pushOuterScope();
 
-        for (int pi = 0; pi < function->getParameterCount(); ++pi) {
-            auto& parameter = function->getParameter(pi);
-            manager.pushParameter(parameter.name, *function, pi);
+        for (int pi = 0; pi < function.getParameterCount(); ++pi) {
+            auto& parameter = function.getParameter(pi);
+            manager.pushParameter(parameter.name, function, pi);
         }
         manager.pushInnerScope();
 
-        auto& block = function->getCode();
-        for (int di = 0; di < block.size(); ++di) {
-            auto& declaration = block[di];
+        auto& block = function.getCode();
+        for (auto& declaration : function.getCode()) {
             declaration.acceptVisitor(*this);
         }
 
         manager.popInnerScope();
         manager.popOuterScope();
 
-        return hadError;
+        return result;
     }
 
     // Declarations
@@ -202,18 +290,22 @@ public:
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        result = ERROR;
         // TODO: Error: Functions are not allowed in functions.
     }
 
     void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        result = ERROR;
         // TODO: Error: Structs are not allowed in functions.
     }
 
     void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        result = ERROR;
         // TODO: Error: Enums are not allowed in functions.
     }
 
     void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        result = ERROR;
         // TODO: Error: Protocols are not allowed in functions.
     }
 
@@ -239,6 +331,11 @@ public:
         }
     }
 
+    void visitGuardStatement(AST::GuardStatement& guardStatement) {
+        guardStatement.getCondition().acceptVisitor(*this);
+        visitBlock(guardStatement.getBlock());
+    }
+
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         if (auto* value = returnStatement.getValue()) {
             value->acceptVisitor(*this);
@@ -251,6 +348,7 @@ public:
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
+        assert(false);
         // TODO: Implement this.
     }
 
@@ -266,11 +364,9 @@ public:
         if (resolution) {
             identifier.setResolution(std::move(resolution));
         } else {
-            hadError = true;
+            result = ERROR;
 
-            std::cout << "Unable to resolveidentifier with name " << identifier << "\n";
-            std::cout << resolution << "\n";
-            // TODO: Emit error
+            Diagnostic::error(identifier, "Unable to resolve identifier");
         }
     }
 
@@ -292,19 +388,25 @@ public:
             call.getArgument(ai).acceptVisitor(*this);
         }
     }
+
+    void visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
+        memberAccess.getTarget().acceptVisitor(*this);
+    }
 };
 
-bool resolveNames(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *> *globals)
+PassResult resolveNamesInModuleDefinitiion(ModuleDef& moduleDefinition) 
 {
-    FunctionBodyVisitor visitor{*globals};
+    CodeVisitor visitor{moduleDefinition};
 
-    bool hadError = false;
+    PassResult result = OK;
 
-    for (auto& declaration : declarations) {
-        if (auto *function = llvm::dyn_cast<AST::FunctionDeclaration>(declaration.get())) {
-            hadError = visitor.resolveScopeInFunction(function) || hadError;
-        }
+    for (auto& global : moduleDefinition.globals) {
+        //result |= 
     }
-    
-    return hadError;
+
+    for (auto& function : moduleDefinition.functions) {
+        result |= visitor.resolveScopeInFunction(*function);
+    }
+
+    return result;
 }

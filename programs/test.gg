@@ -1,0 +1,25 @@
+var iterations: int = 0;
+
+fn fac(n: int) -> int {
+    var result: int = 1;
+    var i = 2;
+    while i <= n {
+        result *= i;
+        i += 1;
+    }
+    return result;
+}
+
+fn fac_rec(n: int) -> int {
+    if (n > 1) {
+        return n * fac(n - 1);
+    } else {
+        return 1;
+    }
+}
+
+fn main() -> int {
+    var x: int = 0b101010;
+    var y: int = 0xFF;
+    return fac(10);
+}

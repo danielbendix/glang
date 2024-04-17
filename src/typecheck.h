@@ -4,8 +4,11 @@
 #include "common.h"
 
 #include "AST.h"
+#include "namespace.h"
 #include "diagnostic.h"
 
-PassResult typeCheckDeclarations(std::vector<AST::unique_ptr<AST::Declaration>>& declarations, llvm::StringMap<AST::Declaration *>& globals, DiagnosticWriter& diagnostic);
+#include "containers/string_map.h"
+
+PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition);
 
 #endif // LANG_typecheck_h

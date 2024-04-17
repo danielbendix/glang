@@ -79,6 +79,8 @@ public:
     [[nodiscard]]
     unique_ptr<AST::IfStatement> ifStatement();
     [[nodiscard]]
+    unique_ptr<AST::GuardStatement> guardStatement();
+    [[nodiscard]]
     unique_ptr<AST::ReturnStatement> returnStatement();
     [[nodiscard]]
     unique_ptr<AST::WhileStatement> whileStatement();

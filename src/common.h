@@ -16,6 +16,18 @@ class PassResult {
 public:
     PassResult(PassResultKind kind) : kind{kind} {}
 
+    void error_if_false(bool value) {
+        if (!value) {
+            kind = PassResultKind::ERROR;
+        }
+    }
+
+    void error_if_true(bool value) {
+        if (value) {
+            kind = PassResultKind::ERROR;
+        }
+    }
+
     bool ok() const {
         return kind == PassResultKind::OK;
     }

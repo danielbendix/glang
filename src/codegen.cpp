@@ -1,7 +1,10 @@
+#include "codegen.h"
 #include "AST.h"
 #include "AST_Visitor.h"
 #include "type.h"
+#include "containers/pointer_map.h"
 
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
@@ -11,6 +14,9 @@
 #include "llvm/IR/Verifier.h"
 
 using llvm::LLVMContext;
+
+using Result = PassResult;
+using enum PassResultKind;
 
 struct Local {
     std::string const *identifier;
@@ -40,9 +46,9 @@ public:
     //llvm::StringMap<AST::Declaration *> globals;
 
     std::vector<AST::FunctionDeclaration *> functions;
-    llvm::DenseMap<AST::FunctionDeclaration *, llvm::Function *> llvmFunctions;
+    PointerMap<AST::FunctionDeclaration *, llvm::Function *> llvmFunctions;
     std::vector<AST::VariableDeclaration *> variables;
-    llvm::DenseMap<AST::VariableDeclaration *, llvm::Value *> llvmVariables;
+    PointerMap<AST::VariableDeclaration *, llvm::Value *> llvmVariables;
 
     Context(LLVMContext& llvmContext, llvm::Module& llvmModule) : llvmContext{llvmContext}, llvmModule{llvmModule} {}
 };
@@ -77,7 +83,7 @@ public:
         llvm::FunctionType *functionType = llvm::FunctionType::get(returnType, llvm::ArrayRef(parameters, function.getParameterCount()), false);
 
         llvm::Function *llvmFunction = llvm::Function::Create(functionType, llvm::Function::ExternalLinkage, function.getName(), context.llvmModule);
-        context.llvmFunctions.insert(std::make_pair(&function, llvmFunction));
+        context.llvmFunctions.insert(&function, llvmFunction);
     }
 
     void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
@@ -97,10 +103,10 @@ public:
     }
 };
 
-bool populateContext(Context& context, std::vector<AST::unique_ptr<AST::Declaration>>& declarations) {
+bool populateContext(Context& context, ModuleDef& moduleDefinition) {
     ContextPopulator populator{context};
 
-    for (auto& declaration : declarations) {
+    for (auto& declaration : moduleDefinition.functions) {
         populator.addDeclaration(*declaration);
     }
     
@@ -182,7 +188,7 @@ public:
     }
 
     llvm::Function& getFunction(AST::FunctionDeclaration& function) {
-        return *context.llvmFunctions.at(&function);
+        return *context.llvmFunctions[&function];
     }
 
     llvm::BasicBlock& createBlock() {
@@ -209,6 +215,11 @@ public:
     llvm::Type *getLLVMType(Type *type) {
         return type->getLLVMType(context.llvmContext);
     }
+
+    llvm::ConstantInt *getIntegerConstant(int bitWidth, int value) {
+        auto type = llvm::IntegerType::get(context.llvmContext, bitWidth);
+        return llvm::ConstantInt::get(type, value, false);
+    }
 };
 
 
@@ -218,10 +229,10 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
 {
     CompilingFunction function;
     AST::FunctionDeclaration *functionDeclaration;
+    Result result = OK;
     bool error = false;
 public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
-    
     
     llvm::Value *getAssignmentTarget(AST::Expression& expression) {
         if (auto *identifier = llvm::dyn_cast<AST::Identifier>(&expression)) {
@@ -368,6 +379,22 @@ public:
         }
     }
 
+    void visitGuardStatement(AST::GuardStatement& guardStatement) {
+        auto *condition = guardStatement.getCondition().acceptVisitor(*this);
+
+
+        llvm::BasicBlock& entry = function.createOrphanedBlock();
+        llvm::BasicBlock& next = function.createOrphanedBlock();
+
+        function.builder.CreateCondBr(condition, &next, &entry);
+
+        function.patchOrphanedBlock(entry);
+
+        visitBlock(guardStatement.getBlock());
+
+        function.patchOrphanedBlock(next);
+    }
+
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         if (auto* value = returnStatement.getValue()) {
             auto *returnValue = value->acceptVisitor(*this);
@@ -449,6 +476,10 @@ public:
             case Subtract: return function.builder.CreateSub(left, right);
             case Multiply: return function.builder.CreateMul(left, right);
 
+            case BitwiseAnd: return function.builder.CreateAnd(left, right);
+            case BitwiseOr: return function.builder.CreateOr(left, right);
+            case BitwiseXor: return function.builder.CreateXor(left, right);
+
             // TODO: Fix signedness
             case Divide: return function.builder.CreateSDiv(left, right);
             case Modulo: return function.builder.CreateSRem(left, right);
@@ -462,7 +493,6 @@ public:
             case LogicalAnd: assert(false);
             case LogicalOr: assert(false);
         }
-
 
         assert(false);
         return nullptr;
@@ -481,6 +511,29 @@ public:
         } else {
             return function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction);
         }
+    }
+
+    llvm::Value *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
+        auto target = memberAccess.getTarget().acceptVisitor(*this);
+        auto targetType = memberAccess.getTarget().getType();
+
+        auto& resolution = memberAccess.getResolution();
+
+        llvm::Value *value = llvm::TypeSwitch<const MemberResolution *, llvm::Value *>(&resolution)
+            .Case<StructFieldResolution>([&](auto field) {
+                int index = field->getIndex();
+
+//                llvm::Value *indices[2];
+//                indices[0] = function.getIntegerConstant(64, 0);
+//                indices[1] = function.getIntegerConstant(64, index);
+
+//                auto gep = function.builder.CreateGEP(function.getLLVMType(targetType), target, {indices, 2});
+//                return function.builder.CreateLoad(function.getLLVMType(memberAccess.getType()), gep);
+                return function.builder.CreateExtractValue(target, {(unsigned int) index});
+            })
+        ;
+
+        return value;
     }
 };
 
@@ -502,8 +555,8 @@ public:
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& functionDeclaration) {
-        llvm::Function *llvmFunction = context.llvmFunctions.at(&functionDeclaration);
-        codeGenFunction(functionDeclaration, *context.llvmFunctions.at(&functionDeclaration), context);
+        llvm::Function *llvmFunction = context.llvmFunctions[&functionDeclaration];
+        codeGenFunction(functionDeclaration, *context.llvmFunctions[&functionDeclaration], context);
     }
 
     void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
@@ -523,36 +576,17 @@ public:
     }
 };
 
-bool performCodegen(Context& context) {
+Result performCodegen(Context& context) {
     GlobalCodeGenerator generator{context};
+
     for (auto function : context.functions) {
         function->acceptVisitor(generator);
     }
-    return false;
+
+    return OK;
 }
 
-class DeclarationCodeGen : public AST::DeclarationVisitorT<DeclarationCodeGen, llvm::Value *> {
-
-};
-
-class StatementCodeGen : public AST::StatementVisitorT<StatementCodeGen, llvm::Value *> {
-
-};
-
-llvm::FunctionType *createFunctionType(AST::FunctionDeclaration& functionDeclaration)
-{
-    llvm::Type *parameterTypes[functionDeclaration.getParameterCount()];
-
-    for (int i = 0; i < functionDeclaration.getParameterCount(); i++) {
-        parameterTypes[i] = defaultType->type;
-    }
-
-    auto a = llvm::ArrayRef(parameterTypes, functionDeclaration.getParameterCount());
-    return llvm::FunctionType::get(defaultType->type, a, false);
-
-}
-
-std::unique_ptr<llvm::Module> generateCode(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
+std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 {
     llvm::LLVMContext llvmContext;
     instantiateDefaultType(llvmContext);
@@ -561,7 +595,7 @@ std::unique_ptr<llvm::Module> generateCode(std::vector<AST::unique_ptr<AST::Decl
 
     Context context{llvmContext, *module};
 
-    populateContext(context, declarations);
+    populateContext(context, moduleDefinition);
 
     performCodegen(context);
 

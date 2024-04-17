@@ -4,6 +4,9 @@
 #include <concepts>
 #include <functional>
 
+template <typename T>
+concept Pointer = std::is_pointer_v<T>;
+
 namespace Templates {
 
     template<typename T, typename = void>

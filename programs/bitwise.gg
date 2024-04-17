@@ -1,0 +1,12 @@
+
+
+fn test(a: int, b: int) -> int {
+    let c = a | b;
+    let d = a ^ b;
+    let e = c & d;
+    return e;
+}
+
+fn main() -> int {
+    return test(42, 57);
+}

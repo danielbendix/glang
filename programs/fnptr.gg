@@ -1,0 +1,14 @@
+fn add_one(n: int) -> int {
+    return n + 1;
+}
+
+fn add_two(n: int) -> int {
+    return n + 2;
+}
+
+fn test(n: int) -> int {
+    let a = add_one;
+    let b = add_two;
+
+    return a(b(n));
+}
