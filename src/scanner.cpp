@@ -115,6 +115,7 @@ TokenType Scanner::identifierType()
     switch (*it++) {
         case 'a': return testKeyword(it, current, "nd", 2, TokenType::And);
         case 'b': return testKeyword(it, current, "reak", 4, TokenType::Break);
+        case 'c': return testKeyword(it, current, "ase", 3, TokenType::Case);
         case 'e':
             switch (*it++) {
                 case 'l': return testKeyword(it, current, "se", 2, TokenType::Else);

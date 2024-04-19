@@ -69,6 +69,8 @@ public:
     [[nodiscard]]
     unique_ptr<AST::EnumDeclaration> enumDeclaration();
     [[nodiscard]]
+    std::optional<AST::EnumDeclaration::Case> enumCase();
+    [[nodiscard]]
     unique_ptr<AST::VariableDeclaration> variableDeclaration();
     [[nodiscard]]
     unique_ptr<AST::StatementDeclaration> statementDeclaration();

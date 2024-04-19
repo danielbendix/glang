@@ -57,6 +57,7 @@ enum class TokenType : uint8_t {
     Struct,
     Let,
     Var,
+    Case,
     If,
     Else,
     Fn,

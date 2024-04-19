@@ -1067,6 +1067,13 @@ namespace AST {
     };
 
     class EnumDeclaration : public Declaration {
+    public:
+        class Case {
+            std::string name;
+            unique_ptr<Expression> value = nullptr;
+        public:
+            Case(Token token, Token name, unique_ptr<Expression>&& value) : name{name.chars}, value{std::move(value)} {}
+        };
     protected:
         std::string name;
 

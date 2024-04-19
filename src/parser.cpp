@@ -104,7 +104,39 @@ unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
 
 unique_ptr<AST::EnumDeclaration> Parser::enumDeclaration()
 {
+    auto token = previous;
+    auto name = consume(TokenType::Identifier);
+   
+    unique_ptr<AST::TypeNode> typeNode = nullptr;
+    if (match(TokenType::Colon)) {
+        typeNode = type();
+    }
+    std::vector<AST::EnumDeclaration::Case> cases;
+
+    if (match(TokenType::Case)) {
+        auto case_ = enumCase();
+        if (case_) {
+            cases.push_back(std::move(*case_));
+        }
+    } else {
+
+    }
+
+    // TODO: Type information
+
     return nullptr;
+}
+
+std::optional<AST::EnumDeclaration::Case> Parser::enumCase()
+{
+    auto token = previous;
+    auto name = consume(TokenType::Identifier);
+
+    // TODO: associated data
+
+    consume(TokenType::Semicolon);
+
+    return {};
 }
 
 unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()

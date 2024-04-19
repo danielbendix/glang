@@ -73,18 +73,25 @@ public:
     }
 
     Type *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
-        assert(false);
-        // TODO: This may need to be checked as a normal expression.
         Type *targetType = typeCheckExpression(memberAccess.getTarget());
-        // TODO: Resolve member for type.
-        // TODO: Check that value is lvalue.
-        
-        std::cout << targetType << "\n";
-        if (auto *structType = dyn_cast<StructType>(targetType)) {
-            std::cout << structType;
+        if (!targetType) {
+            return nullptr;
         }
 
-        assert(false);
+        if (auto structType = llvm::dyn_cast_if_present<StructType>(targetType)) {
+            auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
+            if (memberResolution) {
+                memberAccess.setType(memberType);
+                memberAccess.setResolution(std::move(memberResolution));
+                return memberType;
+            } else {
+                Diagnostic::error(memberAccess, "Unable to resolve struct member");
+                return nullptr;
+            }
+        }
+
+        Diagnostic::error(memberAccess, "Type does not support member access.");
+
         return nullptr;
     }
 
@@ -301,12 +308,6 @@ public:
             .Case<FunctionResolution>([](auto functionResolution) {
                 AST::FunctionDeclaration *function = functionResolution->getFunctionDeclaration();
                 return function->getType();
-//                std::vector<Type *> parameterTypes;
-//                for (int i = 0; i < function->getParameterCount(); ++i) {
-//                    parameterTypes.push_back(function->getParameter(i).type);
-//                }
-//                // FIXME: THIS IS A LEAK
-//                return new FunctionType(function->getReturnType(), std::move(parameterTypes));
             })
             .Case<FunctionParameterResolution>([](auto parameter) {
                 return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
@@ -411,28 +412,29 @@ public:
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
             declaredType = typeResolver.resolveType(*typeDeclaration);
+            std::cout << declaredType;
 
             if (!declaredType) {
                 Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
-                // TODO: Emit error
                 result = ERROR;
                 return;
             }
         }
 
-        Type *initialType = nullptr;
+        Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
             ExpressionTypeChecker checker;
-            initialType = checker.typeCheckExpression(*initial);
+            type = checker.typeCheckExpression(*initial);
 
-            if (!initialType) {
-                // TODO: Remove
+            if (!type) {
                 Diagnostic::error(*initial, "Unable to resolve type for expression.");
                 result = ERROR;
             }
+        } else {
+            type = declaredType;
         }
 
-        variable.setType(*initialType);
+        variable.setType(*type);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -589,7 +591,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 
     FunctionTypeChecker bodyTypeChecker{moduleDefinition};
     for (const auto& function : moduleDefinition.functions) {
-        bodyTypeChecker.typeCheckFunctionBody(*function);
+        result |= bodyTypeChecker.typeCheckFunctionBody(*function);
     }
 
 

@@ -14,6 +14,7 @@
 #include "llvm/IR/Verifier.h"
 
 using llvm::LLVMContext;
+using llvm::dyn_cast;
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -247,6 +248,15 @@ public:
                 case IdentifierResolution::IRK_Parameter:
                 case IdentifierResolution::IRK_Function:
                     assert(false);
+            }
+        }
+        if (auto *memberAccess = dyn_cast<AST::MemberAccessExpression>(&expression)) {
+            llvm::Value *target = getAssignmentTarget(memberAccess->getTarget());
+            switch (memberAccess->getResolution().getKind()) {
+                case MemberResolution::MRK_Struct_Field:
+                    return function.builder.CreateConstGEP2_64(function.getLLVMType(memberAccess->getType()), target, 0, static_cast<const StructFieldResolution&>(memberAccess->getResolution()).getIndex());
+                case MemberResolution::MRK_Struct_Method:
+                    llvm_unreachable("Invalid assignment target");
             }
         }
         return nullptr;
