@@ -80,6 +80,7 @@ namespace AST {
 
             // Type nodes
             NK_Type_Literal,
+            NK_Type_Modifier,
         };
 
         Kind kind;
@@ -162,8 +163,6 @@ namespace AST {
     };
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);
-std::ostream& operator<<(std::ostream& os, AST::Node& node);
-
 
 namespace AST {
 
@@ -182,7 +181,7 @@ namespace AST {
         ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
         static bool classof(const Node *node) {
-            return node->getKind() >= NK_Type_Literal && node->getKind() <= NK_Type_Literal;
+            return node->getKind() >= NK_Type_Literal && node->getKind() <= NK_Type_Modifier;;
         }
     };
 
@@ -205,6 +204,33 @@ namespace AST {
 
         static bool classof(const Node *node) {
             return node->getKind() == NK_Type_Literal;
+        }
+    };
+
+    class TypeModifier : public TypeNode {
+    public:
+        enum class Modifier : uint8_t {
+            Pointer,
+            Optional,
+        };
+    protected:
+        unique_ptr<TypeNode> child;
+        std::vector<Modifier> modifiers;
+
+        TypeModifier(Token token, std::vector<Modifier>&& modifiers) : TypeNode{NK_Type_Modifier, Location{token}}, modifiers{std::move(modifiers)} {}
+
+        virtual void print(PrintContext& pc) const;
+    public:
+        static unique_ptr<TypeModifier> create(Token token, std::vector<Modifier>&& modifiers) {
+            return unique_ptr<TypeModifier>{new TypeModifier{token, std::move(modifiers)}};
+        }
+
+        TypeNode& getChild() {
+            return *child;
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Type_Modifier;
         }
     };
 
@@ -347,9 +373,9 @@ namespace AST {
             Integer,
             Double,
             String,
+            Nil,
         };
     protected:
-        // Maybe use std::variant
         // TODO: Implement this using APInt from llvm
         union Internal {
             bool boolean;
@@ -362,11 +388,13 @@ namespace AST {
         Internal internal;
 
         virtual void print(PrintContext& pc) const override;
+
+        explicit Literal(Token token, Type type, Internal internal) : Expression{NK_Expr_Literal, Location{token}}, type{type}, internal{internal} {}
     public:
-        explicit Literal(Token token, bool boolean) : Expression{NK_Expr_Literal, Location{token}}, type{Type::Boolean}, internal{.boolean=boolean} {}
-        explicit Literal(Token token, uint64_t integer) : Expression{NK_Expr_Literal, Location{token}}, type{Type::Integer}, internal{.integer=integer} {}
-        explicit Literal(Token token, double double_) : Expression{NK_Expr_Literal, Location{token}}, type{Type::Double}, internal{.double_=double_} {}
-        explicit Literal(Token token, std::unique_ptr<std::string>&& string) : Expression{NK_Expr_Literal, Location{token}}, type{Type::String}, internal{.string=string.release()} {}
+        explicit Literal(Token token, bool boolean) : Literal{token, Type::Boolean, {.boolean = true}} {}
+        explicit Literal(Token token, uint64_t integer) : Literal{token, Type::Integer, {.integer=integer}} {}
+        explicit Literal(Token token, double double_) : Literal{token, Type::Double, {.double_=double_}} {}
+        explicit Literal(Token token, std::unique_ptr<std::string>&& string) : Literal{token, Type::String, {.string=string.release()}} {}
 
         template <typename T>
         static unique_ptr<Literal> create(Token token, T value) {
@@ -375,6 +403,10 @@ namespace AST {
 
         static unique_ptr<Literal> create(Token token, std::unique_ptr<std::string> value) {
             return unique_ptr<Literal>{new Literal(token, std::move(value))};
+        }
+
+        static unique_ptr<Literal> createNil(Token token) {
+            return unique_ptr<Literal>{new Literal(token, Type::Nil, {.integer = 0})};
         }
 
         Literal::Type getLiteralType() const {
@@ -845,13 +877,17 @@ namespace AST {
 
         ExpressionStatement(unique_ptr<Expression>&& expression) : Statement{NK_Stmt_Expression, expression->getLocation()}, expression{std::move(expression)} {}
 
-        virtual void print(PrintContext& pc) const override { expression->print(pc); }
+        virtual void print(PrintContext& pc) const override;
     public:
         static unique_ptr<ExpressionStatement> create(unique_ptr<Expression>&& expression) {
             return unique_ptr<ExpressionStatement>{new ExpressionStatement{std::move(expression)}};
         }
 
         Expression& getExpression() {
+            return *expression;
+        }
+
+        const Expression& getExpression() const {
             return *expression;
         }
 

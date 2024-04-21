@@ -38,5 +38,5 @@ llvm::StructType *StructType::getStructType(llvm::LLVMContext& context)
         }
     }
 
-    return llvm::StructType::create(context, {children, fields.size()});
+    return llvm::StructType::create(context, {children, fields.size()}, name);
 }

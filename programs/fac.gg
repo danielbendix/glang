@@ -1,8 +1,9 @@
-fn fac(n: int64) -> int64 {
+fn fac(n: int) -> int {
     guard (n >= 2) else { return 1; }
     return n * fac(n - 1);
 }
 
-fn main() -> int64 {
-    return fac(4);
+fn main() -> int {
+    let result = fac(10);
+    return result;
 }

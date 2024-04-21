@@ -33,13 +33,6 @@ struct Local {
         , depth{depth} {}
 };
 
-IntegerType *defaultType;
-
-void instantiateDefaultType(llvm::LLVMContext& context) 
-{
-    defaultType = new IntegerType(64, true, llvm::Type::getInt64Ty(context));
-}
-
 class Context {
 public:
     llvm::Module& llvmModule;
@@ -120,9 +113,9 @@ class CompilingFunction {
 
     struct Local {
         AST::Node *node;
-        llvm::AllocaInst *alloca;
+        llvm::Value *value;
         int depth;
-        Local(AST::Node *node, llvm::AllocaInst *alloca, int depth) : node{node}, alloca{alloca}, depth{depth} {}
+        Local(AST::Node *node, llvm::Value *value, int depth) : node{node}, value{value}, depth{depth} {}
     };
 
     Context& context;
@@ -162,20 +155,33 @@ public:
         currentScope -= 1;
     }
 
-    llvm::AllocaInst& addLocal(AST::VariableDeclaration& variable) {
+    void addConstant(AST::VariableDeclaration& variable, llvm::Value *value) {
+        locals.push_back(Local(&variable, value, currentScope));
+    }
+
+    llvm::AllocaInst& addVariable(AST::VariableDeclaration& variable) {
         llvm::Type *type = variable.getType()->getLLVMType(context.llvmContext);
         auto& alloca = makeStackSlot(type);
         locals.push_back(Local(&variable, &alloca, currentScope));
         return alloca;
     }
 
-    llvm::AllocaInst *getLocal(AST::Node *node) {
+    llvm::Value *getConstant(const AST::Node *node) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             if (locals[i].node == node) {
-                return locals[i].alloca;
+                return locals[i].value;
             }
         }
-        return nullptr;
+        llvm_unreachable("Unable to find local.");
+    }
+
+    llvm::AllocaInst *getVariable(const AST::Node *node) {
+        for (int i = locals.size() - 1; i >= 0; --i) {
+            if (locals[i].node == node) {
+                return llvm::cast<llvm::AllocaInst>(locals[i].value);
+            }
+        }
+        llvm_unreachable("Unable to find local.");
     }
 
     llvm::AllocaInst& makeStackSlot(llvm::Type *type) {
@@ -239,7 +245,9 @@ public:
         if (auto *identifier = llvm::dyn_cast<AST::Identifier>(&expression)) {
             switch (identifier->getResolution()->getKind()) {
                 case IdentifierResolution::IRK_Local: {
-                    auto alloca = function.getLocal(&static_cast<LocalResolution *>(identifier->getResolution())->getVariableDeclaration());
+                    LocalResolution *local = static_cast<LocalResolution *>(identifier->getResolution());
+                    assert(local->getVariableDeclaration().getIsMutable());
+                    auto alloca = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getVariableDeclaration());
                     return alloca;
                 }
                 case IdentifierResolution::IRK_Global: {
@@ -282,10 +290,21 @@ public:
     // Declaration
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        auto& alloca = function.addLocal(variable);
-        if (auto *initial = variable.getInitialValue()) {
-            auto *value = initial->acceptVisitor(*this);
-            function.builder.CreateStore(value, &alloca);
+        if (variable.getIsMutable()) {
+            auto& alloca = function.addVariable(variable);
+            if (auto *initial = variable.getInitialValue()) {
+                auto *value = initial->acceptVisitor(*this);
+                function.builder.CreateStore(value, &alloca);
+            }
+        } else {
+            llvm::Value *value;
+            if (auto *initial = variable.getInitialValue()) {
+                value = initial->acceptVisitor(*this);
+            } else {
+                llvm::Type *type = function.getLLVMType(variable.getType());
+                value = llvm::PoisonValue::get(type);
+            }
+            function.addConstant(variable, value);
         }
     }
 
@@ -443,8 +462,15 @@ public:
             case IdentifierResolution::IRK_Function: return &function.getFunction(*static_cast<FunctionResolution *>(identifier.getResolution())->getFunctionDeclaration());
             case IdentifierResolution::IRK_Local: {
                 auto type = function.getLLVMType(identifier.getType());
-                auto alloca = function.getLocal(&static_cast<LocalResolution *>(identifier.getResolution())->getVariableDeclaration());
-                return function.builder.CreateLoad(type, alloca);
+                LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
+                auto *declaration = &local->getVariableDeclaration();
+
+                if (local->getVariableDeclaration().getIsMutable()) {
+                    auto alloca = function.getVariable(declaration);
+                    return function.builder.CreateLoad(type, alloca);
+                } else {
+                    return function.getConstant(declaration);
+                }
             }
             case IdentifierResolution::IRK_Global: {
                 assert(false);
@@ -599,7 +625,6 @@ Result performCodegen(Context& context) {
 std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 {
     llvm::LLVMContext llvmContext;
-    instantiateDefaultType(llvmContext);
     
     auto module = std::make_unique<llvm::Module>("test", llvmContext);
 

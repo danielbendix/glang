@@ -64,6 +64,9 @@ namespace AST {
             case NK_Type_Literal:
                 return delete static_cast<TypeLiteral *>(node);
                 break;
+            case NK_Type_Modifier:
+                return delete static_cast<TypeModifier *>(node);
+                break;
         }
     }
 }
@@ -130,6 +133,20 @@ namespace AST {
         pc << identifier;
     }
 
+    void TypeModifier::print(PrintContext& pc) const {
+        pc << *child;
+        for (auto modifier : modifiers) {
+            switch (modifier) {
+                case Modifier::Pointer:
+                    pc << '*';
+                    break;
+                case Modifier::Optional:
+                    pc << '?';
+                    break;
+            }
+        }
+    }
+
     void Identifier::print(PrintContext& pc) const { 
         pc << name; 
     }
@@ -147,6 +164,7 @@ namespace AST {
     }
 
     void FunctionDeclaration::print(PrintContext& pc) const {
+        pc.startLine();
         pc << "fn " << name << "(";
         for (auto& p : parameters) {
             // This could fail after type checking
@@ -252,6 +270,12 @@ namespace AST {
         pc << "}\n";
     }
 
+    void ExpressionStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << getExpression();
+        pc << ";\n";
+    }
+
     void StatementDeclaration::print(PrintContext& pc) const {
         pc << *statement;
     }
@@ -287,6 +311,9 @@ namespace AST {
             case String:
                 pc << '"' << *internal.string << '"';
                 break;
+            case Nil:
+                pc << "nil";
+                break;
         }
     }
 
@@ -311,11 +338,6 @@ namespace AST {
 }
 
 std::ostream& operator<<(std::ostream& os, const AST::Node& node) {
-    node.print(os);
-    return os;
-}
-
-std::ostream& operator<<(std::ostream& os, AST::Node& node) {
     node.print(os);
     return os;
 }

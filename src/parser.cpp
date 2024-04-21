@@ -40,6 +40,20 @@ unique_ptr<AST::TypeNode> Parser::type()
 {
     // TODO: Support more than type literals
     Token name = consume(TokenType::Identifier);
+
+    for (;;) {
+        if (match(TokenType::Star)) {
+            
+            continue;
+        }
+
+        if (match(TokenType::Question)) {
+
+            continue;
+        }
+        break;
+    }
+
     return AST::TypeLiteral::create(name);
 }
 
@@ -514,6 +528,8 @@ unique_ptr<AST::Expression> Parser::literal()
         case True: return Literal::create(previous, true);
         case False: return Literal::create(previous, false);
 
+        case Nil: return Literal::createNil(previous);
+
         default: throw ParserException(previous, ParserException::Cause::ExpectedLiteral);
     }
 
@@ -593,6 +609,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Floating)]              = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(True)]                  = {&Parser::literal,    NULL,               Precedence::None},
     [static_cast<int>(False)]                 = {&Parser::literal,    NULL,               Precedence::None},
+    [static_cast<int>(Nil)]                   = {&Parser::literal,    NULL,               Precedence::None},
 
     [static_cast<int>(Identifier)]            = {&Parser::identifier, NULL,               Precedence::None},
     [static_cast<int>(Self)]                  = {&Parser::self,       NULL,               Precedence::None},

@@ -4,6 +4,7 @@
 /*
 /*
     this is a comment
+    💩
 
 */
 */
@@ -12,6 +13,9 @@ struct Test {
     var a: int;
     var b: int;
 
+    fn product(c: int, d: int) -> int {
+        return c + d;
+    }
 }
 
 fn test(a: Test) -> int {
@@ -20,5 +24,10 @@ fn test(a: Test) -> int {
 
 
 fn main() -> int {
+    var l: Test*? = nil;
+    l.a = 123;
+    l.b = 234;
+
+
     return 0;
 }

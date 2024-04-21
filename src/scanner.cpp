@@ -102,6 +102,7 @@ Token Scanner::makeToken(TokenType type)
     return Token(type, chars, line, offset);
 }
 
+[[nodiscard]]
 TokenType testKeyword(std::string::const_iterator it, std::string::const_iterator end, const char *string, int length, TokenType t)
 {
     std::string_view view(it, end);
@@ -134,7 +135,11 @@ TokenType Scanner::identifierType()
         }
         case 'i': return testKeyword(it, current, "f", 1, TokenType::If);
         case 'l': return testKeyword(it, current, "et", 2, TokenType::Let);
-        case 'n': return testKeyword(it, current, "ot", 2, TokenType::Not);
+        case 'n':
+            switch(*it++) {
+                case 'i': return testKeyword(it, current, "l", 1, TokenType::Nil);
+                case 'o': return testKeyword(it, current, "t", 1, TokenType::Not);
+            }
         case 'o': return testKeyword(it, current, "r", 1, TokenType::Or);
         case 'r': {
             if (*it++ == 'e') {

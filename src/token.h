@@ -73,6 +73,7 @@ enum class TokenType : uint8_t {
     // Literals
     True,
     False,
+    Nil,
     Integer, 
     Floating, 
     Binary,
