@@ -142,17 +142,3 @@ PassResult analyzeControlFlow(ModuleDef& moduleDefinition)
 
     return result;
 }
-
-PassResult analyzeControlFlow(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
-{
-    GlobalDeclarationAnalyzer analyzer;
-
-    Result result = OK;
-    for (auto& declaration : declarations) {
-        result |= declaration->acceptVisitor(analyzer);
-    }
-
-    // TODO: Go through types and visit their functions.
-
-    return result;
-}
