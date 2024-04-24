@@ -5,5 +5,5 @@ fn fac(n: int) -> int {
 
 fn main() -> int {
     let result = fac(10);
-    return result;
+    return result & 1;
 }

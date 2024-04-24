@@ -66,6 +66,8 @@ namespace AST {
                     return subclass().visitGuardStatement(*static_cast<GuardStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_Assignment:
                     return subclass().visitAssignmentStatement(*static_cast<AssignmentStatement *>(&statement), std::forward<Args>(args)...);
+                case NK_Stmt_Compound_Assignment:
+                    return subclass().visitCompoundAssignmentStatement(*static_cast<CompoundAssignmentStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_While:
                     return subclass().visitWhileStatement(*static_cast<WhileStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_For:
@@ -120,6 +122,8 @@ namespace AST {
             switch (typeNode.getKind()) {
                 case NK_Type_Literal:
                     return subclass().visitTypeLiteral(*static_cast<TypeLiteral *>(&typeNode), std::forward<Args>(args)...);
+                case NK_Type_Modifier:
+                    return subclass().visitTypeModifier(*static_cast<TypeModifier *>(&typeNode), std::forward<Args>(args)...);
                 default:
                     llvm_unreachable("Unsupported type node kind.");
             }

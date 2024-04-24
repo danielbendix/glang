@@ -27,7 +27,7 @@ std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveStaticMembe
     return {nullptr, nullptr};
 }
 
-llvm::StructType *StructType::getStructType(llvm::LLVMContext& context) 
+llvm::StructType *StructType::getStructType(llvm::LLVMContext& context) const
 {
     llvm::Type *children[fields.size()];
 

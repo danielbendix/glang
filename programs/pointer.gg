@@ -1,0 +1,22 @@
+fn test(a: int*) {
+    *a = *a * *a;
+}
+
+fn main() -> int {
+    var a: int = 100;
+    var a2: int = 200;
+
+    var b = &a;
+
+    let c: int** = &b;
+
+    *c = &a2;
+
+    let d: int*? = &a;
+
+    let a: int? = nil;
+
+    test(b);
+
+    return a2;
+}

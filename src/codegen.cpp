@@ -14,6 +14,8 @@
 #include "llvm/IR/Verifier.h"
 
 using llvm::LLVMContext;
+using llvm::cast;
+using llvm::isa;
 using llvm::dyn_cast;
 
 using Result = PassResult;
@@ -41,73 +43,48 @@ public:
 
     std::vector<AST::FunctionDeclaration *> functions;
     PointerMap<AST::FunctionDeclaration *, llvm::Function *> llvmFunctions;
-    std::vector<AST::VariableDeclaration *> variables;
-    PointerMap<AST::VariableDeclaration *, llvm::Value *> llvmVariables;
+    std::vector<AST::VariableDeclaration *> globals;
+    PointerMap<AST::VariableDeclaration *, llvm::Value *> llvmGlobals;
 
     Context(LLVMContext& llvmContext, llvm::Module& llvmModule) : llvmContext{llvmContext}, llvmModule{llvmModule} {}
 };
 
-class ContextPopulator : public AST::DeclarationVisitorT<ContextPopulator, void> {
+class ContextPopulator {
    
     Context& context;
 public:
 
     ContextPopulator(Context& context) : context{context} {}
 
-    void addDeclaration(AST::Declaration& declaration) {
-        declaration.acceptVisitor(*this);
+    void addGlobal(AST::VariableDeclaration& global) {
+        context.globals.push_back(&global);
+        // TODO: Add llvm global
     }
 
-    void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        context.variables.push_back(&variable);
-        //context.llvmVariables.insert(std::make_pair(&variable, 
-    }
-
-    void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+    void addFunction(AST::FunctionDeclaration& function) {
         context.functions.push_back(&function);
 
-        llvm::Type *returnType = function.getReturnType()->getLLVMType(context.llvmContext);
+        auto functionType = function.getType();
+        auto llvmFunctionType = functionType->getFunctionType(context.llvmContext);
 
-        llvm::Type *parameters[function.getParameterCount()];
-
-        for (int pi = 0; pi < function.getParameterCount(); pi++) {
-            parameters[pi] = function.getParameter(pi).type->getLLVMType(context.llvmContext);
-        }
-
-        llvm::FunctionType *functionType = llvm::FunctionType::get(returnType, llvm::ArrayRef(parameters, function.getParameterCount()), false);
-
-        llvm::Function *llvmFunction = llvm::Function::Create(functionType, llvm::Function::ExternalLinkage, function.getName(), context.llvmModule);
+        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName(), context.llvmModule);
         context.llvmFunctions.insert(&function, llvmFunction);
-    }
-
-    void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-
-    }
-
-    void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
-
-    }
-
-    void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
-
-    }
-
-    void visitStatementDeclaration(AST::StatementDeclaration& statement) {
-
     }
 };
 
 bool populateContext(Context& context, ModuleDef& moduleDefinition) {
     ContextPopulator populator{context};
 
-    for (auto& declaration : moduleDefinition.functions) {
-        populator.addDeclaration(*declaration);
+    for (auto& global : moduleDefinition.globals) {
+        populator.addGlobal(*global);
+    }
+
+    for (auto& function : moduleDefinition.functions) {
+        populator.addFunction(*function);
     }
     
     return false;
 }
-
-//using namespace llvm;
 
 class CompilingFunction {
 
@@ -223,7 +200,11 @@ public:
         return type->getLLVMType(context.llvmContext);
     }
 
-    llvm::ConstantInt *getIntegerConstant(int bitWidth, int value) {
+    llvm::ConstantInt *getIntegerConstant(IntegerType *type, uint64_t value) {
+        return llvm::ConstantInt::get(type->getIntegerType(context.llvmContext), value, type->getIsSigned());
+    }
+
+    llvm::ConstantInt *getIntegerConstant(int bitWidth, uint64_t value) {
         auto type = llvm::IntegerType::get(context.llvmContext, bitWidth);
         return llvm::ConstantInt::get(type, value, false);
     }
@@ -267,6 +248,11 @@ public:
                     llvm_unreachable("Invalid assignment target");
             }
         }
+        if (auto *unaryExpression = dyn_cast<AST::UnaryExpression>(&expression)) {
+            if (unaryExpression->getOp() == AST::UnaryOperator::Dereference) {
+                return unaryExpression->getTarget().acceptVisitor(*this);
+            }
+        }
         return nullptr;
     }
 
@@ -278,12 +264,20 @@ public:
         function.popScope();
     }
 
+    void finalize() {
+        if (!function.currentBlock().getTerminator()) {
+            function.builder.CreateRetVoid();
+            // TODO: Assert that function returns void.
+        }
+    }
+
     bool startCodeGen(AST::FunctionDeclaration& function) {
         functionDeclaration = &function;
         auto& block = function.getCode();
         for (auto& declaration : block) {
             declaration.acceptVisitor(*this);
         }
+        finalize();
         return error;
     }
 
@@ -334,33 +328,66 @@ public:
     // Statements
 
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        AST::AssignmentOperator op = assignment.getOp();
-        using enum AST::AssignmentOperator;
+        AST::AssignmentType assignmentType = assignment.getAssignmentType();
 
-        // TODO: Must be assignable.
+        // TODO: Look at assignment type
+
+        auto value = assignment.getValue().acceptVisitor(*this);
+        auto *target = getAssignmentTarget(assignment.getTarget());
+        auto *alloca = static_cast<llvm::AllocaInst *>(target);
+        function.builder.CreateStore(value, alloca, false);
+    }
+
+    void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
+        AST::BinaryOperator op = assignment.getOp();
+
         llvm::Value *value;
-        if (op == Assign) {
-            value = assignment.getValue().acceptVisitor(*this);
-        } else {
-            auto *targetValue = assignment.getTarget().acceptVisitor(*this);
-            auto *rhs = assignment.getValue().acceptVisitor(*this);
-            
-            switch (op) {
-                case AssignAdd:
-                    value = function.builder.CreateAdd(targetValue, rhs); break;
-                case AssignSub:
-                    value = function.builder.CreateSub(targetValue, rhs); break;
-                case AssignMultiply:
-                    value = function.builder.CreateMul(targetValue, rhs); break;
-                case AssignDivide:
-                    // TODO: Fix signedness
-                    value = function.builder.CreateSDiv(targetValue, rhs); break;
-                case Assign: llvm_unreachable("Assign is handled elsewhere.");
+        auto *targetValue = assignment.getTarget().acceptVisitor(*this);
+        auto *rhs = assignment.getOperand().acceptVisitor(*this);
+        using enum AST::BinaryOperator;
+        switch (op) {
+            case Add:
+                value = function.builder.CreateAdd(targetValue, rhs); break;
+            case Subtract:
+                value = function.builder.CreateSub(targetValue, rhs); break;
+            case Multiply:
+                value = function.builder.CreateMul(targetValue, rhs); break;
+            case Divide: {
+                IntegerType *integerType = cast<IntegerType>(assignment.getTarget().getType());
+                if (integerType->getIsSigned()) {
+                    value = function.builder.CreateSDiv(targetValue, rhs);
+                } else {
+                    value = function.builder.CreateUDiv(targetValue, rhs);
+                }
+                break;
             }
+            case Modulo: {
+                IntegerType *integerType = cast<IntegerType>(assignment.getTarget().getType());
+                if (integerType->getIsSigned()) {
+                    value = function.builder.CreateSRem(targetValue, rhs);
+                } else {
+                    value = function.builder.CreateURem(targetValue, rhs);
+                }
+                break;
+            }
+            case BitwiseAnd:
+                value = function.builder.CreateAnd(targetValue, rhs); break;
+            case BitwiseOr:
+                value = function.builder.CreateOr(targetValue, rhs); break;
+            case BitwiseXor:
+                value = function.builder.CreateXor(targetValue, rhs); break;
+
+            case Equal:
+            case NotEqual:
+            case Less:
+            case LessEqual:
+            case Greater:
+            case GreaterEqual:
+            case LogicalAnd:
+            case LogicalOr:
+                llvm_unreachable("Unsupported assignment operator type.");
         }
 
-
-        // FIXME: The codegen needs to know that this is an lvalue.
         auto *target = getAssignmentTarget(assignment.getTarget());
         auto *alloca = static_cast<llvm::AllocaInst *>(target);
         function.builder.CreateStore(value, alloca, false);
@@ -489,7 +516,17 @@ public:
             }
             case Boolean: {
                 llvm::APInt i(1, literal.getBoolean() ? 1 : 0, true);
+                return function.getIntegerConstant(1, literal.getBoolean() ? 1 : 0);
                 return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
+            }
+            case Nil: {
+                auto optionalType = cast<OptionalType>(literal.getType());
+                if (isa<PointerType>(optionalType->getContained())) {
+                    return llvm::Constant::getNullValue(function.getLLVMType(optionalType));
+                } else {
+                    auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
+                    return llvm::ConstantStruct::get(structType, {function.getIntegerConstant(1, 0), llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))});
+                }
             }
             default:
                 assert(false);
@@ -498,6 +535,25 @@ public:
     }
 
     llvm::Value *visitUnaryExpression(AST::UnaryExpression& unary) {
+        auto target = unary.getTarget().acceptVisitor(*this);
+
+        using enum AST::UnaryOperator;
+        switch (unary.getOp()) {
+            case Not:
+                return function.builder.CreateSelect(target, function.getIntegerConstant(1, 0), function.getIntegerConstant(1, 1));
+            case Negate: {
+                IntegerType *integerType = cast<IntegerType>(unary.getType());
+                return function.builder.CreateSub(function.getIntegerConstant(integerType->getBitWidth(), 0), target);
+            }
+            case AddressOf: {
+                return getAssignmentTarget(unary.getTarget());
+            }
+            case Dereference: {
+                Type *dereferencedType = unary.getType();
+                return function.builder.CreateLoad(function.getLLVMType(dereferencedType), target);
+            }
+        }
+
         assert(false);
         return nullptr;
     }
@@ -506,6 +562,7 @@ public:
         auto left = binary.getLeft().acceptVisitor(*this);
         auto right = binary.getRight().acceptVisitor(*this);
 
+        // TODO: Support FP math
         using enum AST::BinaryOperator;
         switch (binary.getOp()) {
             case Add: return function.builder.CreateAdd(left, right);
@@ -516,9 +573,23 @@ public:
             case BitwiseOr: return function.builder.CreateOr(left, right);
             case BitwiseXor: return function.builder.CreateXor(left, right);
 
-            // TODO: Fix signedness
-            case Divide: return function.builder.CreateSDiv(left, right);
-            case Modulo: return function.builder.CreateSRem(left, right);
+            case Divide: {
+                IntegerType *integerType = cast<IntegerType>(binary.getType());
+                if (integerType->getIsSigned()) {
+                    return function.builder.CreateSDiv(left, right);
+                } else {
+                    return function.builder.CreateUDiv(left, right);
+                }
+            }
+            case Modulo: {
+                IntegerType *integerType = cast<IntegerType>(binary.getType());
+                if (integerType->getIsSigned()) {
+                    return function.builder.CreateSRem(left, right);
+                } else {
+                    return function.builder.CreateURem(left, right);
+                }
+                break;
+            }
             case Equal: return function.builder.CreateICmpEQ(left, right);
             case NotEqual: return function.builder.CreateICmpNE(left, right);
             case Less: return function.builder.CreateICmpSLT(left, right);

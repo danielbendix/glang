@@ -38,7 +38,7 @@ public:
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const std::string& name);
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const std::string& name);
 
-    llvm::StructType *getStructType(llvm::LLVMContext& context);
+    llvm::StructType *getStructType(llvm::LLVMContext& context) const;
 
     const std::vector<AST::VariableDeclaration *>& getFields() const {
         return fields;

@@ -41,20 +41,28 @@ unique_ptr<AST::TypeNode> Parser::type()
     // TODO: Support more than type literals
     Token name = consume(TokenType::Identifier);
 
+    std::vector<AST::TypeModifier::Modifier> modifiers;
+
+    using enum AST::TypeModifier::Modifier;
+
     for (;;) {
         if (match(TokenType::Star)) {
-            
+            modifiers.push_back(Pointer);
             continue;
         }
 
         if (match(TokenType::Question)) {
-
+            modifiers.push_back(Optional);
             continue;
         }
         break;
     }
 
-    return AST::TypeLiteral::create(name);
+    if (modifiers.empty()) {
+        return AST::TypeLiteral::create(name);
+    } else {
+        return AST::TypeModifier::create(AST::TypeLiteral::create(name), modifiers);
+    }
 }
 
 // Declarations
@@ -257,21 +265,20 @@ unique_ptr<AST::WhileStatement> Parser::whileStatement()
     return AST::WhileStatement::create(token, std::move(condition), std::move(code));
 }
 
-AST::AssignmentOperator assignmentOperatorFromToken(Token token)
+std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
 {
-    using enum TokenType;
-    using enum AST::AssignmentOperator;
+    using enum AST::BinaryOperator;
     switch (token.type) {
-        case Equal:
-            return Assign;
-        case PlusEqual:
-            return AssignAdd;
-        case MinusEqual:
-            return AssignSub;
-        case StarEqual:
-            return AssignMultiply;
-        case SlashEqual:
-            return AssignDivide;
+        case TokenType::Equal:
+            return {};
+        case TokenType::PlusEqual:
+            return Add;
+        case TokenType::MinusEqual:
+            return Subtract;
+        case TokenType::StarEqual:
+            return Multiply;
+        case TokenType::SlashEqual:
+            return Divide;
         default:
             llvm::llvm_unreachable_internal();
     }
@@ -284,11 +291,17 @@ unique_ptr<AST::Statement> Parser::assignmentOrExpression()
     if (isAssignmentOperator(current.type)) {
         // FIXME: Assignment type
         auto token = current;
-        auto op = assignmentOperatorFromToken(token);
+        auto op = binaryOperatorFromAssignment(token);
         advance();
         auto value = expression();
         consume(TokenType::Semicolon);
-        return AST::AssignmentStatement::create(token, op, std::move(expr), std::move(value));
+
+        if (op) {
+            return AST::CompoundAssignmentStatement::create(token, *op, std::move(expr), std::move(value));
+        } else {
+            return AST::AssignmentStatement::create(token, std::move(expr), std::move(value));
+
+        }
     } else {
         consume(TokenType::Semicolon);
         return AST::ExpressionStatement::create(std::move(expr));
@@ -545,6 +558,7 @@ unique_ptr<AST::Expression> Parser::unary()
         case TokenType::Not: op = AST::UnaryOperator::Not; break;
         case TokenType::Minus: op = AST::UnaryOperator::Negate; break;
         case TokenType::Ampersand: op = AST::UnaryOperator::AddressOf; break;
+        case TokenType::Star: op = AST::UnaryOperator::Dereference; break;
         default: llvm_unreachable("Token type is not a unary operator");
     }
 
@@ -581,7 +595,7 @@ ParseRule ParseRule::expressionRules[] = {
 
     [static_cast<int>(Plus)]                  = {NULL,                &Parser::binary,    Precedence::Term},
     [static_cast<int>(Minus)]                 = {&Parser::unary,      &Parser::binary,    Precedence::Term},
-    [static_cast<int>(Star)]                  = {NULL,                &Parser::binary,    Precedence::Factor},
+    [static_cast<int>(Star)]                  = {&Parser::unary,      &Parser::binary,    Precedence::Factor},
     [static_cast<int>(Slash)]                 = {NULL,                &Parser::binary,    Precedence::Factor},
 
     [static_cast<int>(Ampersand)]             = {&Parser::unary,      &Parser::binary,    Precedence::BitwiseAnd},

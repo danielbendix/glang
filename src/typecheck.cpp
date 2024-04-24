@@ -2,6 +2,9 @@
 #include "AST_Visitor.h"
 #include "diagnostic.h"
 #include "typecheck.h"
+#include "typecheck/expression.h"
+#include "typecheck/internal.h"
+#include "typecheck/assignment.h"
 
 #include "type.h"
 #include "type/struct.h"
@@ -12,11 +15,15 @@ using enum PassResultKind;
 using Result = PassResult;
 
 using llvm::dyn_cast;
+using llvm::isa;
 
+VoidType _void_;
+BooleanType _boolean;
+IntegerType _signed64{64, true};
 
-VoidType void_;
-BooleanType boolean;
-IntegerType signed64{64, true};
+VoidType *void_ = &_void_;
+BooleanType *boolean = &_boolean;
+IntegerType *signed64 = &_signed64;
 
 
 class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
@@ -29,6 +36,7 @@ public:
         if (auto type = typeNode.acceptVisitor(*this)) {
             return type;
         } else {
+            std::cout << typeNode << '\n';
             Diagnostic::error(typeNode, "Unable to resolve type name");
             return nullptr;
         }
@@ -39,281 +47,33 @@ public:
             return *type;
 
         } else if (literal.getName() == "int") {
-            return &signed64;
+            return signed64;
         } else if (literal.getName() == "bool") {
-            return &boolean;
+            return boolean;
         } else {
             return nullptr;
         }
     }
-};
 
-class ExpressionAssignmentTypeChecker : public AST::ExpressionVisitorT<ExpressionAssignmentTypeChecker, Type *> {
-    // TODO: We need an expression type checker once we implement member access.
-public:
-    ExpressionAssignmentTypeChecker() {}
+    Type *visitTypeModifier(AST::TypeModifier& typeModifier) {
+        Type *type = typeModifier.getChild().acceptVisitor(*this);
 
-    Type *typeCheckExpression(AST::Expression& expression) {
-        return expression.acceptVisitor(*this);
-    }
-
-    Type *visitUnaryExpression(AST::UnaryExpression& unary) {
-        Diagnostic::error(unary, "Cannot assign to result of unary expression.");
-        return nullptr;
-    }
-
-    Type *visitBinaryExpression(AST::BinaryExpression& binary) {
-        Diagnostic::error(binary, "Cannot assign to result of binary expression.");
-        return nullptr;
-    }
-
-    Type *visitCallExpression(AST::CallExpression& call) {
-        Diagnostic::error(call, "Cannot assign to result of function call.");
-        return nullptr;
-    }
-
-    Type *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
-        Type *targetType = typeCheckExpression(memberAccess.getTarget());
-        if (!targetType) {
-            return nullptr;
-        }
-
-        if (auto structType = llvm::dyn_cast_if_present<StructType>(targetType)) {
-            auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
-            if (memberResolution) {
-                memberAccess.setType(memberType);
-                memberAccess.setResolution(std::move(memberResolution));
-                return memberType;
-            } else {
-                Diagnostic::error(memberAccess, "Unable to resolve struct member");
-                return nullptr;
+        using enum AST::TypeModifier::Modifier;
+        for (auto modifier : typeModifier) {
+            switch (modifier) {
+                case Pointer:
+                    type = type->getPointerType();
+                    break;
+                case Optional:
+                    type = type->getOptionalType();
+                    break;
+            }
+            std::cout << int(modifier) << ' ' << type << '\n';
+            if (!type) {
+                std::cout << "FAILED\n";
+                break;
             }
         }
-
-        Diagnostic::error(memberAccess, "Type does not support member access.");
-
-        return nullptr;
-    }
-
-    Type *visitLiteral(AST::Literal& literal) {
-        Diagnostic::error(literal, "Cannot assign to literal.");
-        return nullptr;
-    }
-
-    Type *visitIdentifier(AST::Identifier& identifier) {
-        auto* resolution = identifier.getResolution();
-        Type *type = llvm::TypeSwitch<IdentifierResolution *, Type *>(resolution)
-            .Case<LocalResolution>([this, &identifier](auto local) {
-                auto &var = local->getVariableDeclaration();
-                if (var.getIsMutable()) {
-                    return local->getVariableDeclaration().getType();
-                } else {
-                    // TODO: Should this have the entire assignment statement?
-                Diagnostic::error(identifier, "Cannot assign to let constant.");
-                    return (Type *) nullptr;
-                }
-            })
-            .Case<FunctionResolution>([this, &identifier](auto functionResolution) {
-                Diagnostic::error(identifier, "Cannot assign to global function. Functions are immutable.");
-                return nullptr;
-            })
-            .Case<FunctionParameterResolution>([this, &identifier](auto parameter) {
-                Diagnostic::error(identifier, "Cannot assign to function parameter.");
-                return nullptr;
-                //return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
-            })
-        ;
-        identifier.setType(type);
-        return type;
-    }
-};
-
-class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, Type *, Type *> {
-
-public:
-    ExpressionTypeChecker() {}
-
-    Type *typeCheckExpression(AST::Expression& expression, Type *declaredType = nullptr) {
-        return expression.acceptVisitor(*this, declaredType);
-    }
-
-    Type *visitUnaryExpression(AST::UnaryExpression& unary, Type *declaredType) {
-        // TODO: Just passing on the declared type will not be sufficient
-        Type *targetType = unary.getTarget().acceptVisitor(*this, declaredType);
-
-        using enum AST::UnaryOperator;
-        switch (unary.getOp()) {
-            case AddressOf:
-                assert(false);
-            case Not:
-                if (targetType == &boolean) {
-                    return &boolean;
-                } else {
-                    return nullptr;
-                }
-            case Negate:
-                // Fixme ensure that type is numeric.
-                return targetType;
-        }
-    }
-
-    Type *visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
-        Type *leftType = typeCheckExpression(binary.getLeft());
-        Type *rightType = typeCheckExpression(binary.getRight());
-
-        /* TODO: type checking integer and floating point types should 
-         * perhaps have an extra type for unconstrained types for literals. */
-
-        if (leftType != rightType) {
-
-            std::cout << "Non-matching types in binary operation.\n" << leftType->getKind() << " " << rightType->getKind() << "\n";
-            // TODO: Error
-            return nullptr;
-        }
-
-        using enum AST::BinaryOperator;
-        switch (binary.getOp()) {
-            case LogicalOr:
-            case LogicalAnd:
-                if (leftType != &boolean) {
-                    return nullptr;
-                    // TODO: Error
-                } else {
-                    return &boolean;
-                }
-            case Less:
-            case LessEqual:
-            case Greater:
-            case GreaterEqual:
-                if (leftType != &signed64) {
-                    Diagnostic::error(binary, "Attempting to compare non-integer types.");
-                    return nullptr;
-                } else {
-                    return &boolean;
-                }
-
-            case BitwiseAnd:
-            case BitwiseOr:
-            case BitwiseXor:
-                if (leftType != &signed64) {
-                    Diagnostic::error(binary, "Attempting to compare non-integer types.");
-                    return nullptr;
-                } else {
-                    return &signed64;
-                }   
-
-            case Equal:
-            case NotEqual:
-                return &boolean;
-                break;
-            case Add:
-            case Subtract:
-            case Multiply:
-            case Divide:
-            case Modulo:
-                if (leftType != &signed64) {
-                    Diagnostic::error(binary, "Attempting to perform arithmetic on non-integer types.");
-                    return nullptr;
-                } else {
-                    return &signed64;
-                }
-                break;
-        }
-
-        binary.setType(leftType);
-        return leftType;
-    }
-
-    Type *visitCallExpression(AST::CallExpression& call, Type *declaredType) {
-        // Verify that function exists, and call matches arity.
-        // Return return type of function.
-        auto type = typeCheckExpression(call.getTarget());
-        if (FunctionType *functionType = dyn_cast<FunctionType>(type)) {
-            if (functionType->parameterCount() != call.argumentCount()) {
-                std::cout << "Non-matching number of arguments in call.";
-                return nullptr;
-            }
-
-            // This needs to be whether one type can be converted to the other.
-            for (int i = 0; i < functionType->parameterCount(); ++i) {
-                Type *argumentType = typeCheckExpression(call.getArgument(i));
-                Type *parameterType = functionType->getParameter(i);
-                if (argumentType != parameterType) {
-                    std::cout << "Wrong argument type in call." << argumentType->getKind() << " " << parameterType->getKind();
-                    return nullptr;
-                }
-            }
-
-            Type *type = functionType->getReturnType();
-            call.setType(type);
-            return type;
-        } else {
-            Diagnostic::error(call, "Attempting to call non-function value.");
-            return nullptr;
-        }
-    }
-
-    Type *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType) {
-        Type *targetType = typeCheckExpression(memberAccess.getTarget(), nullptr);
-        
-        if (!targetType) {
-            return nullptr;
-        }
-
-        if (auto structType = llvm::dyn_cast_if_present<StructType>(targetType)) {
-            auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
-            if (memberResolution) {
-                memberAccess.setType(memberType);
-                memberAccess.setResolution(std::move(memberResolution));
-                return memberType;
-            } else {
-                Diagnostic::error(memberAccess, "Unable to resolve struct member");
-                return nullptr;
-            }
-        }
-
-        Diagnostic::error(memberAccess, "Type does not support member access.");
-
-        return nullptr;
-    }
-
-    Type *visitLiteral(AST::Literal& literal, Type *declaredType) {
-        using enum AST::Literal::Type;
-        // TODO: Validate against declaration type.
-        switch (literal.getLiteralType()) {
-            case Boolean:
-                return &boolean;
-            case Integer:
-                // FIXME: Check declared integer type
-                // Can be converted to smaller integer types or a floating point value.
-                literal.setType(&signed64);
-                return &signed64;
-            case Double:
-                Diagnostic::error(literal, "Floating-point literals are currently not supported.");
-                exit(-1);
-                break;
-            case String:
-                Diagnostic::error(literal, "String literals are currently not supported.");
-                exit(-1);
-                break;
-        }
-    }
-
-    Type *visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
-        auto* resolution = identifier.getResolution();
-        Type *type = llvm::TypeSwitch<IdentifierResolution *, Type *>(resolution)
-            .Case<LocalResolution>([](auto local) {
-                return local->getVariableDeclaration().getType();
-            })
-            .Case<FunctionResolution>([](auto functionResolution) {
-                AST::FunctionDeclaration *function = functionResolution->getFunctionDeclaration();
-                return function->getType();
-            })
-            .Case<FunctionParameterResolution>([](auto parameter) {
-                return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
-            })
-        ;
-        identifier.setType(type);
         return type;
     }
 };
@@ -360,7 +120,7 @@ public:
                 // TODO: Emit error
             }
         } else {
-            returnType = &void_;
+            returnType = void_;
         }
 
         std::vector<Type *> parameterTypes;
@@ -412,7 +172,7 @@ public:
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
             declaredType = typeResolver.resolveType(*typeDeclaration);
-            std::cout << declaredType;
+            //std::cout << declaredType;
 
             if (!declaredType) {
                 Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
@@ -424,7 +184,11 @@ public:
         Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
             ExpressionTypeChecker checker;
-            type = checker.typeCheckExpression(*initial);
+            if (declaredType) {
+                type = checker.typeCheckExpression(*initial, declaredType);
+            } else {
+                type = checker.typeCheckExpression(*initial);
+            }
 
             if (!type) {
                 Diagnostic::error(*initial, "Unable to resolve type for expression.");
@@ -434,7 +198,13 @@ public:
             type = declaredType;
         }
 
-        variable.setType(*type);
+        // TODO: FIXME: unify types here.
+
+        if (declaredType) {
+            variable.setType(*declaredType);
+        } else {
+            variable.setType(*type);
+        }
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -458,15 +228,66 @@ public:
     }
 
     // Statements
+    
+    AST::AssignmentType unifyTypes(Type *targetType, Type *valueType) {
+        if (targetType == valueType) {
+            return AST::AssignmentType::Regular;
+        }
+
+        if (auto optionalTargetType = dyn_cast<OptionalType>(targetType)) {
+            auto contained = optionalTargetType->getContained();
+            if (contained == valueType) {
+                if (isa<PointerType>(contained)) {
+                    // NOTE: Perhaps the type checker should not know what the 
+                    // representation of an optional pointer is.
+                    return AST::AssignmentType::Regular;
+                } else {
+                    return AST::AssignmentType::ImplicitOptionalWrap;
+                }
+            }
+        }
+
+        assert(false);
+    }
 
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        ExpressionAssignmentTypeChecker assignmentChecker;
         ExpressionTypeChecker typeChecker;
-        Type *targetType = assignmentChecker.typeCheckExpression(assignment.getTarget());
-        if (!targetType) {
+        TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
+        if (!target) {
+            result = ERROR;
+            return;
+        }
+        if (!target.canAssign) { 
+            result = ERROR;
+            // TODO; get cause of r-value-ness.
+            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
+            return;
+        }
+        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), target.type);
+        if (!valueType) {
             result = ERROR;
         }
-        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), targetType);
+
+        unifyTypes(target.type, valueType);
+    }
+
+    void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
+        assert(false);
+
+        // TODO: This needs to type check the binary operation between the target and the operand.
+        ExpressionTypeChecker typeChecker;
+        TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
+        if (!target) {
+            result = ERROR;
+            return;
+        }
+        if (!target.canAssign) { 
+            result = ERROR;
+            // TODO; get cause of r-value-ness.
+            Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
+            return;
+        }
+        Type *valueType = typeChecker.typeCheckExpression(assignment.getOperand(), target.type);
         if (!valueType) {
             result = ERROR;
         }
@@ -476,10 +297,10 @@ public:
         ExpressionTypeChecker typeChecker;
         for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
             auto& branch = ifStatement.getCondition(ci);
-            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), &boolean);
+            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), boolean);
             if (!type) {
                 result = ERROR;
-            } else if (type != &boolean) {
+            } else if (type != boolean) {
                 Diagnostic::error(branch.getCondition(), "Condition in if statement is not a boolean");
                 result = ERROR;
             }
@@ -493,10 +314,10 @@ public:
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
         ExpressionTypeChecker typeChecker;
 
-        Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), &boolean);
+        Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), boolean);
         if (!type) {
             result = ERROR;
-        } else if (type != &boolean) {
+        } else if (type != boolean) {
             Diagnostic::error(guardStatement.getCondition(), "Condition in if statement is not a boolean");
             result = ERROR;
         }
@@ -506,7 +327,7 @@ public:
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         Type *returnType = currentFunction->getReturnType();
         if (auto* value = returnStatement.getValue()) {
-            if (returnType == &void_) {
+            if (returnType == void_) {
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
             }
@@ -516,7 +337,7 @@ public:
                 result = ERROR;
             }
         } else {
-            if (currentFunction->getReturnType() != &void_) {
+            if (currentFunction->getReturnType() != void_) {
                 Diagnostic::error(returnStatement, "No return value in function with non-void return type.");
                 result = ERROR;
             }
@@ -525,7 +346,7 @@ public:
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
         ExpressionTypeChecker typeChecker;
-        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), &boolean);
+        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), boolean);
         if (!type) {
             result = ERROR;
         }
@@ -538,26 +359,14 @@ public:
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         ExpressionTypeChecker typeChecker;
-        Type *type = typeChecker.typeCheckExpression(expression.getExpression(), nullptr);
+        Type *type = typeChecker.typeCheckExpression(expression.getExpression());
         if (!type) {
             result = ERROR;
-        } else if (type != &void_) {
-            std::cout << "Discarding non-void result.";
+        } else if (type != void_) {
+            Diagnostic::warning(expression, "Discarding non-void result");
         }
     }
 };
-
-Result typeCheckType(Type *type) 
-{
-
-}
-
-//template <class T>
-//concept TypeResolver = requires(T t, std::string& s)
-//{
-//    { t(s) } -> std::same_as<Type*>;
-//    { t.getIdentifier(s) } -> std::same_as<Type *>;
-//};
 
 PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 {

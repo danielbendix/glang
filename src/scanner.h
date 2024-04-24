@@ -6,23 +6,6 @@
 #include <cassert>
 #include <string>
 
-//class ScannerException : public std::exception {
-//public:
-//    enum class Cause {
-//        ExpectedDigit,
-//        UnterminatedString,
-//        UnrecognizedCharacter,
-//    };
-//
-//private:
-//    Cause cause;
-//    int line;
-//    int offset;
-//
-//public:
-//    ScannerException(Cause cause, int line, int offset) : cause{cause}, line{line}, offset{offset} {}
-//};
-
 class Scanner {
 public:
     enum class ErrorCause;
@@ -81,6 +64,7 @@ private:
     template <auto predicate> bool munchMany1();
     [[nodiscard]]
     Token makeToken(TokenType type);
+    TokenType testTry(std::string::const_iterator it, std::string::const_iterator end);
     TokenType identifierType();
     Token identifier();
     Token escapedIdentifier();

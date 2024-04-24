@@ -8,6 +8,8 @@
 #include "unique_ref.h"
 #include "type.h"
 
+#include "containers/small_byte_array.h"
+
 #include <string>
 #include <vector>
 #include <cassert>
@@ -62,6 +64,7 @@ namespace AST {
 
             // Statements
             NK_Stmt_Assignment,
+            NK_Stmt_Compound_Assignment,
             NK_Stmt_If,
             NK_Stmt_Guard,
             NK_Stmt_Return,
@@ -215,14 +218,27 @@ namespace AST {
         };
     protected:
         unique_ptr<TypeNode> child;
-        std::vector<Modifier> modifiers;
+        SmallByteArray<Modifier> modifiers;
 
-        TypeModifier(Token token, std::vector<Modifier>&& modifiers) : TypeNode{NK_Type_Modifier, Location{token}}, modifiers{std::move(modifiers)} {}
+        // FIXME Better location
+        TypeModifier(unique_ptr<TypeNode>&& child, std::span<Modifier> modifiers) : TypeNode{NK_Type_Modifier, Location{child->location}}, child{std::move(child)}, modifiers{modifiers} {}
 
         virtual void print(PrintContext& pc) const;
     public:
-        static unique_ptr<TypeModifier> create(Token token, std::vector<Modifier>&& modifiers) {
-            return unique_ptr<TypeModifier>{new TypeModifier{token, std::move(modifiers)}};
+        static unique_ptr<TypeModifier> create(unique_ptr<TypeNode>&& child, std::span<Modifier> modifiers) {
+            return unique_ptr<TypeModifier>{new TypeModifier{std::move(child), modifiers}};
+        }
+
+        SmallByteArray<Modifier>::iterator begin() const {
+            std::cout << modifiers.size() << '\n';
+            if (modifiers.size() == 2) {
+                std::cout << int(modifiers[0]) << ' ' << int(modifiers[1]) << '\n';
+            }
+            return modifiers.begin();
+        }
+
+        SmallByteArray<Modifier>::iterator end() const {
+            return modifiers.end();
         }
 
         TypeNode& getChild() {
@@ -513,9 +529,10 @@ namespace AST {
     };
 
     enum class UnaryOperator {
-        AddressOf,
         Negate,
         Not,
+        AddressOf,
+        Dereference,
     };
 
     class UnaryExpression : public Expression {
@@ -617,35 +634,37 @@ namespace AST {
         using Node::Node;
     };
 
-    enum class AssignmentOperator {
-        Assign,
-        AssignAdd,
-        AssignSub,
-        AssignMultiply,
-        AssignDivide,
+    /// Different types of value transfers, for e.g. assignment and return.
+    enum class AssignmentType : uint8_t {
+        Regular, ///< Value returned without issue.
+        ImplicitOptionalWrap, ///< wrap in implicit .some
     };
 
     class AssignmentStatement : public Statement {
     protected:
-        AssignmentOperator op;
+        AssignmentType assignmentType;
         unique_ptr<Expression> target;
         unique_ptr<Expression> value;
 
-        AssignmentStatement(Token token, AssignmentOperator op, unique_ptr<Expression> target, unique_ptr<Expression> value)
+        AssignmentStatement(Token token, unique_ptr<Expression> target, unique_ptr<Expression> value)
             : Statement{NK_Stmt_Assignment, Location{token}}
-            , op{op}
+            , assignmentType{AssignmentType::Regular}
             , target{std::move(target)}
             , value{std::move(value)} 
         {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<AssignmentStatement> create(Token token, AssignmentOperator op, unique_ptr<Expression> target, unique_ptr<Expression> value) {
-            return unique_ptr<AssignmentStatement>{new AssignmentStatement(token, op, std::move(target), std::move(value))};
+        static unique_ptr<AssignmentStatement> create(Token token, unique_ptr<Expression> target, unique_ptr<Expression> value) {
+            return unique_ptr<AssignmentStatement>{new AssignmentStatement(token, std::move(target), std::move(value))};
         }
 
-        const AssignmentOperator getOp() const {
-            return op;
+        const AssignmentType getAssignmentType() const {
+            return assignmentType;
+        }
+
+        void setAssignmentType(AssignmentType type) {
+            assignmentType = type;
         }
 
         Expression& getTarget() const {
@@ -654,6 +673,38 @@ namespace AST {
 
         Expression& getValue() const {
             return *value;
+        }
+    };
+
+    class CompoundAssignmentStatement : public Statement {
+    protected:
+        BinaryOperator op;
+        unique_ptr<Expression> target;
+        unique_ptr<Expression> operand;
+
+        CompoundAssignmentStatement(Token token, BinaryOperator op, unique_ptr<Expression> target, unique_ptr<Expression> operand)
+            : Statement{NK_Stmt_Compound_Assignment, Location{token}}
+            , op{op}
+            , target{std::move(target)}
+            , operand{std::move(operand)} 
+        {}
+
+        virtual void print(PrintContext& pc) const override;
+    public:
+        static unique_ptr<CompoundAssignmentStatement> create(Token token, BinaryOperator op, unique_ptr<Expression> target, unique_ptr<Expression> value) {
+            return unique_ptr<CompoundAssignmentStatement>{new CompoundAssignmentStatement(token, op, std::move(target), std::move(value))};
+        }
+
+        const BinaryOperator getOp() const {
+            return op;
+        }
+
+        Expression& getTarget() const {
+            return *target;
+        }
+
+        Expression& getOperand() const {
+            return *operand;
         }
     };
 

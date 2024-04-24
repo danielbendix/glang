@@ -8,32 +8,54 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
-enum TypeKind {
+enum TypeConstraintKind {
     TK_Void,
     TK_Boolean,
     TK_Num_Integer,
     TK_Num_Floating,
     TK_String,
+
+    TK_Pointer,
+    TK_Optional,
+
     TK_Function,
     TK_Struct,
     TK_Protocol,
+
+    TC_Literal,
 };
 
-class Type {
-    TypeKind kind;
-    mutable llvm::Type *llvmType = nullptr;
-    
-    llvm::Type *_getLLVMType(llvm::LLVMContext& context);
-
+class TypeConstraint {
 protected:
-    Type(TypeKind kind) : kind{kind} {}
+    const TypeConstraintKind kind;
+
+    TypeConstraint(TypeConstraintKind kind) : kind{kind} {}
 
 public:
-    TypeKind getKind() const {
+    TypeConstraintKind getKind() const {
         return kind;
     }
 
-    llvm::Type *getLLVMType(llvm::LLVMContext& context) {
+    static void deleteValue(TypeConstraint *type);
+};
+
+class PointerType;
+class OptionalType;
+
+class Type : public TypeConstraint {
+    mutable llvm::Type *llvmType = nullptr;
+    mutable PointerType *pointerType = nullptr;
+    mutable OptionalType *optionalType = nullptr;
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
+    PointerType *_getPointerType();
+    OptionalType *_getOptionalType();
+
+protected:
+    using TypeConstraint::TypeConstraint;
+
+public:
+    llvm::Type *getLLVMType(llvm::LLVMContext& context) const {
         if (llvmType) {
             return llvmType;
         } else {
@@ -41,11 +63,29 @@ public:
         }
     }
 
-    bool isVoid() {
-        return kind == TK_Void;
+    PointerType *getPointerType() {
+        if (pointerType) {
+            return pointerType;
+        } else {
+            return (pointerType = _getPointerType());
+        }
     }
 
-    static void deleteValue(Type *type);
+    OptionalType *getOptionalType() {
+        if (optionalType) {
+            return optionalType;
+        } else {
+            return (optionalType = _getOptionalType());
+        }
+    }
+
+    bool isVoid() {
+        return getKind() == TK_Void;
+    }
+
+    static bool classof(const TypeConstraint *typeConstraint) {
+        return typeConstraint->getKind() <= TK_Protocol;
+    }
 };
 
 class VoidType : public Type {
@@ -76,7 +116,7 @@ protected:
 
 public:
     static bool classof(const Type *type) {
-        TypeKind kind = type->getKind();
+        auto kind = type->getKind();
         return kind == TK_Num_Integer || kind == TK_Num_Floating;
     }
 };
@@ -120,7 +160,39 @@ public:
     }
 };
 
-#include <iostream>
+class PointerType : public Type {
+    Type& pointeeType;
+
+public:
+    PointerType(Type *pointeeType) : Type{TK_Pointer}, pointeeType{*pointeeType} {
+        // TODO: Set pointerType type on pointeeType
+    }
+
+    Type *getPointeeType() const {
+        return &pointeeType;
+    }
+
+    static bool classof(const TypeConstraint *typeConstraint) {
+        return typeConstraint->getKind() == TK_Pointer;
+    }
+};
+
+class OptionalType : public Type {
+    Type& contained;
+
+public:
+    OptionalType(Type *contained) : Type{TK_Optional}, contained{*contained} {}
+
+    Type *getContained() const {
+        return &contained;
+    }
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
+
+    static bool classof(const TypeConstraint *typeConstraint) {
+        return typeConstraint->getKind() == TK_Optional;
+    }
+};
 
 class FunctionType : public Type {
     Type *returnType;
@@ -144,7 +216,7 @@ public:
         return parameters[i];
     }
 
-    llvm::FunctionType *getFunctionType(llvm::LLVMContext& context);
+    llvm::FunctionType *getFunctionType(llvm::LLVMContext& context) const;
 
     Iterable<Type *> getParameters() {
         return Iterable<Type *>(parameters);
@@ -170,6 +242,18 @@ public:
 
 class StringType : public Type {
     StringType() : Type{TK_String} {}
+};
+
+/// A type that can become multiple types, based on context.
+class LiteralTypeConstraint : public TypeConstraint {
+public:
+    enum class Constraint {
+        NumericLiteral,
+        FloatingPointLiteral,
+    };
+
+    LiteralTypeConstraint(Constraint constraint) : TypeConstraint{TC_Literal} {}
+
 };
 
 void createPrimitiveTypes(llvm::LLVMContext& context, llvm::StringMap<Type>& table);

@@ -88,7 +88,7 @@ public:
         bool returns = visitBlock(guardStatement.getBlock());
 
         if (!returns) {
-            Diagnostic::error(guardStatement, "Guard statement must return.");
+            Diagnostic::error(guardStatement, "Guard statement body must return.");
             result = ERROR;
         }
 
@@ -107,6 +107,7 @@ public:
     }
 
     bool visitAssignmentStatement(AST::AssignmentStatement& assignment) { return false; }
+    bool visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) { return false; }
     bool visitExpressionStatement(AST::ExpressionStatement& expression) { return false; }
 
 };

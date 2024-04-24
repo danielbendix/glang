@@ -320,6 +320,11 @@ public:
         assignment.getValue().acceptVisitor(*this);
     }
 
+    void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
+        assignment.getTarget().acceptVisitor(*this);
+        assignment.getOperand().acceptVisitor(*this);
+    }
+
     void visitIfStatement(AST::IfStatement& ifStatement) {
         for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
             auto& branch = ifStatement.getCondition(ci);

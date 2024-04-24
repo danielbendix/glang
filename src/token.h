@@ -27,6 +27,7 @@ enum class TokenType : uint8_t {
     Minus,
     Star,
     Slash,
+    Percent,
 
     Ampersand,
     Caret,
@@ -36,6 +37,7 @@ enum class TokenType : uint8_t {
     MinusEqual,
     StarEqual, 
     SlashEqual,
+    PercentEqual,
 
     // Logical operators
     Not,
@@ -69,6 +71,11 @@ enum class TokenType : uint8_t {
     Return,
 
     LastKeyWord = Return,
+
+    Try,
+    TryQuestion,
+    TryBang,
+    Throw,
 
     // Literals
     True,

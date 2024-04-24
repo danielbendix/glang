@@ -110,6 +110,25 @@ TokenType testKeyword(std::string::const_iterator it, std::string::const_iterato
     return TokenType::Identifier;
 }
 
+[[nodiscard]]
+TokenType Scanner::testTry(std::string::const_iterator it, std::string::const_iterator end) {
+    std::string_view view(it, end);
+    if (view.length() == 1 && *it == 'y') {
+        switch (peek()) {
+            case '?':
+                advance();
+                return TokenType::TryQuestion;
+            case '!':
+                advance();
+                return TokenType::TryBang;
+            default:
+                return TokenType::Try;
+        }
+    } else {
+        return TokenType::Identifier;
+    }
+}
+
 TokenType Scanner::identifierType()
 {
     std::string::const_iterator it = start;
@@ -155,6 +174,12 @@ TokenType Scanner::identifierType()
                 case 'e': return testKeyword(it, current, "lf", 2, TokenType::Self);
                 case 't': return testKeyword(it, current, "ruct", 4, TokenType::Struct);
             }
+        case 't': {
+            switch (*it++) {
+                case 'h': return testKeyword(it, current, "row", 3, TokenType::Throw);
+                case 'r': return testTry(it, current);
+            }
+        }
         case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
         case 'w': return testKeyword(it, current, "hile", 4, TokenType::While);
     }
@@ -349,6 +374,12 @@ Token Scanner::next() noexcept {
                     return makeToken(SlashEqual);
                 }
                 return makeToken(Slash);
+            case '%':
+                if (peek() == '=') {
+                    advance();
+                    return makeToken(PercentEqual);
+                }
+                return makeToken(Percent);
             case '<': {
                 if (peek() == '=') {
                     advance();

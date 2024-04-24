@@ -26,6 +26,9 @@ namespace AST {
             case NK_Stmt_Assignment:
                 delete static_cast<AssignmentStatement *>(node);
                 break;
+            case NK_Stmt_Compound_Assignment:
+                delete static_cast<CompoundAssignmentStatement *>(node);
+                break;
             case NK_Stmt_If:
                 delete static_cast<IfStatement *>(node);
                 break;
@@ -86,9 +89,10 @@ namespace AST {
     PrintContext& operator<<(PrintContext& pc, UnaryOperator op) {
         using enum UnaryOperator;
         switch (op) {
-            case AddressOf: pc << '&'; break;
             case Negate: pc << '-'; break;
             case Not: pc << "not "; break;
+            case AddressOf: pc << '&'; break;
+            case Dereference: pc << '*'; break;
         }
         return pc;
     }
@@ -199,19 +203,17 @@ namespace AST {
     }
 
     void AssignmentStatement::print(PrintContext& pc) const {
-        // FIXME: Assignment type
         pc.startLine();
         char const *opString;
-        using enum AssignmentOperator;
-        switch (this->op) {
-            case Assign: opString = " = "; break;
-            case AssignAdd: opString = " += "; break;
-            case AssignSub: opString = " -= "; break;
-            case AssignMultiply: opString = " *= "; break;
-            case AssignDivide: opString = " /= "; break;
-        }
+        pc << *target << " = " << *value << ";\n";
+    }
 
-        pc << *target << opString << *value << ";\n";
+    void CompoundAssignmentStatement::print(PrintContext& pc) const {
+        pc.startLine();
+
+        pc << *target;
+
+        pc << ' ' << op << "= " << *operand << ";\n";
     }
 
     void IfStatement::print(PrintContext& pc) const {

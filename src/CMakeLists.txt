@@ -18,6 +18,7 @@ add_executable(glang
 add_subdirectory(namespace)
 add_subdirectory(resolution)
 add_subdirectory(type)
+add_subdirectory(typecheck)
 add_subdirectory(containers)
 
 include_directories(.)
