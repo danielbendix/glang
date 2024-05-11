@@ -6,6 +6,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "namespace/struct.h"
+#include "namespace/enum.h"
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -45,17 +46,29 @@ public:
         return result;
     }
 
-    Result addType(const std::string& name, unique_ptr_t<Type>&& type) {
+    Result addType(const std::string& name, Type *type) {
         // TODO: Create an ambiguous value
-        assert(names.types.insert(name, type.get()));
-        names._types.push_back(std::move(type));
+        bool inserted = names.types.insert(name, type);
+        assert(inserted);
         return OK;
     }
 
-    Result addStructType(const std::string& name, unique_ptr_t<StructType>&& structType, unique_ptr_t<AST::StructDeclaration>&& declaration) {
-        Result result = OK;
-        result |= addDeclaration(name, *declaration);
-        result |= addType(name, std::move(structType));
+    Result addStructType(const std::string& name, unique_ptr_t<StructType>&& type, unique_ptr_t<AST::StructDeclaration>&& declaration) {
+        Result result = addDeclaration(name, *declaration);
+        if (result.ok()) {
+            addType(name, type.get());
+        }
+        names.structs.push_back(std::move(type));
+        names.saved.push_back(std::move(declaration));
+        return result;
+    }
+
+    Result addEnumType(const std::string& name, unique_ptr_t<EnumType>&& enumType, unique_ptr_t<AST::EnumDeclaration>&& declaration) {
+        Result result = addDeclaration(name, *declaration);
+        if (result.ok()) {
+            addType(name, enumType.get());
+        }
+        names.enums.push_back(std::move(enumType));
         names.saved.push_back(std::move(declaration));
         return result;
     }
@@ -97,8 +110,9 @@ public:
     }
 
     Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        auto enumType = resolveEnumType(enumDeclaration);
+        return builder.addEnumType(enumDeclaration.getName(), std::move(enumType), unique_ptr_t<AST::EnumDeclaration>{&enumDeclaration});
         Diagnostic::error(enumDeclaration, "Enums are not currently supported.");
-        AST::Node::deleteValue(&enumDeclaration);
         return ERROR;
     }
 
@@ -110,6 +124,7 @@ public:
 
     Result visitStatementDeclaration(AST::StatementDeclaration& statement) {
         Diagnostic::error(statement, "Top-level statements are not allowed.");
+        AST::Node::deleteValue(&statement);
         return ERROR;
     }
 };
@@ -397,9 +412,13 @@ public:
     void visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
         memberAccess.getTarget().acceptVisitor(*this);
     }
+
+    void visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
+        assert(false);
+    }
 };
 
-PassResult resolveNamesInModuleDefinitiion(ModuleDef& moduleDefinition) 
+PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition) 
 {
     CodeVisitor visitor{moduleDefinition};
 

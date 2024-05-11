@@ -7,9 +7,6 @@ using llvm::isa;
 using llvm::dyn_cast;
 
 /* TODO: We need an "unbound" type for ambiguous literals.
- *
- *
- *
  */
 
 Type *ExpressionTypeChecker::typeCheckLogicalOperator(AST::BinaryExpression& binary, Type *left, Type *right) {
@@ -33,7 +30,7 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, 
         Diagnostic::error(binary, "Attempting to compare different types.");
         return {};
     }
-   
+
     // FIXME
     if (left != signed64) {
         Diagnostic::error(binary, "Attempting to compare non-integer types.");
@@ -44,6 +41,15 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, 
 }
 
 Type *ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& binary, Type *left, Type *right, Type *propagatedType) {
+    if (left == right) {
+        if (isa<NumericType>(left)) {
+            return left;
+        } else {
+            Diagnostic::error(binary.getLeft(), "Cannot apply arithmetic operator to non-numeric type.");
+            return {};
+        }
+    }
+
     NumericType *leftNumeric = dyn_cast<NumericType>(left);
     if (!leftNumeric) {
         Diagnostic::error(binary.getLeft(), "Cannot apply arithmetic operator to non-numeric type.");
@@ -55,7 +61,11 @@ Type *ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& binary, 
         return {};
     }
 
+    if (leftNumeric == rightNumeric) {
+        return leftNumeric;
+    }
 
+    llvm_unreachable("TODO: Implement safe numeric coercion.");
 
 
     // FIXME

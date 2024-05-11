@@ -51,6 +51,7 @@ public:
     bool visitVariableDeclaration(AST::VariableDeclaration& variable) { return false; }
     bool visitFunctionDeclaration(AST::FunctionDeclaration& function) { return false; }
     bool visitStructDeclaration(AST::StructDeclaration& structDeclaration) { return false; }
+    bool visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) { return false; }
     bool visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return false; }
 
     bool visitStatementDeclaration(AST::StatementDeclaration& statement) {
@@ -121,7 +122,12 @@ public:
     Result visitStatementDeclaration(AST::StatementDeclaration& statement) { llvm_unreachable("Should not exist at this point"); }
 
     Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-        // TODO: Visit methods
+        // TODO: Visit all user defined types in this pass.
+        return OK;
+    }
+
+    Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        // TODO: Visit all user defined types in this pass.
         return OK;
     }
 

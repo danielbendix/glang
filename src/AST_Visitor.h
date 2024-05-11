@@ -40,6 +40,8 @@ namespace AST {
                     return subclass().visitFunctionDeclaration(*static_cast<FunctionDeclaration *>(&declaration), std::forward<Args>(args)...);
                 case NK_Decl_Struct:
                     return subclass().visitStructDeclaration(*static_cast<StructDeclaration *>(&declaration), std::forward<Args>(args)...);
+                case NK_Decl_Enum:
+                    return subclass().visitEnumDeclaration(*static_cast<EnumDeclaration *>(&declaration), std::forward<Args>(args)...);
                 case NK_Decl_Protocol:
                     return subclass().visitProtocolDeclaration(*static_cast<ProtocolDeclaration *>(&declaration), std::forward<Args>(args)...);
                 case NK_Decl_Statement:
@@ -104,6 +106,8 @@ namespace AST {
                     return subclass().visitCallExpression(*static_cast<CallExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Member_Access:
                     return subclass().visitMemberAccessExpression(*static_cast<MemberAccessExpression *>(&expression), std::forward<Args>(args)...);
+                case NK_Expr_Inferred_Member_Access:
+                    return subclass().visitInferredMemberAccessExpression(*static_cast<InferredMemberAccessExpression *>(&expression), std::forward<Args>(args)...);
                 default:
                     llvm_unreachable("Unsupported expression type");
             }

@@ -63,6 +63,8 @@ namespace AST {
                 return delete static_cast<CallExpression *>(node);
             case NK_Expr_Member_Access:
                 return delete static_cast<MemberAccessExpression *>(node);
+            case NK_Expr_Inferred_Member_Access:
+                return delete static_cast<InferredMemberAccessExpression *>(node);
 
             case NK_Type_Literal:
                 return delete static_cast<TypeLiteral *>(node);
@@ -336,6 +338,10 @@ namespace AST {
 
     void MemberAccessExpression::print(PrintContext& pc) const {
         pc << *target << '.' << memberName;
+    }
+
+    void InferredMemberAccessExpression::print(PrintContext& pc) const {
+        pc << '.' << memberName;
     }
 }
 

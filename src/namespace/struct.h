@@ -1,5 +1,5 @@
-#ifndef LANG_struct_h
-#define LANG_struct_h
+#ifndef LANG_namespace_struct_h
+#define LANG_namespace_struct_h
 
 #include "common.h"
 #include "AST.h"
@@ -11,4 +11,4 @@
 
 unique_ptr_t<StructType> resolveStructType(AST::StructDeclaration& structDeclaration);
 
-#endif // LANG_struct_h
+#endif // LANG_namespace_struct_h

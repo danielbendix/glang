@@ -1,20 +1,25 @@
-fn test(a: int*) {
+fn test(a: i64*) {
     *a = *a * *a;
 }
 
-fn main() -> int {
-    var a: int = 100;
-    var a2: int = 200;
+fn test2(a: i32*) {
+    *a = *a * *a;
+}
+
+fn main() -> i64 {
+    //let a = 100;
+    var a: i64 = 100;
+    var a2: i64 = 200;
 
     var b = &a;
 
-    let c: int** = &b;
+    let c: i64** = &b;
 
     *c = &a2;
 
-    let d: int*? = &a;
+    let d: i64*? = &a;
 
-    let a: int? = nil;
+    let a: i8? = nil;
 
     test(b);
 

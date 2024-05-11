@@ -1,11 +1,12 @@
 #include "type.h"
 #include "type/struct.h"
+#include "type/enum.h"
 
 #include "containers/string_map.h"
 
 using llvm::dyn_cast;
 
-void TypeConstraint::deleteValue(TypeConstraint *type) {
+void Type::deleteValue(Type *type) {
     switch (type->getKind()) {
         case TK_Void: return delete static_cast<VoidType *>(type);
         case TK_Boolean: return delete static_cast<BooleanType *>(type);
@@ -15,13 +16,15 @@ void TypeConstraint::deleteValue(TypeConstraint *type) {
         case TK_Function: return delete static_cast<FunctionType *>(type);
         case TK_Struct: return delete static_cast<StructType *>(type);
         case TK_Protocol: llvm_unreachable("Unsupported type type.");
+        case TK_Enum: return delete static_cast<EnumType *>(type);
 
         case TK_Optional: return delete static_cast<OptionalType *>(type);
         case TK_Pointer: return delete static_cast<PointerType *>(type);
 
-        case TC_Literal: return delete static_cast<LiteralTypeConstraint *>(type);
     }
 }
+
+
 
 void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
 {

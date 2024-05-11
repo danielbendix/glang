@@ -45,6 +45,11 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
         return ERROR;
     }
 
+    Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        Diagnostic::error(enumDeclaration, "Nested enum declarations are not supported.");
+        return ERROR;
+    }
+
     Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) {
         Diagnostic::error(protocol, "Nested protocol declarations are not supported.");
         return ERROR;

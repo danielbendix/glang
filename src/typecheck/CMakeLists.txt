@@ -3,4 +3,5 @@ target_sources(glang PRIVATE
     assignment.cpp
     binary.cpp
     unary.cpp
+    enum.cpp
 )

@@ -1,0 +1,15 @@
+
+enum MyFirstEnum {
+    case nothing;
+    case a(i32*);
+    case b(i64*);
+    case c(u32*);
+    case d(u64*);
+}
+
+fn main() -> i64 {
+    let a2: i64 = 0;
+
+
+    return a2;
+}

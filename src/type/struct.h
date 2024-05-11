@@ -1,3 +1,6 @@
+#ifndef LANG_type_struct_h
+#define LANG_type_struct_h
+
 #include "common.h"
 
 #include "type.h"
@@ -52,3 +55,5 @@ public:
         return type->getKind() == TK_Struct;
     }
 };
+
+#endif // LANG_type_struct_h

@@ -23,7 +23,7 @@ public:
     }
 
     Type *typeCheckBooleanNegationOperator(AST::UnaryExpression& unary);
-    Type *typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
+    TypeResult typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
     Type *typeCheckAddressOfOperator(AST::UnaryExpression& unary, Type *propagatedType);
     Type *typeCheckDereferenceOperator(AST::UnaryExpression& unary);
     TypeResult visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType);
@@ -31,6 +31,7 @@ public:
     Type *typeCheckLogicalOperator(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckBitwise(AST::BinaryExpression& binary, Type *left, Type *right);
+    Type *typeCheckShift(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckArithmetic(AST::BinaryExpression& binary, Type *left, Type *right, Type *propagatedType);
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
@@ -38,6 +39,8 @@ public:
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
 
     TypeResult visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType);
+
+    TypeResult visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
 
     TypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
 

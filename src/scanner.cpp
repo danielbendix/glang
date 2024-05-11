@@ -381,16 +381,24 @@ Token Scanner::next() noexcept {
                 }
                 return makeToken(Percent);
             case '<': {
-                if (peek() == '=') {
-                    advance();
-                    return makeToken(LessEqual);
+                switch (peek()) {
+                    case '=':
+                        advance();
+                        return makeToken(LessEqual);
+                    case '<':
+                        advance();
+                        return makeToken(LessLess);
                 }
                 return makeToken(Less);
             }
             case '>': {
-                if (peek() == '=') {
-                    advance();
-                    return makeToken(GreaterEqual);
+                switch (peek()) {
+                    case '=':
+                        advance();
+                        return makeToken(GreaterEqual);
+                    case '>':
+                        advance();
+                        return makeToken(GreaterGreater);
                 }
                 return makeToken(Greater);
             }

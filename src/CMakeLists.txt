@@ -11,6 +11,7 @@ add_executable(glang
     control.cpp
     codegen.cpp
     type.cpp
+    typeconstraint.cpp
     typecheck.cpp
     diagnostic.cpp
 )

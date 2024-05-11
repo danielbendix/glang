@@ -8,12 +8,17 @@
 #include "diagnostic.h"
 
 #include "type.h"
+#include "type/struct.h"
+#include "type/enum.h"
 
 struct ModuleDef {
     StringMap<AST::Declaration *> all;
 
     StringMap<AST::Declaration *> definitions;
     StringMap<Type *> types;
+
+    std::vector<unique_ptr_t<StructType>> structs;
+    std::vector<unique_ptr_t<EnumType>> enums;
 
     std::vector<unique_ptr_t<Type>> _types;
     std::vector<unique_ptr_t<AST::VariableDeclaration>> globals;
@@ -25,6 +30,6 @@ struct ModuleDef {
 
 std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
 
-PassResult resolveNamesInModuleDefinitiion(ModuleDef& moduleDefinition);
+PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition);
 
 #endif // LANG_namespace_h

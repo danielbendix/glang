@@ -57,7 +57,7 @@ public:
 
     // Types
     [[nodiscard]]
-    unique_ptr<AST::TypeNode> type();
+    unique_ptr<AST::TypeNode> type(bool hasIdentifier = false);
 
     // Declarations
     [[nodiscard]]
@@ -69,7 +69,9 @@ public:
     [[nodiscard]]
     unique_ptr<AST::EnumDeclaration> enumDeclaration();
     [[nodiscard]]
-    std::optional<AST::EnumDeclaration::Case> enumCase();
+    AST::EnumDeclaration::Case enumCase();
+    [[nodiscard]]
+    AST::EnumDeclaration::Case::Member enumCaseMember();
     [[nodiscard]]
     unique_ptr<AST::VariableDeclaration> variableDeclaration();
     [[nodiscard]]
@@ -102,7 +104,9 @@ public:
     [[nodiscard]]
     unique_ptr<AST::Expression> call(unique_ptr<AST::Expression>&& left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> dot(unique_ptr<AST::Expression>&& left);
+    unique_ptr<AST::Expression> member(unique_ptr<AST::Expression>&& left);
+    [[nodiscard]]
+    unique_ptr<AST::Expression> inferredMember();
     [[nodiscard]]
     unique_ptr<AST::Expression> binary(unique_ptr<AST::Expression>&& left);
 

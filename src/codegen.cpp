@@ -376,7 +376,11 @@ public:
                 value = function.builder.CreateOr(targetValue, rhs); break;
             case BitwiseXor:
                 value = function.builder.CreateXor(targetValue, rhs); break;
-
+            case ShiftLeft:
+                value = function.builder.CreateShl(targetValue, rhs); break;
+            case ShiftRight:
+                // TODO: Add arithmetic shift for signed types.
+                value = function.builder.CreateLShr(targetValue, rhs); break;
             case Equal:
             case NotEqual:
             case Less:
@@ -573,6 +577,10 @@ public:
             case BitwiseOr: return function.builder.CreateOr(left, right);
             case BitwiseXor: return function.builder.CreateXor(left, right);
 
+            case ShiftLeft: return function.builder.CreateShl(left, right);
+            // TODO: Arithmetic shift for signed types.
+            case ShiftRight: return function.builder.CreateLShr(left, right);
+
             case Divide: {
                 IntegerType *integerType = cast<IntegerType>(binary.getType());
                 if (integerType->getIsSigned()) {
@@ -641,6 +649,10 @@ public:
         ;
 
         return value;
+    }
+
+    llvm::Value *visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
+        assert(false);
     }
 };
 

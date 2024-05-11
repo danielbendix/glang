@@ -2,13 +2,14 @@
 #define LANG_type_h
 
 #include "common.h"
+#include "containers/string_map.h"
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
 
-enum TypeConstraintKind {
+enum TypeKind {
     TK_Void,
     TK_Boolean,
     TK_Num_Integer,
@@ -20,29 +21,15 @@ enum TypeConstraintKind {
 
     TK_Function,
     TK_Struct,
+    TK_Enum,
     TK_Protocol,
-
-    TC_Literal,
-};
-
-class TypeConstraint {
-protected:
-    const TypeConstraintKind kind;
-
-    TypeConstraint(TypeConstraintKind kind) : kind{kind} {}
-
-public:
-    TypeConstraintKind getKind() const {
-        return kind;
-    }
-
-    static void deleteValue(TypeConstraint *type);
 };
 
 class PointerType;
 class OptionalType;
 
-class Type : public TypeConstraint {
+class Type {
+    const TypeKind kind;
     mutable llvm::Type *llvmType = nullptr;
     mutable PointerType *pointerType = nullptr;
     mutable OptionalType *optionalType = nullptr;
@@ -52,7 +39,7 @@ class Type : public TypeConstraint {
     OptionalType *_getOptionalType();
 
 protected:
-    using TypeConstraint::TypeConstraint;
+    Type(TypeKind kind) : kind{kind} {}
 
 public:
     llvm::Type *getLLVMType(llvm::LLVMContext& context) const {
@@ -83,9 +70,11 @@ public:
         return getKind() == TK_Void;
     }
 
-    static bool classof(const TypeConstraint *typeConstraint) {
-        return typeConstraint->getKind() <= TK_Protocol;
+    TypeKind getKind() const {
+        return kind;
     }
+
+    static void deleteValue(Type *type);
 };
 
 class VoidType : public Type {
@@ -172,7 +161,7 @@ public:
         return &pointeeType;
     }
 
-    static bool classof(const TypeConstraint *typeConstraint) {
+    static bool classof(const Type *typeConstraint) {
         return typeConstraint->getKind() == TK_Pointer;
     }
 };
@@ -189,7 +178,7 @@ public:
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
 
-    static bool classof(const TypeConstraint *typeConstraint) {
+    static bool classof(const Type *typeConstraint) {
         return typeConstraint->getKind() == TK_Optional;
     }
 };
@@ -244,18 +233,6 @@ class StringType : public Type {
     StringType() : Type{TK_String} {}
 };
 
-/// A type that can become multiple types, based on context.
-class LiteralTypeConstraint : public TypeConstraint {
-public:
-    enum class Constraint {
-        NumericLiteral,
-        FloatingPointLiteral,
-    };
-
-    LiteralTypeConstraint(Constraint constraint) : TypeConstraint{TC_Literal} {}
-
-};
-
-void createPrimitiveTypes(llvm::LLVMContext& context, llvm::StringMap<Type>& table);
+void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner);
 
 #endif // LANG_type_h

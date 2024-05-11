@@ -80,13 +80,14 @@ namespace AST {
             NK_Expr_Binary,
             NK_Expr_Call,
             NK_Expr_Member_Access,
+            NK_Expr_Inferred_Member_Access,
 
             // Type nodes
             NK_Type_Literal,
             NK_Type_Modifier,
         };
 
-        Kind kind;
+        const Kind kind;
         Location location;
         Node(Kind kind, Location location) : kind{kind}, location{location} {}
     public:
@@ -160,6 +161,58 @@ namespace AST {
             return lhs.it == rhs.it;
         }
         friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) {
+            return lhs.it != rhs.it;
+        }
+        friend class Block;
+    };
+
+    template <typename T>
+    class value_iterator {
+        using internal = std::vector<T>::iterator;
+        internal it;
+
+    public:
+        value_iterator(internal it) : it{it} {}
+
+        T& operator*() {
+            return *it;
+        }
+
+        value_iterator& operator++() {
+            ++it;
+            return *this;
+        }
+
+        friend bool operator==(const value_iterator& lhs, const value_iterator& rhs) {
+            return lhs.it == rhs.it;
+        }
+        friend bool operator!=(const value_iterator& lhs, const value_iterator& rhs) {
+            return lhs.it != rhs.it;
+        }
+        friend class Block;
+    };
+
+    template <typename T>
+    class const_value_iterator {
+        using internal = std::vector<T>::const_iterator;
+        internal it;
+
+    public:
+        const_value_iterator(internal it) : it{it} {}
+
+        const T& operator*() const {
+            return *it;
+        }
+
+        const_value_iterator& operator++() {
+            ++it;
+            return *this;
+        }
+
+        friend bool operator==(const const_value_iterator& lhs, const const_value_iterator& rhs) {
+            return lhs.it == rhs.it;
+        }
+        friend bool operator!=(const const_value_iterator& lhs, const const_value_iterator& rhs) {
             return lhs.it != rhs.it;
         }
         friend class Block;
@@ -333,7 +386,7 @@ namespace AST {
         Type *type = nullptr;
 
         static bool classof(const Node *node) {
-            return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Member_Access;
+            return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Inferred_Member_Access;
         }
     };
 
@@ -528,6 +581,34 @@ namespace AST {
         }
     };
 
+    class InferredMemberAccessExpression : public Expression {
+        std::string memberName;
+        unique_ptr_t<MemberResolution> resolution = nullptr;
+        Type *inferredTarget = nullptr;
+
+        virtual void print(PrintContext& pc) const override;
+    protected:
+        InferredMemberAccessExpression(Token token, Token member)
+            : Expression{NK_Expr_Inferred_Member_Access, token}
+            , memberName{member.chars} {}
+    public:
+        static unique_ptr<InferredMemberAccessExpression> create(Token token, Token member) {
+            return unique_ptr<InferredMemberAccessExpression>{new InferredMemberAccessExpression(token, member)};
+        }
+
+        const std::string& getMemberName() const {
+            return memberName;
+        }
+
+        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
+            this->resolution = std::move(resolution);
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Expr_Inferred_Member_Access;
+        }
+    };
+
     enum class UnaryOperator {
         Negate,
         Not,
@@ -569,6 +650,9 @@ namespace AST {
         Multiply,
         Divide,
         Modulo,
+
+        ShiftLeft,
+        ShiftRight,
 
         BitwiseAnd,
         BitwiseOr,
@@ -1156,15 +1240,100 @@ namespace AST {
     class EnumDeclaration : public Declaration {
     public:
         class Case {
-            std::string name;
-            unique_ptr<Expression> value = nullptr;
         public:
-            Case(Token token, Token name, unique_ptr<Expression>&& value) : name{name.chars}, value{std::move(value)} {}
+            class Member {
+                // TODO: Nullable symbol pointer
+                std::string name;
+                unique_ptr<TypeNode> type;
+            public:
+                Member(unique_ptr<TypeNode>&& type) : name{}, type{std::move(type)} {}
+                Member(std::string_view name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+
+                const std::string& getName() {
+                    return name;
+                }
+
+                TypeNode& getType() {
+                    return *type;
+                }
+            };
+        private:
+            std::string name;
+            std::vector<Member> members;
+        public:
+            Case(Token token, Token name) : name{name.chars}, members{} {}
+            Case(Token token, Token name, std::vector<Member>&& members) : name{name.chars}, members{std::move(members)} {}
+            Case(Case&) = delete;
+            Case& operator=(Case&) = delete;
+            Case(Case&&) = default;
+            Case& operator=(Case&&) = default;
+
+            const std::string& getName() const {
+                return name;
+            }
+
+            const bool hasMembers() const {
+                return !members.empty();
+            }
+
+            value_iterator<Member> begin() {
+                return value_iterator<Member>(members.begin());
+            }
+
+            value_iterator<Member> end() {
+                return value_iterator<Member>(members.end());
+            }
+
+            const_value_iterator<Member> begin() const {
+                return const_value_iterator<Member>(members.cbegin());
+            }
+
+            const_value_iterator<Member> end() const {
+                return const_value_iterator<Member>(members.cend());
+            }
         };
     protected:
         std::string name;
+        unique_ptr<TypeNode> rawType;
+        std::vector<Case> cases;
+        std::vector<unique_ptr<Declaration>> declarations;
+
+        EnumDeclaration(Token token, std::string_view& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) 
+            : Declaration{NK_Decl_Enum, token}
+            , name{name}
+            , cases{std::move(cases)}
+            , declarations{std::move(declarations)}
+        {}
 
         virtual void print(PrintContext& pc) const override;
+    public:
+        static unique_ptr<EnumDeclaration> create(Token token, std::string_view& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) {
+            return unique_ptr<EnumDeclaration>{new EnumDeclaration{token, name, std::move(rawType), std::move(cases), std::move(declarations)}};
+        }
+
+        size_t getNumberOfCases() const {
+            return cases.size();
+        }
+
+        value_iterator<Case> begin() {
+            return value_iterator<Case>(cases.begin());
+        }
+
+        value_iterator<Case> end() {
+            return value_iterator<Case>(cases.end());
+        }
+
+        const_value_iterator<Case> begin() const {
+            return const_value_iterator<Case>(cases.cbegin());
+        }
+
+        const_value_iterator<Case> end() const {
+            return const_value_iterator<Case>(cases.cend());
+        }
+
+        const std::string& getName() const {
+            return name;
+        }
     };
     
     class StatementDeclaration : public Declaration {

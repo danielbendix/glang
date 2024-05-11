@@ -12,7 +12,6 @@
 
 void compile(std::string&& string)
 {
-    std::cout << sizeof(AST::unique_ptr<AST::Declaration>) << "\n";
     auto parser = Parser{std::move(string)};
 
     try {
@@ -26,7 +25,7 @@ void compile(std::string&& string)
         }
 
         auto moduleDef = createModuleDefinition(pf.declarations);
-        if (resolveNamesInModuleDefinitiion(*moduleDef).failed()) {
+        if (resolveNamesInModuleDefinition(*moduleDef).failed()) {
             exit(1);
         }
         std::cout << "Name resolution succeeded.\n";

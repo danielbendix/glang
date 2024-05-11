@@ -10,25 +10,36 @@ Type *ExpressionTypeChecker::typeCheckBooleanNegationOperator(AST::UnaryExpressi
     if (!target) {
         return {};
     }
-
-    if (target.type == boolean) {
+    if (target.isConstraint()) {
+        Diagnostic::error(unary, "'not' operator expects a boolean value.");
+        return {};
+    }
+    if (target.asType() == boolean) {
         return boolean;
     }
 
     Diagnostic::error(unary, "Cannot apply 'not' operator to non-boolean value");
-
     return {};
 }
 
-Type *ExpressionTypeChecker::typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType) {
+TypeResult ExpressionTypeChecker::typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType) {
     auto target = typeCheckExpression(unary, propagatedType);
     if (!target) {
         return {};
     }
-    if (auto numericType = dyn_cast<NumericType>(target.type)) {
+    if (target.isConstraint()) {
+        auto constraint = target.asConstraint();
+        if (isNumericConstraint(constraint)) {
+            return constraint;
+        } else {
+            Diagnostic::error(unary, "Cannot negate non-numeric value.");
+            return {};
+        }
+    }
+    Type *targetType = target.asType();
+    if (auto numericType = dyn_cast<NumericType>(targetType)) {
         return numericType;
     }
-
     Diagnostic::error(unary, "Cannot negate non-numeric value.");
 
     return {};
@@ -63,14 +74,19 @@ Type *ExpressionTypeChecker::typeCheckAddressOfOperator(AST::UnaryExpression& un
     if (!target) {
         return {};
     }
+    if (target.isConstraint()) {
+        // NOTE: This assumes that this is an r-value. Which unbound types should be
+        Diagnostic::error(unary.getTarget(), "Cannot get address of r-value. (Unbound type)");
+        return {};
+    }
 
-    if (!target.canAssign) {
+    if (!target.canAssign()) {
         // TODO: Diagnose invalid assignment target with AddressOf
         Diagnostic::error(unary.getTarget(), "Cannot get address of r-value.");
         return {};
     }
 
-    return target.type->getPointerType();
+    return target.asType()->getPointerType();
 }
 
 Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& unary) {
@@ -80,11 +96,16 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
         return {};
     }
 
-    if (auto pointerType = dyn_cast<PointerType>(target.type)) {
+    if (target.isConstraint()) {
+        Diagnostic::error(unary, "Cannot dereference literal.");
+    }
+
+    Type *targetType = target.asType();
+    if (auto pointerType = dyn_cast<PointerType>(targetType)) {
         return pointerType->getPointeeType();
     }
 
-    if (auto optionalType = dyn_cast<OptionalType>(target.type)) {
+    if (auto optionalType = dyn_cast<OptionalType>(targetType)) {
         if (auto optionalPointer = dyn_cast<OptionalType>(optionalType->getContained())) {
             Diagnostic::error(unary, "Cannot dereference optional pointer value. Pointer should be unwrapped first.");
             return {};
@@ -94,8 +115,4 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
     Diagnostic::error(unary, "Cannot dereference non-pointer type.");
 
     return {};
-
-    
-
-
 }

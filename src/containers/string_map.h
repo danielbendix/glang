@@ -17,7 +17,8 @@ public:
     StringMap() {}
     StringMap(StringMap&& from) : internal{std::move(from.internal)} {}
     StringMap& operator=(StringMap&& from) {
-        internal = std::move(from);
+        internal.swap(from.internal);
+        return *this;
     }
 
     T operator[](const std::string& key) {

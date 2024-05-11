@@ -2,9 +2,11 @@
 #include "AST_Visitor.h"
 #include "diagnostic.h"
 #include "typecheck.h"
+#include "typecheck/resolver.h"
 #include "typecheck/expression.h"
 #include "typecheck/internal.h"
 #include "typecheck/assignment.h"
+#include "typecheck/enum.h"
 
 #include "type.h"
 #include "type/struct.h"
@@ -26,65 +28,13 @@ BooleanType *boolean = &_boolean;
 IntegerType *signed64 = &_signed64;
 
 
-class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
-    ModuleDef& moduleDefinition;
-
-public:
-    TypeResolver(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition} {};
-
-    Type *resolveType(AST::TypeNode& typeNode) {
-        if (auto type = typeNode.acceptVisitor(*this)) {
-            return type;
-        } else {
-            std::cout << typeNode << '\n';
-            Diagnostic::error(typeNode, "Unable to resolve type name");
-            return nullptr;
-        }
-    }
-
-    Type *visitTypeLiteral(AST::TypeLiteral& literal) {
-        if (auto type = moduleDefinition.types.lookup(literal.getName())) {
-            return *type;
-
-        } else if (literal.getName() == "int") {
-            return signed64;
-        } else if (literal.getName() == "bool") {
-            return boolean;
-        } else {
-            return nullptr;
-        }
-    }
-
-    Type *visitTypeModifier(AST::TypeModifier& typeModifier) {
-        Type *type = typeModifier.getChild().acceptVisitor(*this);
-
-        using enum AST::TypeModifier::Modifier;
-        for (auto modifier : typeModifier) {
-            switch (modifier) {
-                case Pointer:
-                    type = type->getPointerType();
-                    break;
-                case Optional:
-                    type = type->getOptionalType();
-                    break;
-            }
-            std::cout << int(modifier) << ' ' << type << '\n';
-            if (!type) {
-                std::cout << "FAILED\n";
-                break;
-            }
-        }
-        return type;
-    }
-};
-
 class GlobalDeclarationTypeChecker {
     ModuleDef& moduleDefinition;
     TypeResolver typeResolver;
     // TODO: Add check stack here, to support recursive checking.
 
 public:
-    GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition}, typeResolver{moduleDefinition} {}
+    GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : moduleDefinition{moduleDefinition}, typeResolver{moduleDefinition, builtins} {}
 
     Result typeCheckGlobal(AST::VariableDeclaration& variable) {
         Type *declaredType = nullptr;
@@ -97,7 +47,7 @@ public:
 
         Type *initialType = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
-
+            
         } else {
             // TODO: Verify that declaration can be without value.
         }
@@ -157,7 +107,7 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
     }
 
 public:
-    FunctionTypeChecker(ModuleDef& moduleDefinition) : typeResolver{moduleDefinition} {}
+    FunctionTypeChecker(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : typeResolver{moduleDefinition, builtins} {}
 
     Result typeCheckFunctionBody(AST::FunctionDeclaration& function) {
         result = OK;
@@ -172,7 +122,6 @@ public:
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
             declaredType = typeResolver.resolveType(*typeDeclaration);
-            //std::cout << declaredType;
 
             if (!declaredType) {
                 Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
@@ -216,10 +165,11 @@ public:
     }
 
     void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
-        // Store type as enum type.
+        assert(false);
     }
 
     void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        assert(false);
         // Store type as protocol type.
     }
 
@@ -257,18 +207,25 @@ public:
             result = ERROR;
             return;
         }
-        if (!target.canAssign) { 
+        if (target.isConstraint()) {
             result = ERROR;
             // TODO; get cause of r-value-ness.
             Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
             return;
         }
-        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), target.type);
+        if (!target.canAssign()) { 
+            result = ERROR;
+            // TODO; get cause of r-value-ness.
+            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
+            return;
+        }
+        Type *targetType = target.asType();
+        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), targetType);
         if (!valueType) {
             result = ERROR;
         }
 
-        unifyTypes(target.type, valueType);
+        unifyTypes(targetType, valueType);
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
@@ -281,13 +238,20 @@ public:
             result = ERROR;
             return;
         }
-        if (!target.canAssign) { 
+        if (target.isConstraint()) {
             result = ERROR;
             // TODO; get cause of r-value-ness.
             Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
             return;
         }
-        Type *valueType = typeChecker.typeCheckExpression(assignment.getOperand(), target.type);
+        if (!target.canAssign()) { 
+            result = ERROR;
+            // TODO; get cause of r-value-ness.
+            Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
+            return;
+        }
+        Type *targetType = target.asType();
+        Type *valueType = typeChecker.typeCheckExpression(assignment.getOperand(), targetType);
         if (!valueType) {
             result = ERROR;
         }
@@ -332,10 +296,11 @@ public:
                 result = ERROR;
             }
             ExpressionTypeChecker typeChecker;
-            Type *type = typeChecker.typeCheckExpression(*value,  currentFunction->getReturnType());
+            Type *type = typeChecker.typeCheckExpression(*value, currentFunction->getReturnType());
             if (!type) {
                 result = ERROR;
             }
+            // FIXME: Unify types for assignment.
         } else {
             if (currentFunction->getReturnType() != void_) {
                 Diagnostic::error(returnStatement, "No return value in function with non-void return type.");
@@ -368,15 +333,35 @@ public:
     }
 };
 
+PassResult populateEnumCases(auto& enums, TypeResolver& typeResolver) {
+    PassResult result = OK;
+    for (auto& enumType : enums) {
+        result |= populateCasesInEnumType(*enumType, typeResolver);
+    }
+    return result;
+}
+
 PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 {
     PassResult result = OK;
 
-    GlobalDeclarationTypeChecker typeChecker{moduleDefinition};
+    StringMap<Type *> builtins;
+    std::vector<Type *> _owner;
+
+    TypeResolver resolver{moduleDefinition, builtins};
+
+    createNumericTypes(builtins, _owner);
+
+    result |= populateEnumCases(moduleDefinition.enums, resolver);
+
+    GlobalDeclarationTypeChecker typeChecker{moduleDefinition, builtins};
 
     for (const auto& function : moduleDefinition.functions) {
         result |= typeChecker.typeCheckFunction(*function);
     }
+
+    // Types are populated after here.
+
     // TODO: This is a hack
     for (const auto& type : moduleDefinition._types) {
         if (auto structType = dyn_cast<StructType>(type.get())) {
@@ -398,11 +383,16 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
         }
     }
 
-    FunctionTypeChecker bodyTypeChecker{moduleDefinition};
+    if (result.failed()) {
+        return ERROR;
+    }
+
+    // All global types are known here.
+
+    FunctionTypeChecker bodyTypeChecker{moduleDefinition, builtins};
     for (const auto& function : moduleDefinition.functions) {
         result |= bodyTypeChecker.typeCheckFunctionBody(*function);
     }
-
 
     return result;
 }

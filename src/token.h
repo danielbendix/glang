@@ -29,6 +29,9 @@ enum class TokenType : uint8_t {
     Slash,
     Percent,
 
+    LessLess,
+    GreaterGreater,
+
     Ampersand,
     Caret,
     Pipe,
