@@ -147,12 +147,23 @@ public:
             type = declaredType;
         }
 
-        // TODO: FIXME: unify types here.
-
         if (declaredType) {
             variable.setType(*declaredType);
         } else {
             variable.setType(*type);
+        }
+
+        if (!declaredType || !type) {
+            return;
+        }
+
+        if (type != declaredType) {
+            if (auto assignment = unifyTypesForAssignment(*declaredType, *type)) {
+                variable.setAssignmentType(*assignment);
+
+            } else {
+                result = ERROR;
+            }
         }
     }
 
@@ -356,7 +367,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 
     GlobalDeclarationTypeChecker typeChecker{moduleDefinition, builtins};
 
-    for (const auto& function : moduleDefinition.functions) {
+    for (const auto& function : moduleDefinition._functions) {
         result |= typeChecker.typeCheckFunction(*function);
     }
 
@@ -370,7 +381,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
             }
         }
     }
-    for (const auto& global : moduleDefinition.globals) {
+    for (const auto& global : moduleDefinition._globals) {
         result |= typeChecker.typeCheckGlobal(*global);
         assert(false);
     }
@@ -390,7 +401,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
     // All global types are known here.
 
     FunctionTypeChecker bodyTypeChecker{moduleDefinition, builtins};
-    for (const auto& function : moduleDefinition.functions) {
+    for (const auto& function : moduleDefinition._functions) {
         result |= bodyTypeChecker.typeCheckFunctionBody(*function);
     }
 

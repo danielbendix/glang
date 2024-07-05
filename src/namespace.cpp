@@ -14,60 +14,72 @@ using enum PassResultKind;
 
 class NamespaceBuilder {
     ModuleDef& names;
+    StringMap<AST::Declaration *> declarations;
 public:
     NamespaceBuilder(ModuleDef& names) : names{names} {}
-   
-    Result addDeclaration(const std::string& name, AST::Declaration &declaration) {
+
+    void diagnoseDuplicateDeclaration(const std::string& name, AST::Declaration& duplicate) {
+        Diagnostic::error(duplicate, "Duplicate declaration.");
+        auto& existing = *declarations[name];
+        Diagnostic::note(existing, "Previously declared here.");
+    }
+
+    Result addFunction(const std::string& name, AST::FunctionDeclaration& declaration) {
         if (!names.all.insert(name, &declaration)) {
-            Diagnostic::error(declaration, "Duplicate declaration.");
-            auto& existing = *names.all[name];
-            Diagnostic::note(existing, "Previously declared here.");
+            diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
         }
+        declarations.insert(name, declaration);
+        return OK;
+    }
 
+    Result addGlobal(const std::string& name, AST::VariableDeclaration& declaration) {
+        if (!names.all.insert(name, &declaration)) {
+            diagnoseDuplicateDeclaration(name, declaration);
+            return ERROR;
+        }
+        declarations.insert(name, declaration);
+        return OK;
+    }
+
+    Result addType(const std::string& name, Type& type, AST::Declaration& declaration) {
+        if (!names.all.insert(name, &type)) {
+            diagnoseDuplicateDeclaration(name, declaration);
+            return ERROR;
+        }
+        names.types.insert(name, &type);
+        declarations.insert(name, declaration);
         return OK;
     }
 
     Result addVariable(const std::string& name, unique_ptr_t<AST::VariableDeclaration>&& variable) {
         Result result = OK;
-        result |= addDeclaration(name, *variable);
+        result |= addGlobal(name, *variable);
         // TODO: Create an ambiguous value
         assert(names.definitions.insert(name, *variable));
-        names.globals.push_back(std::move(variable));
+        names._globals.push_back(std::move(variable));
         return result;
     }
 
     Result addFunction(const std::string& name, unique_ptr_t<AST::FunctionDeclaration>&& function) {
         Result result = OK;
-        result |= addDeclaration(name, *function);
+        result |= addFunction(name, *function);
         // TODO: Create an ambiguous value
         assert(names.definitions.insert(name, *function));
-        names.functions.push_back(std::move(function));
+        names._functions.push_back(std::move(function));
         return result;
     }
 
-    Result addType(const std::string& name, Type *type) {
-        // TODO: Create an ambiguous value
-        bool inserted = names.types.insert(name, type);
-        assert(inserted);
-        return OK;
-    }
-
     Result addStructType(const std::string& name, unique_ptr_t<StructType>&& type, unique_ptr_t<AST::StructDeclaration>&& declaration) {
-        Result result = addDeclaration(name, *declaration);
-        if (result.ok()) {
-            addType(name, type.get());
-        }
+        Result result = OK;
+        result |= addType(name, *type, *declaration);
         names.structs.push_back(std::move(type));
         names.saved.push_back(std::move(declaration));
         return result;
     }
 
     Result addEnumType(const std::string& name, unique_ptr_t<EnumType>&& enumType, unique_ptr_t<AST::EnumDeclaration>&& declaration) {
-        Result result = addDeclaration(name, *declaration);
-        if (result.ok()) {
-            addType(name, enumType.get());
-        }
+        Result result = addType(name, *enumType, *declaration);
         names.enums.push_back(std::move(enumType));
         names.saved.push_back(std::move(declaration));
         return result;
@@ -80,15 +92,6 @@ class DeclarationTableVisitor : public AST::DeclarationVisitorT<DeclarationTable
     ModuleDef& names;
     NamespaceBuilder builder;
     
-    Result addDeclaration(const std::string& name, AST::Declaration& declaration) {
-        if (!names.all.insert(name, declaration)) {
-            Diagnostic::error(declaration, "Duplicate declaration.");
-            auto& existing = *names.all[name];
-            Diagnostic::note(existing, "Previously declared here.");
-            return ERROR;
-        }
-        return OK;
-    }
 public:
     DeclarationTableVisitor(ModuleDef& names) : names{names}, builder{names} {}
 
@@ -218,15 +221,19 @@ public:
             }
         }
         
-        if (auto declaration = moduleDefinition.definitions.lookup(identifier)) {
-            auto result =llvm::TypeSwitch<AST::Declaration *, unique_ptr_t<IdentifierResolution>>(*declaration)
-                .Case<AST::FunctionDeclaration>([](auto function) {
+        if (auto declaration = moduleDefinition.all.lookup(identifier)) {
+            auto result = llvm::TypeSwitch<ModuleDef::Definition, unique_ptr_t<IdentifierResolution>>(*declaration)
+                .Case<AST::FunctionDeclaration *>([](auto function) {
                     return FunctionResolution::create(*function);
                 })
-                .Case<AST::VariableDeclaration>([](auto variable) {
+                .Case<AST::VariableDeclaration *>([](auto variable) {
                     return GlobalResolution::create(*variable, false);
                 })
+                .Case<Type *>([](auto type) {
+                    return IdentifierTypeResolution::create(type);
+                })
                 .Default([](auto any) {
+                    assert(false);
                     return nullptr;
                 })
             ;
@@ -305,23 +312,23 @@ public:
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        Diagnostic::error(function, "Nested function declarations are not allowed in functions.");
         result = ERROR;
-        // TODO: Error: Functions are not allowed in functions.
     }
 
     void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        Diagnostic::error(structDeclaration, "Nested structs are not allowed in functions.");
         result = ERROR;
-        // TODO: Error: Structs are not allowed in functions.
     }
 
     void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        Diagnostic::error(enumDeclaration, "Nested enums are not allowed in functions.");
         result = ERROR;
-        // TODO: Error: Enums are not allowed in functions.
     }
 
     void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
+        Diagnostic::error(protocolDeclaration, "Nested protocols are not allowed in functions.");
         result = ERROR;
-        // TODO: Error: Protocols are not allowed in functions.
     }
 
     void visitStatementDeclaration(AST::StatementDeclaration& statement) {
@@ -413,9 +420,7 @@ public:
         memberAccess.getTarget().acceptVisitor(*this);
     }
 
-    void visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
-        assert(false);
-    }
+    void visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {}
 };
 
 PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition) 
@@ -424,11 +429,11 @@ PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition)
 
     PassResult result = OK;
 
-    for (auto& global : moduleDefinition.globals) {
+    for (auto& global : moduleDefinition._globals) {
         //result |= 
     }
 
-    for (auto& function : moduleDefinition.functions) {
+    for (auto& function : moduleDefinition._functions) {
         result |= visitor.resolveScopeInFunction(*function);
     }
 

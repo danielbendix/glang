@@ -30,12 +30,15 @@ PassResult populateCasesInEnumType(EnumType& enumType, TypeResolver& typeResolve
 
         size_t currentTag = startingTag;
 
-        size_t index = cases.size();
         for (auto& enumCase : declaration) {
+            size_t index = cases.size();
             size_t tag = currentTag++;
 
             if (enumCase.hasMembers()) {
                 std::vector<EnumType::Case::Member> members;
+                std::vector<Type *> memberTypes;
+                members.reserve(enumCase.getMemberCount());
+                memberTypes.reserve(enumCase.getMemberCount());
                 for (auto& member : enumCase) {
                     auto type = typeResolver.resolveType(member.getType());
                     if (!type) {
@@ -43,11 +46,14 @@ PassResult populateCasesInEnumType(EnumType& enumType, TypeResolver& typeResolve
                     }
 
                     members.emplace_back(member.getName(), type);
+                    memberTypes.push_back(type);
                 }
+
+                FunctionType *functionType = new FunctionType{&enumType, std::move(memberTypes)};
                 
-                cases.emplace_back(tag, enumCase.getName(), std::move(members));
+                cases.emplace_back(tag, enumCase.getName(), functionType, std::move(members));
             } else {
-                cases.emplace_back(tag, enumCase.getName());
+                cases.emplace_back(tag, enumCase.getName(), &enumType);
             }
 
             if (!caseMap.insert(enumCase.getName(), index)) {

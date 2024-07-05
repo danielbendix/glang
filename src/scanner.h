@@ -45,11 +45,6 @@ private:
         offset = -1;
     }
 
-//    void markStart() {
-//        start = current;
-//        // TODO: Set starting location
-//    }
-
     char peek() {
         return *current;
     }

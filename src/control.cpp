@@ -143,7 +143,7 @@ PassResult analyzeControlFlow(ModuleDef& moduleDefinition)
     GlobalDeclarationAnalyzer analyzer;
 
     Result result = OK;
-    for (auto& declaration : moduleDefinition.functions) {
+    for (auto& declaration : moduleDefinition._functions) {
         result |= declaration->acceptVisitor(analyzer);
     }
 

@@ -77,13 +77,13 @@ unique_ptr<AST::Declaration> Parser::declaration()
     return statementDeclaration();
 }
 
-AST::FunctionDeclaration::Parameter Parser::parameter()
+AST::FunctionParameter Parser::parameter()
 {
     auto name = consume(TokenType::Identifier);
     consume(TokenType::Colon);
     auto tp = type();
 
-    return AST::FunctionDeclaration::Parameter(name.chars, std::move(tp));
+    return AST::FunctionParameter(name.chars, std::move(tp));
 }
 
 unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
@@ -92,7 +92,7 @@ unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
 
     consume(TokenType::LeftParenthesis);
 
-    std::vector<AST::FunctionDeclaration::Parameter> parameters;
+    std::vector<AST::FunctionParameter> parameters;
     if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
@@ -109,6 +109,34 @@ unique_ptr<AST::FunctionDeclaration> Parser::functionDeclaration()
     auto code = block();
 
     return AST::FunctionDeclaration::create(name, std::move(parameters), std::move(returnType), std::move(code));
+}
+
+unique_ptr<AST::FunctionDeclaration> Parser::initializerDeclaration()
+{
+    if (match(TokenType::Question)) {
+        assert(false && "TODO: Implement failable initializers");
+    }
+
+    consume(TokenType::LeftParenthesis);
+
+    std::vector<AST::FunctionParameter> parameters;
+    if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
+    while (!check(TokenType::RightParenthesis)) {
+        consume(TokenType::Comma);
+        parameters.emplace_back(std::move(parameter()));
+    }
+
+    consume(TokenType::RightParenthesis);
+
+    if (match(TokenType::Arrow)) {
+        auto returnType = type();
+        // TODO: Report error with type.
+    }
+
+
+    auto code = block();
+
+
 }
 
 unique_ptr<AST::StructDeclaration> Parser::structDeclaration()
@@ -161,6 +189,8 @@ AST::EnumDeclaration::Case Parser::enumCase()
             members.push_back(enumCaseMember());
         } while (match(TokenType::Comma));
         consume(TokenType::RightParenthesis);
+        consume(TokenType::Semicolon);
+        return AST::EnumDeclaration::Case(token, name, std::move(members));
     }
 
     consume(TokenType::Semicolon);

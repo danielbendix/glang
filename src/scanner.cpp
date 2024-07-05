@@ -152,7 +152,12 @@ TokenType Scanner::identifierType()
         case 'g': {
             return testKeyword(it, current, "uard", 4, TokenType::Guard);
         }
-        case 'i': return testKeyword(it, current, "f", 1, TokenType::If);
+        case 'i': 
+            switch (*it++) {
+                case 'f': return testKeyword(it, current, "", 0, TokenType::If);
+                case 'n': return testKeyword(it, current, "it", 2, TokenType::If);
+            }
+            break;
         case 'l': return testKeyword(it, current, "et", 2, TokenType::Let);
         case 'n':
             switch(*it++) {

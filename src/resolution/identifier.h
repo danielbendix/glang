@@ -2,6 +2,7 @@
 #define LANG_resolution_identifier_h
 
 #include "common.h"
+#include "type.h"
 
 #include <memory>
 
@@ -19,6 +20,7 @@ public:
         IRK_Function,
         IRK_Parameter,
         IRK_Local,
+        IRK_Type,
     };
 private:
     Kind kind;
@@ -103,6 +105,16 @@ public:
 
     static bool classof(const IdentifierResolution *resolution) {
         return resolution->getKind() == IRK_Parameter;
+    }
+};
+
+class IdentifierTypeResolution : public IdentifierResolution {
+    Type *type;
+
+    IdentifierTypeResolution(Type *type) : IdentifierResolution{IRK_Type}, type{type} {}
+public:
+    static unique_ptr_t<IdentifierTypeResolution> create(Type *type) {
+        return unique_ptr_t<IdentifierTypeResolution>{ new IdentifierTypeResolution(type)};
     }
 };
 

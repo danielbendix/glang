@@ -568,12 +568,12 @@ namespace AST {
             return memberName;
         }
 
-        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
-            this->resolution = std::move(resolution);
-        }
-
         const MemberResolution& getResolution() const {
             return *resolution;
+        }
+
+        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
+            this->resolution = std::move(resolution);
         }
 
         static bool classof(const Node *node) {
@@ -598,6 +598,10 @@ namespace AST {
 
         const std::string& getMemberName() const {
             return memberName;
+        }
+
+        const MemberResolution& getResolution() const {
+            return *resolution;
         }
 
         void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
@@ -721,6 +725,7 @@ namespace AST {
     /// Different types of value transfers, for e.g. assignment and return.
     enum class AssignmentType : uint8_t {
         Regular, ///< Value returned without issue.
+        Extend, ///< Extension to a wider numeric type.
         ImplicitOptionalWrap, ///< wrap in implicit .some
     };
 
@@ -1057,13 +1062,19 @@ namespace AST {
         unique_ptr<Expression> initial;
         bool isMutable;
 
+        AssignmentType assignmentType;
+
         VariableDeclaration(
             Token token, 
             bool isMutable,
             std::string&& identifier, 
             unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& initial
-        ) : Declaration{NK_Decl_Variable, token}, isMutable{isMutable}, identifier{std::move(identifier)}, typeDeclaration{std::move(type)}, initial{std::move(initial)} {}
+        ) : Declaration{NK_Decl_Variable, token}
+          , isMutable{isMutable}
+          , identifier{std::move(identifier)}
+          , typeDeclaration{std::move(type)}
+          , initial{std::move(initial)} {}
         
         virtual void print(PrintContext& pc) const override;
 
@@ -1075,7 +1086,13 @@ namespace AST {
             unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& initial
         ) {
-            return unique_ptr<VariableDeclaration>(new VariableDeclaration(token, isMutable, std::move(identifier), std::move(type), std::move(initial)));
+            return unique_ptr<VariableDeclaration>{new VariableDeclaration{
+                token, 
+                isMutable, 
+                std::move(identifier), 
+                std::move(type), 
+                std::move(initial)
+            }};
         }
 
         const bool getIsMutable() const {
@@ -1102,33 +1119,60 @@ namespace AST {
             this->type = &type;
         }
 
+        const AssignmentType getAssignmentType() const {
+            return assignmentType;
+        }
+
+        void setAssignmentType(AssignmentType type) {
+            assignmentType = type;
+        }
+
         static bool classof(const Node *node) {
             return node->getKind() == NK_Decl_Variable;
         }
     };
 
-    class FunctionDeclaration : public Declaration {
+    class FunctionParameter {
     public:
-        class Parameter {
-        public:
-            std::string name;
-            unique_ptr<TypeNode> typeDeclaration;
-            Type *type = nullptr;
-            
-            Parameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
-            //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
-            //Parameter& operator=(Parameter&& parameter) = default;
+        std::string name;
+        unique_ptr<TypeNode> typeDeclaration;
+        Type *type = nullptr;
+        
+        FunctionParameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
+        //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
+        //Parameter& operator=(Parameter&& parameter) = default;
+    };
+
+    class FunctionName {
+        struct Label {
+            uint32_t offset;
+            uint32_t length;
         };
+
+        const char *base;
+        uint32_t length;
+        uint32_t root;
+        std::vector<Label> labels;
+    };
+
+    class InitializerDeclaration : public Declaration {
+        std::vector<FunctionParameter> parameters;
+        Block code;
+
+
+    };
+
+    class FunctionDeclaration : public Declaration {
     protected:
         std::string name;
-        std::vector<Parameter> parameters;
+        std::vector<FunctionParameter> parameters;
         int arity;
         unique_ptr<TypeNode> returnTypeDeclaration;
         FunctionType *type;
         Type *returnType;
         Block code;
 
-        FunctionDeclaration(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
+        FunctionDeclaration(Token token, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
             , name{token.chars}
             , parameters{std::move(parameters)}
@@ -1138,7 +1182,7 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<Parameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
+        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
             return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(code))};
         }
 
@@ -1166,11 +1210,11 @@ namespace AST {
             return parameters.size();
         }
 
-        Parameter& getParameter(int i) {
+        FunctionParameter& getParameter(int i) {
             return parameters[i];
         }
 
-        const Parameter& getParameter(int i) const {
+        const FunctionParameter& getParameter(int i) const {
             return parameters[i];
         }
 
@@ -1270,6 +1314,10 @@ namespace AST {
 
             const std::string& getName() const {
                 return name;
+            }
+
+            const size_t getMemberCount() const {
+                return members.size();
             }
 
             const bool hasMembers() const {

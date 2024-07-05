@@ -1,9 +1,12 @@
 #include "typecheck/expression.h"
 #include "type.h"
 #include "type/struct.h"
+#include "type/enum.h"
 
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+#include <format>
 
 using llvm::isa;
 using llvm::dyn_cast;
@@ -103,9 +106,12 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
 }
 
 TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call, Type *declaredType) {
-    // Verify that function exists, and call matches arity.
-    // Return return type of function.
-    auto target = typeCheckExpression(call.getTarget());
+    TypeResult target;
+    if (declaredType && llvm::isa<AST::InferredMemberAccessExpression>(&call.getTarget())) {
+        target = typeCheckExpression(call.getTarget(), declaredType);
+    } else {
+        target = typeCheckExpression(call.getTarget());
+    }
 
     if (!target) {
         return {};
@@ -120,16 +126,18 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
 
     if (FunctionType *functionType = dyn_cast<FunctionType>(type)) {
         if (functionType->parameterCount() != call.argumentCount()) {
-            std::cout << "Non-matching number of arguments in call.";
+            Diagnostic::error(call, std::format("Wrong number of arguments in call. Expected {}, got {}", functionType->parameterCount(), call.argumentCount()));
             return {};
         }
 
         // This needs to be whether one type can be converted to the other.
         for (int i = 0; i < functionType->parameterCount(); ++i) {
-            Type *argumentType = typeCheckExpression(call.getArgument(i));
+            AST::Expression& argument = call.getArgument(i);
+            Type *argumentType = typeCheckExpression(argument);
             Type *parameterType = functionType->getParameter(i);
             if (argumentType != parameterType) {
-                std::cout << "Wrong argument type in call." << argumentType->getKind() << " " << parameterType->getKind();
+                // TODO: Printable types.
+                Diagnostic::error(argument, std::format("Wrong argument type in call. Expected {}, got {}", int(parameterType->getKind()), int(argumentType->getKind())));
                 return {};
             }
         }
@@ -174,7 +182,33 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
 }
 
 TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression &inferredMemberAccess, Type *declaredType) {
-    assert(false);
+    if (!declaredType) {
+        Diagnostic::error(inferredMemberAccess, "Unable to infer expected type of implicit member access expression.");
+        return {};
+    }
+
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolution;
+    llvm::TypeSwitch<Type *, void>(declaredType)
+        .Case<EnumType>([&](auto enumType) {
+            resolution = enumType->resolveStaticMember(inferredMemberAccess.getMemberName());
+        })
+        .Case<StructType>([&](auto structType) {
+            resolution = structType->resolveStaticMember(inferredMemberAccess.getMemberName());
+        })
+        .Default([](auto type) {
+        })
+    ;
+
+    if (resolution.first) {
+        inferredMemberAccess.setResolution(std::move(resolution.first));
+        inferredMemberAccess.setType(resolution.second);
+        return resolution.second;
+    }
+
+    std::cout << declaredType << "\n";
+
+    Diagnostic::error(inferredMemberAccess, "Type checking of implicit member access is not yet implemented.");
+    return {};
 }
 
 TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *propagatedType) {
@@ -189,11 +223,11 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             if (propagatedType) {
                 if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
                     // Check if type can hold literal.
-
+                    literal.setType(propagatedType);
+                    return propagatedType;
 
                 }
                 // TODO: Get numeric type
-                
 
             } else {
                 return TypeConstraint::Numeric;

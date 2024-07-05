@@ -3,6 +3,7 @@
 
 #include "resolution.h"
 
+
 namespace AST {
     class VariableDeclaration;
     class FunctionDeclaration;
@@ -13,6 +14,7 @@ public:
     enum Kind {
         MRK_Struct_Field,
         MRK_Struct_Method,
+        MRK_Enum_Kind,
     };
 private:
     Kind kind;
@@ -56,6 +58,23 @@ public:
 
     static bool classof(const MemberResolution *resolution) {
         return resolution->getKind() == MRK_Struct_Method;
+    }
+};
+
+class EnumType;
+
+class EnumCaseResolution : public MemberResolution {
+    EnumType *type;
+    size_t index;
+
+    EnumCaseResolution(EnumType *type, size_t index) : MemberResolution{MRK_Enum_Kind}, type{type}, index{index} {}
+public:
+    static unique_ptr_t<EnumCaseResolution> create(EnumType *type, size_t index) {
+        return unique_ptr_t<EnumCaseResolution>{new EnumCaseResolution{type, index}};
+    }
+
+    static bool classof(const MemberResolution *resolution) {
+        return resolution->getKind() == MRK_Enum_Kind;
     }
 };
 

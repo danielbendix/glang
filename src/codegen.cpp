@@ -75,11 +75,11 @@ public:
 bool populateContext(Context& context, ModuleDef& moduleDefinition) {
     ContextPopulator populator{context};
 
-    for (auto& global : moduleDefinition.globals) {
+    for (auto& global : moduleDefinition._globals) {
         populator.addGlobal(*global);
     }
 
-    for (auto& function : moduleDefinition.functions) {
+    for (auto& function : moduleDefinition._functions) {
         populator.addFunction(*function);
     }
     
@@ -503,9 +503,9 @@ public:
                     return function.getConstant(declaration);
                 }
             }
-            case IdentifierResolution::IRK_Global: {
+            case IdentifierResolution::IRK_Global:
+            case IdentifierResolution::IRK_Type:
                 assert(false);
-            }
         }
 
         return nullptr;
@@ -652,6 +652,19 @@ public:
     }
 
     llvm::Value *visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
+        // This can only be a static member access or enum case
+        
+        auto& resolution = inferredMemberAccess.getResolution();
+
+        if (auto *enumCaseResolution = llvm::dyn_cast<EnumCaseResolution>(&resolution)) {
+
+            
+
+
+        }
+
+        // TODO: Implement static members
+
         assert(false);
     }
 };
@@ -705,10 +718,10 @@ Result performCodegen(Context& context) {
     return OK;
 }
 
+llvm::LLVMContext llvmContext;
+
 std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 {
-    llvm::LLVMContext llvmContext;
-    
     auto module = std::make_unique<llvm::Module>("test", llvmContext);
 
     Context context{llvmContext, *module};
@@ -717,11 +730,14 @@ std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 
     performCodegen(context);
 
-    llvm::verifyModule(*module, &llvm::outs());
+    if (llvm::verifyModule(*module, &llvm::outs())) {
+        module.reset();
+        return module;
+    }
 
     llvm::outs() << *module;
 
-    std::ignore = module.release();
+    //std::ignore = module.release();
 
     return module;
 }

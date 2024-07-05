@@ -14,6 +14,8 @@ void compile(std::string&& string)
 {
     auto parser = Parser{std::move(string)};
 
+    std::cout << "sizeof(llvm::Module)" << sizeof(llvm::Module) << '\n';
+
     try {
         IODiagnosticWriter writer{std::cout};
         Diagnostic::setWriter(writer);

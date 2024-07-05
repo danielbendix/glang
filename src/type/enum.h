@@ -15,14 +15,17 @@ public:
             Member(const std::string& name, Type *type) : name{name}, type{type} {}
         };
 
-        Case(size_t tag, const std::string& name) : tag{tag}, name{name} {}
+        Case(size_t tag, const std::string& name, Type *type) : tag{tag}, name{name}, type{type} {}
 
-        Case(size_t tag, const std::string& name, std::vector<Member>&& members) : tag{tag}, name{name}, members{std::move(members)} {}
+        Case(size_t tag, const std::string& name, Type *type, std::vector<Member>&& members) : tag{tag}, name{name}, members{std::move(members)}, type{type} {}
 
     private:
         size_t tag;
         std::string name;
         std::vector<Member> members;
+        Type *type;
+
+        friend class EnumType;
     };
 private:
 
@@ -40,7 +43,13 @@ private:
     StringMap<size_t> caseMap;
 
 public:
+    void *codegen;
+
+public:
     EnumType(const std::string& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
+
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const std::string& name);
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const std::string& name);
 
     AST::EnumDeclaration *getDeclaration() const {
         return declaration;
@@ -60,6 +69,10 @@ public:
         this->maxTag = tags.second;
         this->cases = std::move(cases);
         this->caseMap = std::move(caseMap);
+    }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Enum;
     }
 };
 

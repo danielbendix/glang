@@ -12,6 +12,20 @@ public:
     ParsedFile(std::vector<AST::unique_ptr<AST::Declaration>>&& declarations) : declarations{std::move(declarations)} {}
 };
 
+struct ParserState {
+    enum class Kind {
+        Global,
+        Function,
+        Initializer,
+        Struct,
+        Class,
+        Protocol,
+        Enum,
+    };
+
+    Kind kind;
+};
+
 enum class Precedence;
 
 class ParserException {
@@ -53,7 +67,7 @@ public:
     [[nodiscard]]
     AST::Block block();
     [[nodiscard]]
-    AST::FunctionDeclaration::Parameter parameter();
+    AST::FunctionParameter parameter();
 
     // Types
     [[nodiscard]]
@@ -66,6 +80,8 @@ public:
     unique_ptr<AST::FunctionDeclaration> functionDeclaration();
     [[nodiscard]]
     unique_ptr<AST::StructDeclaration> structDeclaration();
+    [[nodiscard]]
+    unique_ptr<AST::FunctionDeclaration> initializerDeclaration();
     [[nodiscard]]
     unique_ptr<AST::EnumDeclaration> enumDeclaration();
     [[nodiscard]]
