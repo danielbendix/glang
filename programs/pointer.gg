@@ -16,10 +16,12 @@ fn main() -> i64 {
     let c: i64** = &b;
 
     *c = &a2;
+    **c = 100;
 
     let d: i64*? = &a;
 
-    let a: i8? = nil;
+    let e: i8? = nil;
+    let f: i16? = 1;
 
     test(b);
 

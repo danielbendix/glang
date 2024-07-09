@@ -66,6 +66,8 @@ public:
         }
     }
 
+    Type *removeImplicitWrapperTypes();
+
     bool isVoid() {
         return getKind() == TK_Void;
     }
@@ -111,10 +113,10 @@ public:
 };
 
 class IntegerType : public NumericType {
-public: // TODO: Remove
-    unsigned bitWidth;
-    bool isSigned;
-
+public:
+    const bool isSigned;
+    const uint32_t bitWidth;
+private:
     mutable llvm::IntegerType *type;
 
 public:
@@ -221,12 +223,34 @@ public:
 };
 
 class FloatingType : public NumericType {
-    unsigned bitWidth;
-
 public:
-    FloatingType(unsigned bitWidth) 
+    enum class Precision: uint8_t {
+        Single = 0,
+        Double = 1,
+    };
+    const Precision precision;
+
+    FloatingType(Precision precision) 
         : NumericType{TK_Num_Floating}
-        , bitWidth{bitWidth} {}
+        , precision{precision} {}
+
+    uint32_t fractionBits() {
+        switch (precision) {
+            case Precision::Single:
+                return 23;
+            case Precision::Double:
+                return 52;
+        }
+    }
+
+    uint32_t exponentBits() {
+        switch (precision) {
+            case Precision::Single:
+                return 8;
+            case Precision::Double:
+                return 11;
+        }
+    }
 };
 
 class StringType : public Type {

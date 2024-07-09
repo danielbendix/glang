@@ -1,15 +1,16 @@
 
 enum MyFirstEnum {
     case nothing;
-    case a(i32*);
-    case b(i64*);
-    case c(u32*);
-    case d(u64*);
+    case a(i64*);
+    case b(u64*);
 }
 
 fn main() -> i64 {
-    let a2: i64 = 0;
+    var a1: i32 = 0;
+    var a2: i64 = a1;
 
+    let value: MyFirstEnum = .nothing;
+    let value2: MyFirstEnum = .a(&a2);
 
     return a2;
 }

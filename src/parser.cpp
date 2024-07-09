@@ -637,7 +637,11 @@ unique_ptr<AST::Expression> Parser::unary()
 
 unique_ptr<AST::Expression> Parser::identifier()
 {
-    return AST::Identifier::create(previous);
+    auto identifier = AST::Identifier::create(previous);
+    if (match(TokenType::LeftBracket)) {
+        return initializer(std::move(identifier));
+    }
+    return identifier;
 }
 
 unique_ptr<AST::Expression> Parser::self()
@@ -652,67 +656,92 @@ unique_ptr<AST::Expression> Parser::grouping()
     return expr;
 }
 
+unique_ptr<AST::Expression> Parser::inferredInitializer()
+{
+    return initializer(nullptr);
+    
+}
+
+unique_ptr<AST::Expression> Parser::initializer(unique_ptr<AST::Identifier>&& identifier)
+{
+    Token token = previous;
+    std::vector<AST::InitializerExpression::Pair> pairs;
+    while (!match(TokenType::RightBracket)) {
+        auto name = consume(TokenType::Identifier);
+        consume(TokenType::Equal);
+        auto member = AST::InferredMemberAccessExpression::create(name, name);
+        auto value = expression();
+        pairs.push_back({std::move(member), std::move(value)});
+        if (!match(TokenType::Comma)) {
+            consume(TokenType::RightBracket);
+            break;
+        }
+    }
+
+    return AST::InitializerExpression::create(token, std::move(identifier), std::move(pairs));
+}
+
 ParseRule ParseRule::expressionRules[] = {
-    [static_cast<int>(LeftParenthesis)]       = {&Parser::grouping,         &Parser::call,      Precedence::Call},
-    [static_cast<int>(RightParenthesis)]      = {NULL,                      NULL,               Precedence::None},
+    [static_cast<int>(LeftParenthesis)]       = {&Parser::grouping,            &Parser::call,      Precedence::Call},
+    [static_cast<int>(RightParenthesis)]      = {NULL,                         NULL,               Precedence::None},
 
-    [static_cast<int>(LeftBracket)]           = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(RightBracket)]          = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Comma)]                 = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Dot)]                   = {&Parser::inferredMember,   &Parser::member,    Precedence::Call},
+    [static_cast<int>(LeftBracket)]           = {&Parser::inferredInitializer, NULL,               Precedence::None},
+    [static_cast<int>(RightBracket)]          = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Comma)]                 = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Dot)]                   = {&Parser::inferredMember,      &Parser::member,    Precedence::Call},
 
-    [static_cast<int>(Plus)]                  = {NULL,                      &Parser::binary,    Precedence::Term},
-    [static_cast<int>(Minus)]                 = {&Parser::unary,            &Parser::binary,    Precedence::Term},
-    [static_cast<int>(Star)]                  = {&Parser::unary,            &Parser::binary,    Precedence::Factor},
-    [static_cast<int>(Slash)]                 = {NULL,                      &Parser::binary,    Precedence::Factor},
-    [static_cast<int>(Percent)]               = {NULL,                      &Parser::binary,    Precedence::Factor},
+    [static_cast<int>(Plus)]                  = {NULL,                         &Parser::binary,    Precedence::Term},
+    [static_cast<int>(Minus)]                 = {&Parser::unary,               &Parser::binary,    Precedence::Term},
+    [static_cast<int>(Star)]                  = {&Parser::unary,               &Parser::binary,    Precedence::Factor},
+    [static_cast<int>(Slash)]                 = {NULL,                         &Parser::binary,    Precedence::Factor},
+    [static_cast<int>(Percent)]               = {NULL,                         &Parser::binary,    Precedence::Factor},
 
-    [static_cast<int>(LessLess)]              = {NULL,                      &Parser::binary,    Precedence::Shift},
-    [static_cast<int>(GreaterGreater)]        = {NULL,                      &Parser::binary,    Precedence::Shift},
+    [static_cast<int>(LessLess)]              = {NULL,                         &Parser::binary,    Precedence::Shift},
+    [static_cast<int>(GreaterGreater)]        = {NULL,                         &Parser::binary,    Precedence::Shift},
 
-    [static_cast<int>(Ampersand)]             = {&Parser::unary,            &Parser::binary,    Precedence::BitwiseAnd},
-    [static_cast<int>(Caret)]                 = {NULL,                      &Parser::binary,    Precedence::BitwiseXor},
-    [static_cast<int>(Pipe)]                  = {NULL,                      &Parser::binary,    Precedence::BitwiseOr},
+    [static_cast<int>(Ampersand)]             = {&Parser::unary,               &Parser::binary,    Precedence::BitwiseAnd},
+    [static_cast<int>(Caret)]                 = {NULL,                         &Parser::binary,    Precedence::BitwiseXor},
+    [static_cast<int>(Pipe)]                  = {NULL,                         &Parser::binary,    Precedence::BitwiseOr},
 
-    [static_cast<int>(And)]                   = {NULL,                      &Parser::binary,    Precedence::LogicalAnd},
-    [static_cast<int>(Or)]                    = {NULL,                      &Parser::binary,    Precedence::LogicalOr},
+    [static_cast<int>(And)]                   = {NULL,                         &Parser::binary,    Precedence::LogicalAnd},
+    [static_cast<int>(Or)]                    = {NULL,                         &Parser::binary,    Precedence::LogicalOr},
 
-    [static_cast<int>(NotEqual)]              = {NULL,                      &Parser::binary,    Precedence::Equality},
-    [static_cast<int>(EqualEqual)]            = {NULL,                      &Parser::binary,    Precedence::Equality},
+    [static_cast<int>(NotEqual)]              = {NULL,                         &Parser::binary,    Precedence::Equality},
+    [static_cast<int>(EqualEqual)]            = {NULL,                         &Parser::binary,    Precedence::Equality},
 
-    [static_cast<int>(Greater)]               = {NULL,                      &Parser::binary,    Precedence::Comparison},
-    [static_cast<int>(GreaterEqual)]          = {NULL,                      &Parser::binary,    Precedence::Comparison},
-    [static_cast<int>(Less)]                  = {NULL,                      &Parser::binary,    Precedence::Comparison},
-    [static_cast<int>(LessEqual)]             = {NULL,                      &Parser::binary,    Precedence::Comparison},
+    [static_cast<int>(Greater)]               = {NULL,                         &Parser::binary,    Precedence::Comparison},
+    [static_cast<int>(GreaterEqual)]          = {NULL,                         &Parser::binary,    Precedence::Comparison},
+    [static_cast<int>(Less)]                  = {NULL,                         &Parser::binary,    Precedence::Comparison},
+    [static_cast<int>(LessEqual)]             = {NULL,                         &Parser::binary,    Precedence::Comparison},
 
-    [static_cast<int>(Not)]                   = {&Parser::unary,            NULL,               Precedence::Comparison},
+    [static_cast<int>(Not)]                   = {&Parser::unary,               NULL,               Precedence::Comparison},
 
-    [static_cast<int>(String)]                = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Integer)]               = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Binary)]                = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Octal)]                 = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Hexadecimal)]           = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Floating)]              = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(True)]                  = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(False)]                 = {&Parser::literal,          NULL,               Precedence::None},
-    [static_cast<int>(Nil)]                   = {&Parser::literal,          NULL,               Precedence::None},
+    [static_cast<int>(String)]                = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Integer)]               = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Binary)]                = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Octal)]                 = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Hexadecimal)]           = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Floating)]              = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(True)]                  = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(False)]                 = {&Parser::literal,             NULL,               Precedence::None},
+    [static_cast<int>(Nil)]                   = {&Parser::literal,             NULL,               Precedence::None},
 
-    [static_cast<int>(Identifier)]            = {&Parser::identifier,       NULL,               Precedence::None},
-    [static_cast<int>(Self)]                  = {&Parser::self,             NULL,               Precedence::None},
+    [static_cast<int>(Identifier)]            = {&Parser::identifier,          NULL,               Precedence::None},
+    [static_cast<int>(Self)]                  = {&Parser::self,                NULL,               Precedence::None},
 
-    [static_cast<int>(Equal)]                 = {NULL,                      NULL,               Precedence::None},
+    [static_cast<int>(Equal)]                 = {NULL,                         NULL,               Precedence::None},
 
-    [static_cast<int>(Semicolon)]             = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(EndOfFile)]             = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Enum)]                  = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Struct)]                = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Var)]                   = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(If)]                    = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Else)]                  = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Fn)]                    = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(For)]                   = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(While)]                 = {NULL,                      NULL,               Precedence::None},
-    [static_cast<int>(Return)]                = {NULL,                      NULL,               Precedence::None},
+    [static_cast<int>(Semicolon)]             = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(EndOfFile)]             = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Enum)]                  = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Struct)]                = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Var)]                   = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(If)]                    = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Else)]                  = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Fn)]                    = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(For)]                   = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(While)]                 = {NULL,                         NULL,               Precedence::None},
+    [static_cast<int>(Return)]                = {NULL,                         NULL,               Precedence::None},
 
 /*
     [TOKEN_NIL]           = {literal,  NULL,   PREC_NONE},

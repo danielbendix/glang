@@ -1,4 +1,5 @@
 #include "typecheck/expression.h"
+#include "typecheck/unify.h"
 #include "type.h"
 #include "type/struct.h"
 #include "type/enum.h"
@@ -151,8 +152,70 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
     }
 }
 
+TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
+    Type *resolvedType = nullptr;
+    if (auto identifier = initializer.getIdentifier()) {
+        resolvedType = typeResolver.resolveType(*identifier);
+
+        if (!resolvedType) {
+            return {};
+        }
+    }
+
+    Type *initializingType = nullptr;
+    if (resolvedType) {
+        initializingType = resolvedType;
+    } else if (declaredType) {
+        initializingType = declaredType->removeImplicitWrapperTypes();
+    } else {
+        Diagnostic::error(initializer, "No type available to infer initializer type from.");
+        return {};
+    }
+
+
+    if (auto structType = dyn_cast<StructType>(initializingType)) {
+        initializer.setType(structType);
+        // TODO: Use a set of fields to ensure that all values are being set.
+        // TODO: Use a set of fields to ensure no duplicates.
+        for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
+            auto& pair = initializer.getPair(i);
+
+            auto [resolution, fieldType] = structType->resolveMember(pair.first->getMemberName());
+            if (!resolution) {
+                Diagnostic::error(*pair.first, "Unable to resolve member in initializer expression.");
+                return {};
+            }
+            auto resolutionPtr = resolution.get();
+            pair.first->setResolution(std::move(resolution));
+            if (!isa<StructFieldResolution>(resolutionPtr)) {
+                Diagnostic::error(*pair.first, "Cannot assign to [GET FIELD TYPE] in struct initializer expression.");
+                return {};
+            }
+            
+
+            auto valueType = typeCheckExpression(*pair.second, fieldType);
+            if (!valueType) {
+                return {};
+            } else if (valueType.isConstraint()) {
+                assert(false);
+            }
+
+            auto [unifyResult, wrapped] = unifyTypes(*fieldType, *valueType.asType(), *pair.second);
+        
+            if (wrapped) {
+                std::ignore = pair.second.release();
+                pair.second = std::move(wrapped);
+            }
+        }
+        return structType;
+    } else {
+        Diagnostic::error(initializer, "Initializer expression is not supported for [INSERT TYPE] types.");
+        return {};
+    }
+}
+
 TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType) {
-    TypeResult target = typeCheckExpression(memberAccess.getTarget(), nullptr);
+    TypeResult target = typeCheckExpression(memberAccess.getTarget());
     
     if (!target) {
         return {};
@@ -170,7 +233,7 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
         if (memberResolution) {
             memberAccess.setType(memberType);
             memberAccess.setResolution(std::move(memberResolution));
-            return memberType;
+            return {memberType, target.canAssign()};
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
             return {};
@@ -225,10 +288,17 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
                     return propagatedType;
-
+                } else if (auto fpType = dyn_cast<FloatingType>(propagatedType)) {
+                    literal.setType(propagatedType);
+                    return propagatedType;
+                } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
+                    auto rootType = optionalType->removeImplicitWrapperTypes();
+                    if (auto type = visitLiteral(literal, rootType); type.isType()) {
+                        literal.setType(type.asType());
+                        return type;
+                    }
                 }
                 // TODO: Get numeric type
-
             } else {
                 return TypeConstraint::Numeric;
             }

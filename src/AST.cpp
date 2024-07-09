@@ -172,8 +172,13 @@ namespace AST {
     void FunctionDeclaration::print(PrintContext& pc) const {
         pc.startLine();
         pc << "fn " << name << "(";
+        bool needsSeparator = false;
         for (auto& p : parameters) {
-            // This could fail after type checking
+            if (needsSeparator) {
+                pc << ", ";
+            } else {
+                needsSeparator = true;
+            }
             pc << p.name << ": " << *p.typeDeclaration;
         }
         pc << ")";
@@ -182,6 +187,7 @@ namespace AST {
         }
         pc << " {\n";
         code.print(pc);
+        pc.startLine();
         pc << "}\n";
     }
 
@@ -334,6 +340,23 @@ namespace AST {
             pc << *argument;
         }
         pc << ")";
+    }
+
+    void InitializerExpression::print(PrintContext& pc) const {
+        if (identifier) {
+            pc << *identifier << " ";
+        }
+        pc << "{\n";
+        pc.indent();
+
+        for (const auto& pair : pairs) {
+            pc.startLine();
+            pc << pair.first->getMemberName() << " = " << *pair.second << ",\n";
+        }
+
+        pc.outdent();
+        pc.startLine();
+        pc << "}";
     }
 
     void MemberAccessExpression::print(PrintContext& pc) const {

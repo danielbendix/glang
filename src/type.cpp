@@ -6,6 +6,25 @@
 
 using llvm::dyn_cast;
 
+Type *Type::removeImplicitWrapperTypes()
+{
+    switch (getKind()) {
+        case TK_Void:
+        case TK_Boolean:
+        case TK_Num_Integer:
+        case TK_Num_Floating:
+        case TK_String:
+        case TK_Function:
+        case TK_Struct:
+        case TK_Protocol:
+        case TK_Enum:
+        case TK_Pointer:
+            return this;
+        case TK_Optional:
+            return static_cast<OptionalType *>(this)->getContained()->removeImplicitWrapperTypes();
+    }
+}
+
 void Type::deleteValue(Type *type) {
     switch (type->getKind()) {
         case TK_Void: return delete static_cast<VoidType *>(type);
@@ -20,11 +39,8 @@ void Type::deleteValue(Type *type) {
 
         case TK_Optional: return delete static_cast<OptionalType *>(type);
         case TK_Pointer: return delete static_cast<PointerType *>(type);
-
     }
 }
-
-
 
 void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
 {
@@ -32,11 +48,11 @@ void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
     table.insert("bool", booleanType);
     owner.push_back(booleanType);
 
-    Type *f32Type = new FloatingType{32};
+    Type *f32Type = new FloatingType{FloatingType::Precision::Single};
     table.insert("f32", f32Type);
     owner.push_back(f32Type);
 
-    Type *f64Type = new FloatingType{64};
+    Type *f64Type = new FloatingType{FloatingType::Precision::Double};
     table.insert("f64", f64Type);
     owner.push_back(f64Type);
 

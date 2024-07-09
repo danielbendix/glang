@@ -3,6 +3,7 @@
 
 #include "typecheck.h"
 #include "typecheck/internal.h"
+#include "typecheck/resolver.h"
 
 extern VoidType *void_;
 extern BooleanType *boolean;
@@ -10,8 +11,9 @@ extern IntegerType *signed64;
 
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
 
+    TypeResolver& typeResolver;
 public:
-    ExpressionTypeChecker() {}
+    ExpressionTypeChecker(TypeResolver& typeResolver) : typeResolver{typeResolver} {}
 
     TypeResult typeCheckExpression(AST::Expression& expression) {
         return expression.acceptVisitor(*this, {});
@@ -37,6 +39,8 @@ public:
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
+
+    TypeResult visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType);
 
     TypeResult visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType);
 

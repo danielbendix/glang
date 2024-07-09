@@ -7,8 +7,27 @@ class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
     ModuleDef& moduleDefinition;
     StringMap<Type *>& builtins;
 
+private:
+    Type *resolveType(const std::string& name) {
+        if (auto type = moduleDefinition.types.lookup(name)) {
+            return *type;
+        } else if (auto builtin = builtins.lookup(name)) {
+            return *builtin;
+        }
+        return nullptr;
+    }
+
 public:
     TypeResolver(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : moduleDefinition{moduleDefinition}, builtins{builtins} {};
+
+    Type *resolveType(AST::Identifier& identifier) {
+        if (auto type = resolveType(identifier.getName())) {
+            return type;
+        } else {
+            Diagnostic::error(identifier, "Cannot resolve type with name " + identifier.getName());
+            return {};
+        }
+    }
 
     Type *resolveType(AST::TypeNode& typeNode) {
         return typeNode.acceptVisitor(*this);
@@ -22,10 +41,8 @@ public:
     }
 
     Type *visitTypeLiteral(AST::TypeLiteral& literal) {
-        if (auto type = moduleDefinition.types.lookup(literal.getName())) {
-            return *type;
-        } else if (auto builtin = builtins.lookup(literal.getName())) {
-            return *builtin;
+        if (auto type = resolveType(literal.getName())) {
+            return type;
         } else {
             Diagnostic::error(literal, "Cannot resolve type with name " + literal.getName());
             return {};

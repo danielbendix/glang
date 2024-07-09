@@ -1,41 +1,4 @@
-#include "assignment.h"
-
-std::optional<AST::AssignmentType> unifyTypesForAssignment(Type& destinationType, Type& sourceType) {
-    assert(&destinationType != &sourceType);
-
-    if (destinationType.getKind() == sourceType.getKind()) {
-
-        switch (destinationType.getKind()) {
-            case TK_Num_Integer: {
-                IntegerType& destination = llvm::cast<IntegerType>(destinationType);
-                IntegerType& source = llvm::cast<IntegerType>(sourceType);
-
-                if (destination.getBitWidth() > source.getBitWidth()) {
-                    return AST::AssignmentType::Extend;
-                }
-                return {};
-            }
-                
-                // TODO: Sign extend if possible.
-                assert(false);
-            case TK_Optional: {
-                Type *destination = llvm::cast<OptionalType>(destinationType).getContained();
-                Type *source = llvm::cast<OptionalType>(sourceType).getContained();
-            }
-            default:
-                return {};
-        }
-    }
-
-    if (OptionalType *optional = llvm::dyn_cast<OptionalType>(&destinationType)) {
-        if (optional->getContained() == &sourceType) {
-            return AST::AssignmentType::ImplicitOptionalWrap;
-        }
-    }
-
-    return {};
-}
-
+#include "typecheck/assignment.h"
 
 // TODO: We need to explain why we failed to assign to a value.
 void diagnoseAssignmentToRValue(const AST::Expression& expression, const AST::AssignmentStatement& assignment) {

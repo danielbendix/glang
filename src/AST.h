@@ -79,6 +79,7 @@ namespace AST {
             NK_Expr_Unary,
             NK_Expr_Binary,
             NK_Expr_Call,
+            NK_Expr_Initializer,
             NK_Expr_Member_Access,
             NK_Expr_Inferred_Member_Access,
 
@@ -613,11 +614,51 @@ namespace AST {
         }
     };
 
+    class InitializerExpression : public Expression {
+    public:
+        using Pair = std::pair<unique_ptr<InferredMemberAccessExpression>, unique_ptr<Expression>>;
+    private:       
+        // This is a typename. Could contain a type parameter in the future. We should find a better type.
+        unique_ptr<Identifier> identifier;
+        std::vector<Pair> pairs;
+    protected:
+        InitializerExpression(Token token, unique_ptr<Identifier>&& identifier, std::vector<Pair>&& pairs) 
+            : Expression{NK_Expr_Initializer, token}
+            , identifier{std::move(identifier)}
+            , pairs{std::move(pairs)}
+            {}
+
+        virtual void print(PrintContext& pc) const override;
+
+    public:
+        static unique_ptr<InitializerExpression> create(Token token, unique_ptr<Identifier>&& identifier, std::vector<Pair>&& pairs) {
+            return unique_ptr<InitializerExpression>{new InitializerExpression(token, std::move(identifier), std::move(pairs))};
+        }
+
+        Identifier *getIdentifier() {
+            return identifier.get();
+        }
+
+        size_t getNumberOfPairs() {
+            return pairs.size();
+        }
+
+        Pair& getPair(size_t index) {
+            return pairs[index];
+        }
+    };
+
+
     enum class UnaryOperator {
         Negate,
         Not,
         AddressOf,
         Dereference,
+        ZeroExtend,
+        SignExtend,
+        IntegerToFP,
+        FPExtend,
+        OptionalWrap, ///< wrap in implicit .some
     };
 
     class UnaryExpression : public Expression {
@@ -629,10 +670,22 @@ namespace AST {
             : Expression{NK_Expr_Unary, token}, op{op}, target{std::move(target)}
         {}
 
+        UnaryExpression(Location location, UnaryOperator op, unique_ptr<Expression>&& target) 
+            : Expression{NK_Expr_Unary, location}, op{op}, target{std::move(target)}
+        {}
+
         void print(PrintContext& pc) const override;
     public:
         static unique_ptr<UnaryExpression> create(Token token, UnaryOperator op, unique_ptr<Expression>&& target) {
             return unique_ptr<UnaryExpression>{new UnaryExpression(token, op, std::move(target))};
+        }
+
+        static unique_ptr<UnaryExpression> wrap(Expression& target, UnaryOperator op, Type& type) {
+            auto result = unique_ptr<UnaryExpression>{
+                new UnaryExpression(target.location, op, unique_ptr<Expression>(&target))
+            };
+            result->setType(&type);
+            return result;
         }
 
         UnaryOperator getOp() const {
@@ -722,22 +775,14 @@ namespace AST {
         using Node::Node;
     };
 
-    /// Different types of value transfers, for e.g. assignment and return.
-    enum class AssignmentType : uint8_t {
-        Regular, ///< Value returned without issue.
-        Extend, ///< Extension to a wider numeric type.
-        ImplicitOptionalWrap, ///< wrap in implicit .some
-    };
 
     class AssignmentStatement : public Statement {
     protected:
-        AssignmentType assignmentType;
         unique_ptr<Expression> target;
         unique_ptr<Expression> value;
 
         AssignmentStatement(Token token, unique_ptr<Expression> target, unique_ptr<Expression> value)
             : Statement{NK_Stmt_Assignment, Location{token}}
-            , assignmentType{AssignmentType::Regular}
             , target{std::move(target)}
             , value{std::move(value)} 
         {}
@@ -748,20 +793,18 @@ namespace AST {
             return unique_ptr<AssignmentStatement>{new AssignmentStatement(token, std::move(target), std::move(value))};
         }
 
-        const AssignmentType getAssignmentType() const {
-            return assignmentType;
-        }
-
-        void setAssignmentType(AssignmentType type) {
-            assignmentType = type;
-        }
-
         Expression& getTarget() const {
             return *target;
         }
 
         Expression& getValue() const {
             return *value;
+        }
+
+        void setWrappedValue(unique_ptr<Expression>&& wrapped) {
+            assert(wrapped);
+            std::ignore = value.release();
+            value = std::move(wrapped);
         }
     };
 
@@ -1062,8 +1105,6 @@ namespace AST {
         unique_ptr<Expression> initial;
         bool isMutable;
 
-        AssignmentType assignmentType;
-
         VariableDeclaration(
             Token token, 
             bool isMutable,
@@ -1107,6 +1148,12 @@ namespace AST {
             return initial.get();
         }
 
+        void setWrappedInitialValue(unique_ptr<Expression>&& wrapped) {
+            assert(wrapped);
+            std::ignore = initial.release();
+            initial = std::move(wrapped);
+        }
+
         TypeNode *getTypeDeclaration() const {
             return typeDeclaration.get();
         }
@@ -1117,14 +1164,6 @@ namespace AST {
 
         void setType(Type& type) {
             this->type = &type;
-        }
-
-        const AssignmentType getAssignmentType() const {
-            return assignmentType;
-        }
-
-        void setAssignmentType(AssignmentType type) {
-            assignmentType = type;
         }
 
         static bool classof(const Node *node) {

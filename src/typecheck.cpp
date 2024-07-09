@@ -2,6 +2,7 @@
 #include "AST_Visitor.h"
 #include "diagnostic.h"
 #include "typecheck.h"
+#include "typecheck/unify.h"
 #include "typecheck/resolver.h"
 #include "typecheck/expression.h"
 #include "typecheck/internal.h"
@@ -114,6 +115,8 @@ public:
         currentFunction = &function;
         for (auto& declaration : function.getCode()) {
             declaration.acceptVisitor(*this);
+            // TODO: If a declaration fails, we end, but if a statement fails, we can continue.
+            if (result.failed()) break;
         }
         return result;
     }
@@ -132,7 +135,7 @@ public:
 
         Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
-            ExpressionTypeChecker checker;
+            ExpressionTypeChecker checker{typeResolver};
             if (declaredType) {
                 type = checker.typeCheckExpression(*initial, declaredType);
             } else {
@@ -140,31 +143,24 @@ public:
             }
 
             if (!type) {
-                Diagnostic::error(*initial, "Unable to resolve type for expression.");
+                Diagnostic::error(*initial, "Unable to resolve type for expression XXX.");
                 result = ERROR;
+                return;
+            }
+
+            if (declaredType && type != declaredType) {
+                auto [unifyResult, wrapped] = unifyTypes(*declaredType, *type, *initial);
+                if (wrapped) {
+                    variable.setWrappedInitialValue(std::move(wrapped));
+                }
+                result |= unifyResult;
+                type = declaredType;
             }
         } else {
             type = declaredType;
         }
 
-        if (declaredType) {
-            variable.setType(*declaredType);
-        } else {
-            variable.setType(*type);
-        }
-
-        if (!declaredType || !type) {
-            return;
-        }
-
-        if (type != declaredType) {
-            if (auto assignment = unifyTypesForAssignment(*declaredType, *type)) {
-                variable.setAssignmentType(*assignment);
-
-            } else {
-                result = ERROR;
-            }
-        }
+        variable.setType(*type);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -190,29 +186,8 @@ public:
 
     // Statements
     
-    AST::AssignmentType unifyTypes(Type *targetType, Type *valueType) {
-        if (targetType == valueType) {
-            return AST::AssignmentType::Regular;
-        }
-
-        if (auto optionalTargetType = dyn_cast<OptionalType>(targetType)) {
-            auto contained = optionalTargetType->getContained();
-            if (contained == valueType) {
-                if (isa<PointerType>(contained)) {
-                    // NOTE: Perhaps the type checker should not know what the 
-                    // representation of an optional pointer is.
-                    return AST::AssignmentType::Regular;
-                } else {
-                    return AST::AssignmentType::ImplicitOptionalWrap;
-                }
-            }
-        }
-
-        assert(false);
-    }
-
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
         TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
         if (!target) {
             result = ERROR;
@@ -236,14 +211,18 @@ public:
             result = ERROR;
         }
 
-        unifyTypes(targetType, valueType);
+        auto [unifyResult, wrapped] = unifyTypes(*targetType, *valueType, assignment.getValue());
+        if (wrapped) {
+            assignment.setWrappedValue(std::move(wrapped));
+        }
+        result |= unifyResult;
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
         assert(false);
 
         // TODO: This needs to type check the binary operation between the target and the operand.
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
         TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
         if (!target) {
             result = ERROR;
@@ -269,7 +248,7 @@ public:
     }
 
     void visitIfStatement(AST::IfStatement& ifStatement) {
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
         for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
             auto& branch = ifStatement.getCondition(ci);
             Type *type = typeChecker.typeCheckExpression(branch.getCondition(), boolean);
@@ -287,7 +266,7 @@ public:
     }
 
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
 
         Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), boolean);
         if (!type) {
@@ -306,7 +285,7 @@ public:
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
             }
-            ExpressionTypeChecker typeChecker;
+            ExpressionTypeChecker typeChecker{typeResolver};
             Type *type = typeChecker.typeCheckExpression(*value, currentFunction->getReturnType());
             if (!type) {
                 result = ERROR;
@@ -321,7 +300,7 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
         Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), boolean);
         if (!type) {
             result = ERROR;
@@ -334,7 +313,7 @@ public:
     }
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
-        ExpressionTypeChecker typeChecker;
+        ExpressionTypeChecker typeChecker{typeResolver};
         Type *type = typeChecker.typeCheckExpression(expression.getExpression());
         if (!type) {
             result = ERROR;
@@ -374,24 +353,19 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
     // Types are populated after here.
 
     // TODO: This is a hack
-    for (const auto& type : moduleDefinition._types) {
-        if (auto structType = dyn_cast<StructType>(type.get())) {
-            for (auto& method : structType->getMethods()) {
-                result |= typeChecker.typeCheckFunction(*method);
-            }
+    for (const auto& structType : moduleDefinition.structs) {
+        for (auto& field : structType->getFields()) {
+            result |= typeChecker.typeCheckGlobal(*field);
+        }
+    }
+    for (const auto& structType : moduleDefinition.structs) {
+        for (auto& method : structType->getMethods()) {
+            result |= typeChecker.typeCheckFunction(*method);
         }
     }
     for (const auto& global : moduleDefinition._globals) {
         result |= typeChecker.typeCheckGlobal(*global);
         assert(false);
-    }
-    // TODO: This is a hack
-    for (const auto& type : moduleDefinition._types) {
-        if (auto structType = dyn_cast<StructType>(type.get())) {
-            for (auto& field : structType->getFields()) {
-                result |= typeChecker.typeCheckGlobal(*field);
-            }
-        }
     }
 
     if (result.failed()) {

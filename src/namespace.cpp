@@ -416,6 +416,14 @@ public:
         }
     }
 
+    void visitInitializerExpression(AST::InitializerExpression& initializer) {
+        for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
+            auto& pair = initializer.getPair(i);
+            pair.first->acceptVisitor(*this);
+            pair.second->acceptVisitor(*this);
+        }
+    }
+
     void visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
         memberAccess.getTarget().acceptVisitor(*this);
     }

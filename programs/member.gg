@@ -10,23 +10,36 @@
 */
 
 struct Test {
-    var a: int;
-    var b: int;
+    var a: i32;
+    var b: i32;
 
-    fn product(c: int, d: int) -> int {
+    fn product(c: i32, d: i32) -> i32 {
         return c + d;
     }
 }
 
-fn test(a: Test) -> int {
+fn test(a: Test) -> i32 {
     return a.b;
 }
 
+fn testPointer(a: Test?*) {
+    *a = Test {
+        a = 1,
+        b = 2,
+    };
+}
 
-fn main() -> int {
-    var l: Test*? = nil;
+
+fn main() -> i64 {
+    var l: Test = Test {
+        a = 2,
+        b = 3,
+    };
     l.a = 123;
     l.b = 234;
+
+    var a = &l.a;
+
 
 
     return 0;

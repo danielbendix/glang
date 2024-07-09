@@ -200,6 +200,10 @@ public:
         return type->getLLVMType(context.llvmContext);
     }
 
+    llvm::Type *getLLVMType(Type& type) {
+        return type.getLLVMType(context.llvmContext);
+    }
+
     llvm::ConstantInt *getIntegerConstant(IntegerType *type, uint64_t value) {
         return llvm::ConstantInt::get(type->getIntegerType(context.llvmContext), value, type->getIsSigned());
     }
@@ -242,8 +246,10 @@ public:
         if (auto *memberAccess = dyn_cast<AST::MemberAccessExpression>(&expression)) {
             llvm::Value *target = getAssignmentTarget(memberAccess->getTarget());
             switch (memberAccess->getResolution().getKind()) {
-                case MemberResolution::MRK_Struct_Field:
-                    return function.builder.CreateConstGEP2_64(function.getLLVMType(memberAccess->getType()), target, 0, static_cast<const StructFieldResolution&>(memberAccess->getResolution()).getIndex());
+                case MemberResolution::MRK_Struct_Field: {
+                    auto targetType = memberAccess->getTarget().getType();
+                    return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, static_cast<const StructFieldResolution&>(memberAccess->getResolution()).getIndex());
+                }
                 case MemberResolution::MRK_Struct_Method:
                     llvm_unreachable("Invalid assignment target");
             }
@@ -284,21 +290,10 @@ public:
     // Declaration
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        if (variable.getIsMutable()) {
-            auto& alloca = function.addVariable(variable);
-            if (auto *initial = variable.getInitialValue()) {
-                auto *value = initial->acceptVisitor(*this);
-                function.builder.CreateStore(value, &alloca);
-            }
-        } else {
-            llvm::Value *value;
-            if (auto *initial = variable.getInitialValue()) {
-                value = initial->acceptVisitor(*this);
-            } else {
-                llvm::Type *type = function.getLLVMType(variable.getType());
-                value = llvm::PoisonValue::get(type);
-            }
-            function.addConstant(variable, value);
+        auto& alloca = function.addVariable(variable);
+        if (auto *initial = variable.getInitialValue()) {
+            auto *value = initial->acceptVisitor(*this);
+            function.builder.CreateStore(value, &alloca);
         }
     }
 
@@ -328,10 +323,6 @@ public:
     // Statements
 
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        AST::AssignmentType assignmentType = assignment.getAssignmentType();
-
-        // TODO: Look at assignment type
-
         auto value = assignment.getValue().acceptVisitor(*this);
         auto *target = getAssignmentTarget(assignment.getTarget());
         auto *alloca = static_cast<llvm::AllocaInst *>(target);
@@ -496,12 +487,8 @@ public:
                 LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
                 auto *declaration = &local->getVariableDeclaration();
 
-                if (local->getVariableDeclaration().getIsMutable()) {
-                    auto alloca = function.getVariable(declaration);
-                    return function.builder.CreateLoad(type, alloca);
-                } else {
-                    return function.getConstant(declaration);
-                }
+                auto alloca = function.getVariable(declaration);
+                return function.builder.CreateLoad(type, alloca);
             }
             case IdentifierResolution::IRK_Global:
             case IdentifierResolution::IRK_Type:
@@ -515,7 +502,9 @@ public:
         using enum AST::Literal::Type;
         switch (literal.getLiteralType()) {
             case Integer: {
-                llvm::APInt i(64, literal.getInteger(), true);
+                // FIXME: FIXME: FIXME: allow different number types.
+                auto bitWidth = cast<IntegerType>(literal.getType())->bitWidth;
+                llvm::APInt i(bitWidth, literal.getInteger(), true);
                 return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
             }
             case Boolean: {
@@ -546,8 +535,8 @@ public:
             case Not:
                 return function.builder.CreateSelect(target, function.getIntegerConstant(1, 0), function.getIntegerConstant(1, 1));
             case Negate: {
-                IntegerType *integerType = cast<IntegerType>(unary.getType());
-                return function.builder.CreateSub(function.getIntegerConstant(integerType->getBitWidth(), 0), target);
+                auto& integerType = cast<IntegerType>(*unary.getType());
+                return function.builder.CreateSub(function.getIntegerConstant(integerType.bitWidth, 0), target);
             }
             case AddressOf: {
                 return getAssignmentTarget(unary.getTarget());
@@ -555,6 +544,39 @@ public:
             case Dereference: {
                 Type *dereferencedType = unary.getType();
                 return function.builder.CreateLoad(function.getLLVMType(dereferencedType), target);
+            }
+            case SignExtend: {
+                auto& integerType = cast<IntegerType>(*unary.getType());
+                return function.builder.CreateSExt(target, function.getLLVMType(integerType));
+            }
+            case ZeroExtend: {
+                auto integerType = cast<IntegerType>(*unary.getType());
+                return function.builder.CreateZExt(target, function.getLLVMType(integerType));
+            }
+            case FPExtend: {
+                auto& fpType = cast<FloatingType>(*unary.getType());
+                return function.builder.CreateFPExt(target, function.getLLVMType(fpType));
+            }
+            case IntegerToFP: {
+                auto& fpType = cast<FloatingType>(*unary.getType());
+                auto& integerType = cast<IntegerType>(*unary.getTarget().getType());
+                if (integerType.isSigned) {
+                    return function.builder.CreateSIToFP(target, function.getLLVMType(fpType));
+                } else {
+                    return function.builder.CreateUIToFP(target, function.getLLVMType(fpType));
+                }
+            }
+            case OptionalWrap: {
+                auto optionalType = cast<OptionalType>(unary.getType());
+
+                if (isa<PointerType>(optionalType->getContained())) {
+                    return target;
+                } else {
+                    // FIXME: Distinguish between optionals that contain pointers, and optionals that do not.
+                    auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
+                    auto constant = llvm::ConstantStruct::get(structType, {function.getIntegerConstant(1, 1), llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))});
+                    return function.builder.CreateInsertValue(constant, target, {1});
+                }
             }
         }
 
@@ -626,6 +648,23 @@ public:
         } else {
             return function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction);
         }
+    }
+
+    llvm::Value *visitInitializerExpression(AST::InitializerExpression& initializer) {
+        auto structType = cast<StructType>(initializer.getType());
+        llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));
+
+        for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
+            auto& pair = initializer.getPair(i);
+
+            auto fieldResolution = cast<StructFieldResolution>(pair.first->getResolution());
+            auto value = pair.second->acceptVisitor(*this);
+            unsigned index = fieldResolution.getIndex();
+
+            structValue = function.builder.CreateInsertValue(structValue, value, {index});
+        }
+
+        return structValue;
     }
 
     llvm::Value *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
@@ -720,9 +759,21 @@ Result performCodegen(Context& context) {
 
 llvm::LLVMContext llvmContext;
 
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/TargetParser/Host.h>
+
 std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 {
+    llvm::InitializeNativeTarget();
+    llvm::InitializeNativeTargetAsmPrinter();
+    llvm::InitializeNativeTargetAsmParser();
+
+    // Get the target triple for the host machine
+    std::string targetTriple = llvm::sys::getDefaultTargetTriple();
+
     auto module = std::make_unique<llvm::Module>("test", llvmContext);
+    module->setTargetTriple(targetTriple);
 
     Context context{llvmContext, *module};
 
@@ -730,14 +781,12 @@ std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 
     performCodegen(context);
 
+    llvm::outs() << *module;
+
     if (llvm::verifyModule(*module, &llvm::outs())) {
         module.reset();
         return module;
     }
-
-    llvm::outs() << *module;
-
-    //std::ignore = module.release();
 
     return module;
 }

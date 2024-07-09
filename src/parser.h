@@ -134,6 +134,11 @@ public:
     unique_ptr<AST::Expression> self();
     [[nodiscard]]
     unique_ptr<AST::Expression> grouping();
+    [[nodiscard]]
+    unique_ptr<AST::Expression> inferredInitializer();
+
+    [[nodiscard]]
+    unique_ptr<AST::Expression> initializer(unique_ptr<AST::Identifier>&& identifier);
 
     [[nodiscard]]
     unique_ptr<AST::Expression> unary();
