@@ -45,9 +45,9 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyIntegerTypes(
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyFloatingTypes(
-    FloatingType& destination, 
-    FloatingType& source,
+std::pair<Result, unique_ptr_t<AST::Expression>> unifyFPTypes(
+    FPType& destination, 
+    FPType& source,
     AST::Expression& expression
 ) {
     if (destination.precision > source.precision) {
@@ -59,7 +59,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyFloatingTypes(
 }
 
 std::pair<Result, unique_ptr_t<AST::Expression>> unifyIntegerToFP(
-    FloatingType& destination, 
+    FPType& destination, 
     IntegerType& source,
     AST::Expression& expression
 ) {
@@ -102,17 +102,17 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypes(Type& destination, T
         auto& integerDestination = cast<IntegerType>(destination);
         if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return unifyIntegerTypes(integerDestination, *integerSource, expression);
-        } else if (auto floatingSource = dyn_cast<FloatingType>(&source)) {
+        } else if (auto floatingSource = dyn_cast<FPType>(&source)) {
 
         }
 
         // TODO: Check if we can widen the types.
         assert(false && "TODO");
     }
-    case TK_Num_Floating: {
-        auto& fpDestination = cast<FloatingType>(destination);
-        if (auto fpSource = dyn_cast<FloatingType>(&source)) {
-            return unifyFloatingTypes(fpDestination, *fpSource, expression);
+    case TK_Num_FP: {
+        auto& fpDestination = cast<FPType>(destination);
+        if (auto fpSource = dyn_cast<FPType>(&source)) {
+            return unifyFPTypes(fpDestination, *fpSource, expression);
         } else if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return unifyIntegerToFP(fpDestination, *integerSource, expression);
         }
@@ -138,7 +138,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypes(Type& destination, T
             return {OK, std::move(wrap)};
         } else if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return unwrappingOptionals(optionalDestination, source, expression);
-        } else if (auto floatingSource = dyn_cast<FloatingType>(&source)) {
+        } else if (auto floatingSource = dyn_cast<FPType>(&source)) {
             return unwrappingOptionals(optionalDestination, source, expression);
         } else {
             return unwrappingOptionals(optionalDestination, source, expression);

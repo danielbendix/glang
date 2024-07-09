@@ -12,7 +12,7 @@ Type *Type::removeImplicitWrapperTypes()
         case TK_Void:
         case TK_Boolean:
         case TK_Num_Integer:
-        case TK_Num_Floating:
+        case TK_Num_FP:
         case TK_String:
         case TK_Function:
         case TK_Struct:
@@ -30,7 +30,7 @@ void Type::deleteValue(Type *type) {
         case TK_Void: return delete static_cast<VoidType *>(type);
         case TK_Boolean: return delete static_cast<BooleanType *>(type);
         case TK_Num_Integer: return delete static_cast<IntegerType *>(type);
-        case TK_Num_Floating: return delete static_cast<FloatingType *>(type);
+        case TK_Num_FP: return delete static_cast<FPType *>(type);
         case TK_String: return delete static_cast<StringType *>(type);
         case TK_Function: return delete static_cast<FunctionType *>(type);
         case TK_Struct: return delete static_cast<StructType *>(type);
@@ -48,11 +48,11 @@ void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
     table.insert("bool", booleanType);
     owner.push_back(booleanType);
 
-    Type *f32Type = new FloatingType{FloatingType::Precision::Single};
+    Type *f32Type = new FPType{FPType::Precision::Single};
     table.insert("f32", f32Type);
     owner.push_back(f32Type);
 
-    Type *f64Type = new FloatingType{FloatingType::Precision::Double};
+    Type *f64Type = new FPType{FPType::Precision::Double};
     table.insert("f64", f64Type);
     owner.push_back(f64Type);
 

@@ -288,7 +288,7 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
                     return propagatedType;
-                } else if (auto fpType = dyn_cast<FloatingType>(propagatedType)) {
+                } else if (auto fpType = dyn_cast<FPType>(propagatedType)) {
                     literal.setType(propagatedType);
                     return propagatedType;
                 } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {

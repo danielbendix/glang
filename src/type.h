@@ -13,7 +13,7 @@ enum TypeKind {
     TK_Void,
     TK_Boolean,
     TK_Num_Integer,
-    TK_Num_Floating,
+    TK_Num_FP,
     TK_String,
 
     TK_Pointer,
@@ -108,7 +108,7 @@ protected:
 public:
     static bool classof(const Type *type) {
         auto kind = type->getKind();
-        return kind == TK_Num_Integer || kind == TK_Num_Floating;
+        return kind == TK_Num_Integer || kind == TK_Num_FP;
     }
 };
 
@@ -222,7 +222,7 @@ public:
     }
 };
 
-class FloatingType : public NumericType {
+class FPType : public NumericType {
 public:
     enum class Precision: uint8_t {
         Single = 0,
@@ -230,8 +230,8 @@ public:
     };
     const Precision precision;
 
-    FloatingType(Precision precision) 
-        : NumericType{TK_Num_Floating}
+    FPType(Precision precision) 
+        : NumericType{TK_Num_FP}
         , precision{precision} {}
 
     uint32_t fractionBits() {

@@ -554,11 +554,11 @@ public:
                 return function.builder.CreateZExt(target, function.getLLVMType(integerType));
             }
             case FPExtend: {
-                auto& fpType = cast<FloatingType>(*unary.getType());
+                auto& fpType = cast<FPType>(*unary.getType());
                 return function.builder.CreateFPExt(target, function.getLLVMType(fpType));
             }
             case IntegerToFP: {
-                auto& fpType = cast<FloatingType>(*unary.getType());
+                auto& fpType = cast<FPType>(*unary.getType());
                 auto& integerType = cast<IntegerType>(*unary.getTarget().getType());
                 if (integerType.isSigned) {
                     return function.builder.CreateSIToFP(target, function.getLLVMType(fpType));
