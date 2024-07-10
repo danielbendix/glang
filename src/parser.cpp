@@ -227,7 +227,7 @@ unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()
 
     unique_ptr<AST::Expression> initial = nullptr;
     if (match(TokenType::Equal)) {
-        initial = expression();
+        initial = expression({});
     }
 
     consume(TokenType::Semicolon);
@@ -272,7 +272,7 @@ unique_ptr<AST::IfStatement> Parser::ifStatement()
     std::vector<AST::IfStatement::Branch> conditionals;
     std::optional<AST::Block> fallback;
     while (true) {
-        auto condition = expression();
+        auto condition = expression({.allowInitializer = false});
         auto code = block();
         conditionals.emplace_back(std::move(condition), std::move(code));
 
@@ -293,7 +293,7 @@ unique_ptr<AST::GuardStatement> Parser::guardStatement()
 {
     auto token = previous;
 
-    auto condition = expression();
+    auto condition = expression({.allowInitializer = false});
 
     consume(TokenType::Else); // TODO: Expected 'else' after condition in guard
 
@@ -305,7 +305,7 @@ unique_ptr<AST::GuardStatement> Parser::guardStatement()
 unique_ptr<AST::ReturnStatement> Parser::returnStatement()
 {
     auto token = previous;
-    auto expr = expression();
+    auto expr = expression({});
     consume(TokenType::Semicolon);
     return AST::ReturnStatement::create(token, std::move(expr));
 }
@@ -313,7 +313,7 @@ unique_ptr<AST::ReturnStatement> Parser::returnStatement()
 unique_ptr<AST::WhileStatement> Parser::whileStatement()
 {
     auto token = previous;
-    auto condition = expression();
+    auto condition = expression({.allowInitializer = false});
     auto code = block();
 
     return AST::WhileStatement::create(token, std::move(condition), std::move(code));
@@ -340,14 +340,14 @@ std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
 
 unique_ptr<AST::Statement> Parser::assignmentOrExpression()
 {
-    auto expr = expression();
+    auto expr = expression({});
 
     if (isAssignmentOperator(current.type)) {
         // FIXME: Assignment type
         auto token = current;
         auto op = binaryOperatorFromAssignment(token);
         advance();
-        auto value = expression();
+        auto value = expression({});
         consume(TokenType::Semicolon);
 
         if (op) {
@@ -406,9 +406,13 @@ struct ParseRule {
 
 
 
-unique_ptr<AST::Expression> Parser::expression()
+unique_ptr<AST::Expression> Parser::expression(ExpressionRules rules)
 {
-    return parseExpression(Precedence::LogicalOr);
+    ExpressionRules saved = expressionRules;
+    expressionRules = rules;
+    auto result = parseExpression(Precedence::LogicalOr);
+    expressionRules = saved;
+    return result;
 }
 
 unique_ptr<AST::Expression> Parser::parseExpression(Precedence precedence)
@@ -447,7 +451,7 @@ unique_ptr<AST::Expression> Parser::call(unique_ptr<AST::Expression>&& left)
     std::vector<unique_ptr<AST::Expression>> arguments;
 
     do {
-        arguments.emplace_back(expression());
+        arguments.emplace_back(expression({}));
     } while (match(TokenType::Comma));
 
     consume(TokenType::RightParenthesis);
@@ -638,7 +642,7 @@ unique_ptr<AST::Expression> Parser::unary()
 unique_ptr<AST::Expression> Parser::identifier()
 {
     auto identifier = AST::Identifier::create(previous);
-    if (match(TokenType::LeftBracket)) {
+    if (expressionRules.allowInitializer && match(TokenType::LeftBracket)) {
         return initializer(std::move(identifier));
     }
     return identifier;
@@ -651,7 +655,7 @@ unique_ptr<AST::Expression> Parser::self()
 
 unique_ptr<AST::Expression> Parser::grouping()
 {
-    auto expr = expression();
+    auto expr = expression({});
     consume(TokenType::RightParenthesis);
     return expr;
 }
@@ -670,7 +674,7 @@ unique_ptr<AST::Expression> Parser::initializer(unique_ptr<AST::Identifier>&& id
         auto name = consume(TokenType::Identifier);
         consume(TokenType::Equal);
         auto member = AST::InferredMemberAccessExpression::create(name, name);
-        auto value = expression();
+        auto value = expression({});
         pairs.push_back({std::move(member), std::move(value)});
         if (!match(TokenType::Comma)) {
             consume(TokenType::RightBracket);

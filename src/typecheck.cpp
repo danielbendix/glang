@@ -289,8 +289,18 @@ public:
             Type *type = typeChecker.typeCheckExpression(*value, currentFunction->getReturnType());
             if (!type) {
                 result = ERROR;
+                return;
             }
-            // FIXME: Unify types for assignment.
+            
+            if (returnType != type) {
+                auto [unifyResult, wrapped] = unifyTypes(*returnType, *type, *value);
+
+                if (wrapped) {
+                    returnStatement.setWrappedValue(std::move(wrapped));
+                }
+
+                result |= unifyResult;
+            }
         } else {
             if (currentFunction->getReturnType() != void_) {
                 Diagnostic::error(returnStatement, "No return value in function with non-void return type.");

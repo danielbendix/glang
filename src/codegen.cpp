@@ -17,6 +17,7 @@ using llvm::LLVMContext;
 using llvm::cast;
 using llvm::isa;
 using llvm::dyn_cast;
+using llvm::TypeSwitch;
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -507,6 +508,11 @@ public:
                 llvm::APInt i(bitWidth, literal.getInteger(), true);
                 return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
             }
+            case Double: {
+                auto type = cast<FPType>(literal.getType());
+                auto llvmType = function.getLLVMType(type);
+                return llvm::ConstantFP::get(llvmType, literal.getDouble());
+            }
             case Boolean: {
                 llvm::APInt i(1, literal.getBoolean() ? 1 : 0, true);
                 return function.getIntegerConstant(1, literal.getBoolean() ? 1 : 0);
@@ -521,8 +527,7 @@ public:
                     return llvm::ConstantStruct::get(structType, {function.getIntegerConstant(1, 0), llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))});
                 }
             }
-            default:
-                assert(false);
+            case String: assert(false);
         }
         return nullptr;
     }
@@ -534,10 +539,14 @@ public:
         switch (unary.getOp()) {
             case Not:
                 return function.builder.CreateSelect(target, function.getIntegerConstant(1, 0), function.getIntegerConstant(1, 1));
-            case Negate: {
-                auto& integerType = cast<IntegerType>(*unary.getType());
-                return function.builder.CreateSub(function.getIntegerConstant(integerType.bitWidth, 0), target);
-            }
+            case Negate: return TypeSwitch<Type *, llvm::Value *>(unary.getType())
+                .Case([&](IntegerType *integerType) {
+                    return function.builder.CreateNeg(target);
+                })
+                .Case([&](FPType *fpType) {
+                    return function.builder.CreateFNeg(target);
+                });
+
             case AddressOf: {
                 return getAssignmentTarget(unary.getTarget());
             }
@@ -591,9 +600,29 @@ public:
         // TODO: Support FP math
         using enum AST::BinaryOperator;
         switch (binary.getOp()) {
-            case Add: return function.builder.CreateAdd(left, right);
-            case Subtract: return function.builder.CreateSub(left, right);
-            case Multiply: return function.builder.CreateMul(left, right);
+            case Add: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                .Case([&](IntegerType *_) {
+                    return function.builder.CreateAdd(left, right);
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFAdd(left, right);
+                });
+
+            case Subtract: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                .Case([&](IntegerType *_) {
+                    return function.builder.CreateSub(left, right);
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFSub(left, right);
+                });
+
+            case Multiply: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                .Case([&](IntegerType *_) {
+                    return function.builder.CreateMul(left, right);
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFMul(left, right);
+                });
 
             case BitwiseAnd: return function.builder.CreateAnd(left, right);
             case BitwiseOr: return function.builder.CreateOr(left, right);
@@ -601,16 +630,27 @@ public:
 
             case ShiftLeft: return function.builder.CreateShl(left, right);
             // TODO: Arithmetic shift for signed types.
-            case ShiftRight: return function.builder.CreateLShr(left, right);
-
-            case Divide: {
-                IntegerType *integerType = cast<IntegerType>(binary.getType());
-                if (integerType->getIsSigned()) {
-                    return function.builder.CreateSDiv(left, right);
+            case ShiftRight: {
+                auto integerType = cast<IntegerType>(binary.getType());
+                if (integerType->isSigned) {
+                    return function.builder.CreateAShr(left, right);
                 } else {
-                    return function.builder.CreateUDiv(left, right);
+                    return function.builder.CreateLShr(left, right);
                 }
             }
+
+            case Divide: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                .Case([&](IntegerType *integerType) {
+                    if (integerType->isSigned) {
+                        return function.builder.CreateSDiv(left, right);
+                    } else {
+                        return function.builder.CreateUDiv(left, right);
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFDiv(left, right);
+                });
+
             case Modulo: {
                 IntegerType *integerType = cast<IntegerType>(binary.getType());
                 if (integerType->getIsSigned()) {
@@ -620,12 +660,90 @@ public:
                 }
                 break;
             }
-            case Equal: return function.builder.CreateICmpEQ(left, right);
-            case NotEqual: return function.builder.CreateICmpNE(left, right);
-            case Less: return function.builder.CreateICmpSLT(left, right);
-            case LessEqual: return function.builder.CreateICmpSLE(left, right);
-            case Greater: return function.builder.CreateICmpSGT(left, right);
-            case GreaterEqual: return function.builder.CreateICmpSGE(left, right);
+            case Equal: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    return function.builder.CreateICmpEQ(left, right);
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpOEQ(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpEQ(left, right);
+                });
+
+            case NotEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    return function.builder.CreateICmpNE(left, right);
+                    if (integerType->isSigned) {
+                    } else {
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpUNE(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpNE(left, right);
+                });
+
+            case Less: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    if (integerType->isSigned) {
+                        return function.builder.CreateICmpSLT(left, right);
+                    } else {
+                        return function.builder.CreateICmpULT(left, right);
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpOLT(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpULT(left, right);
+                });
+
+            case LessEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    if (integerType->isSigned) {
+                        return function.builder.CreateICmpSLE(left, right);
+                    } else {
+                        return function.builder.CreateICmpULE(left, right);
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpOLE(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpULE(left, right);
+                });
+
+            case Greater: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    if (integerType->isSigned) {
+                        return function.builder.CreateICmpSGT(left, right);
+                    } else {
+                        return function.builder.CreateICmpUGT(left, right);
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpOGT(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpUGT(left, right);
+                });
+
+            case GreaterEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                .Case([&](IntegerType *integerType) {
+                    if (integerType->isSigned) {
+                        return function.builder.CreateICmpSGE(left, right);
+                    } else {
+                        return function.builder.CreateICmpUGE(left, right);
+                    }
+                })
+                .Case([&](FPType *_) {
+                    return function.builder.CreateFCmpOGE(left, right);
+                })
+                .Case([&](BooleanType *_) {
+                    return function.builder.CreateICmpUGT(left, right);
+                });
 
             case LogicalAnd: assert(false);
             case LogicalOr: assert(false);

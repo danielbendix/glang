@@ -540,6 +540,12 @@ namespace AST {
             return *arguments[i];
         }
 
+        void setWrappedArgument(size_t i, unique_ptr<Expression>&& wrapped) {
+            assert(wrapped);
+            std::ignore = arguments[i].release();
+            arguments[i] = std::move(wrapped);
+        }
+
         static bool classof(const Node *node) {
             return node->getKind() == NK_Expr_Call;
         }
@@ -958,9 +964,9 @@ namespace AST {
 
     class ReturnStatement : public Statement {
     protected:
-        unique_ptr<Expression> expression;
+        unique_ptr<Expression> value;
 
-        ReturnStatement(Token token, unique_ptr<Expression>&& expression) : Statement{NK_Stmt_Return, token}, expression{std::move(expression)} {}
+        ReturnStatement(Token token, unique_ptr<Expression>&& value) : Statement{NK_Stmt_Return, token}, value{std::move(value)} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
@@ -969,7 +975,13 @@ namespace AST {
         }
 
         Expression *getValue() const {
-            return expression.get();
+            return value.get();
+        }
+
+        void setWrappedValue(unique_ptr<Expression>&& wrapped) {
+            assert(wrapped);
+            std::ignore = value.release();
+            value = std::move(wrapped);
         }
 
         static bool classof(const Node *node) {

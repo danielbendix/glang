@@ -57,12 +57,15 @@ template <typename T>
 using unique_ptr = unique_ptr_t<T>;
 
 class Parser {
-//private:
-public:
     Scanner scanner;
     Token previous;
     Token current;
 
+    struct ExpressionRules {
+        bool allowInitializer = true;
+    } expressionRules;
+
+public:
     // Utilities
     [[nodiscard]]
     AST::Block block();
@@ -109,10 +112,7 @@ public:
 
     // Expression
     [[nodiscard]]
-    unique_ptr<AST::Expression> expression();
-
-    [[nodiscard]]
-    unique_ptr<AST::Expression> binaryExpression();
+    unique_ptr<AST::Expression> expression(ExpressionRules rules);
 
     // Expression helpers
     unique_ptr<AST::Expression> parseExpression(Precedence precedence);

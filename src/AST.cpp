@@ -4,49 +4,35 @@ namespace AST {
     void Node::deleteNode(AST::Node *node) {
         switch (node->getKind()) {
             case NK_Decl_Variable:
-                delete static_cast<VariableDeclaration *>(node);
-                break;
+                return delete static_cast<VariableDeclaration *>(node);
             case NK_Decl_Function:
-                delete static_cast<FunctionDeclaration *>(node);
-                break;
+                return delete static_cast<FunctionDeclaration *>(node);
             case NK_Decl_Struct:
-                delete static_cast<StructDeclaration *>(node);
-                break;
+                return delete static_cast<StructDeclaration *>(node);
             case NK_Decl_Enum:
-                delete static_cast<EnumDeclaration *>(node);
-                break;
+                return delete static_cast<EnumDeclaration *>(node);
             case NK_Decl_Protocol:
-                delete static_cast<ProtocolDeclaration *>(node);
-                break;
+                return delete static_cast<ProtocolDeclaration *>(node);
             case NK_Decl_Statement:
-                delete static_cast<StatementDeclaration *>(node);
-                break;
+                return delete static_cast<StatementDeclaration *>(node);
 
             // TODO: reorder statements
             case NK_Stmt_Assignment:
-                delete static_cast<AssignmentStatement *>(node);
-                break;
+                return delete static_cast<AssignmentStatement *>(node);
             case NK_Stmt_Compound_Assignment:
-                delete static_cast<CompoundAssignmentStatement *>(node);
-                break;
+                return delete static_cast<CompoundAssignmentStatement *>(node);
             case NK_Stmt_If:
-                delete static_cast<IfStatement *>(node);
-                break;
+                return delete static_cast<IfStatement *>(node);
             case NK_Stmt_Guard:
-                delete static_cast<GuardStatement *>(node);
-                break;
+                return delete static_cast<GuardStatement *>(node);
             case NK_Stmt_For:
-                delete static_cast<ForStatement *>(node);
-                break;
+                return delete static_cast<ForStatement *>(node);
             case NK_Stmt_While:
-                delete static_cast<WhileStatement *>(node);
-                break;
+                return delete static_cast<WhileStatement *>(node);
             case NK_Stmt_Return:
-                delete static_cast<ReturnStatement *>(node);
-                break;
+                return delete static_cast<ReturnStatement *>(node);
             case NK_Stmt_Expression:
-                delete static_cast<ExpressionStatement *>(node);
-                break;
+                return delete static_cast<ExpressionStatement *>(node);
 
            // TODO: Reorder expressions
             case NK_Expr_Literal:
@@ -65,14 +51,15 @@ namespace AST {
                 return delete static_cast<MemberAccessExpression *>(node);
             case NK_Expr_Inferred_Member_Access:
                 return delete static_cast<InferredMemberAccessExpression *>(node);
+            case NK_Expr_Initializer:
+                return delete static_cast<InitializerExpression *>(node);
 
             case NK_Type_Literal:
                 return delete static_cast<TypeLiteral *>(node);
-                break;
             case NK_Type_Modifier:
                 return delete static_cast<TypeModifier *>(node);
-                break;
         }
+        llvm_unreachable("Unsupported node kind.");
     }
 }
 
@@ -91,39 +78,46 @@ namespace AST {
     PrintContext& operator<<(PrintContext& pc, UnaryOperator op) {
         using enum UnaryOperator;
         switch (op) {
-            case Negate: pc << '-'; break;
-            case Not: pc << "not "; break;
-            case AddressOf: pc << '&'; break;
-            case Dereference: pc << '*'; break;
-        }
+            case Negate: return pc << '-';
+            case Not: return pc << "not ";
+            case AddressOf: return pc << '&';
+            case Dereference: return pc << '*';
+            case ZeroExtend: return pc << "#zext ";
+            case SignExtend: return pc << "#sext ";
+            case IntegerToFP: return pc << "#itoFP ";
+            case FPExtend: return pc << "#fpext ";
+            case OptionalWrap: return pc << "#wrap";
+}
         return pc;
     }
 
     PrintContext& operator<<(PrintContext& pc, BinaryOperator op) {
         using enum BinaryOperator;
         switch (op) {
-            case Add: pc << '+'; break;
-            case Subtract: pc << '-'; break;
-            case Multiply: pc << '*'; break;
-            case Divide: pc << '/'; break;
-            case Modulo: pc << '%'; break;
+            case Add: return pc << '+';
+            case Subtract: return pc << '-';
+            case Multiply: return pc << '*';
+            case Divide: return pc << '/';
+            case Modulo: return pc << '%';
                          
-            case BitwiseAnd: pc << '&'; break;
-            case BitwiseOr: pc << '|'; break;
-            case BitwiseXor: pc << '^'; break;
+            case BitwiseAnd: return pc << '&';
+            case BitwiseOr: return pc << '|';
+            case BitwiseXor: return pc << '^';
 
-            case Equal: pc << "=="; break;
-            case NotEqual: pc << "!="; break;
+            case ShiftLeft: return pc << "<<";
+            case ShiftRight: return pc << ">>";
 
-            case Greater: pc << '>'; break;
-            case GreaterEqual: pc << ">="; break;
-            case Less: pc << '<'; break;
-            case LessEqual: pc << "<="; break;
+            case Equal: return pc << "==";
+            case NotEqual: return pc << "!=";
 
-            case LogicalAnd: pc << "and"; break;
-            case LogicalOr: pc << "or"; break;
+            case Greater: return pc << '>';
+            case GreaterEqual: return pc << ">=";
+            case Less: return pc << '<';
+            case LessEqual: return pc << "<=";
+
+            case LogicalAnd: return pc << "and";
+            case LogicalOr: return pc << "or";
         }
-        return pc;
     }
 
     void Block::print(PrintContext& pc) const {
@@ -252,7 +246,11 @@ namespace AST {
 
     void ReturnStatement::print(PrintContext& pc) const {
         pc.startLine();
-        pc << "return " << *expression << ";\n";
+        if (auto value = getValue()) {
+            pc << "return " << *value << ";\n";
+        } else {
+            pc << "return;\n";
+        }
     }
 
     void WhileStatement::print(PrintContext& pc) const {

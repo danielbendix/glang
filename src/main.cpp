@@ -14,8 +14,6 @@ void compile(std::string&& string)
 {
     auto parser = Parser{std::move(string)};
 
-    std::cout << "sizeof(llvm::Module)" << sizeof(llvm::Module) << '\n';
-
     try {
         IODiagnosticWriter writer{std::cout};
         Diagnostic::setWriter(writer);
@@ -66,7 +64,6 @@ int main(int argc, char **argv)
 
     std::ifstream file(filename, std::ios::in | std::ios::binary);
 
-    std::cout << file.good() << file.bad() << "\n";
     if (file.fail()) {
         std::cout << "File " << filename << " does not exist. Exiting...\n";
         return 1;

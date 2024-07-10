@@ -283,7 +283,11 @@ Token Scanner::number(char first)
     munchMany<isDigit>();
 
     c = peek();
+
+    TokenType tokenType = TokenType::Integer;
     if (c == '.') {
+        tokenType = TokenType::Floating;
+        advance();
         if (!munchMany1<isDigit>()) {
             // We may need to consume more to avoid spurious errors.
             return errorToken(EmptyFloatingPointFraction);
@@ -292,13 +296,15 @@ Token Scanner::number(char first)
 
     c = peek();
     if (c == 'e' || c == 'E') {
+        tokenType = TokenType::Floating;
+        advance();
         if (!munchMany1<isDigit>()) {
             // We may need to consume more to avoid spurious errors.
             return errorToken(EmptyFloatingPointExponent);
         }
     }
 
-    return makeToken(TokenType::Integer);
+    return makeToken(tokenType);
 }
 
 

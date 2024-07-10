@@ -124,6 +124,8 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
             return static_cast<const BooleanType *>(this)->getIntegerType(context);
         case TK_Num_Integer:
             return static_cast<const IntegerType *>(this)->getIntegerType(context);
+        case TK_Num_FP:
+            return static_cast<const FPType *>(this)->_getLLVMType(context);
         case TK_Function:
             return static_cast<const FunctionType *>(this)->getFunctionType(context);
         case TK_Struct:
@@ -135,6 +137,15 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
 
         default:
             assert(false);
+    }
+}
+
+llvm::Type *FPType::_getLLVMType(llvm::LLVMContext& context) const {
+    switch (precision) {
+        case FPType::Precision::Single:
+            return llvm::Type::getFloatTy(context);
+        case FPType::Precision::Double:
+            return llvm::Type::getDoubleTy(context);
     }
 }
 

@@ -11,6 +11,7 @@
 
 using llvm::isa;
 using llvm::dyn_cast;
+using enum PassResultKind;
 
 TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType) {
     Type *type;
@@ -132,11 +133,20 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
         }
 
         // This needs to be whether one type can be converted to the other.
+        Result parameterResult = OK;
         for (int i = 0; i < functionType->parameterCount(); ++i) {
             AST::Expression& argument = call.getArgument(i);
             Type *argumentType = typeCheckExpression(argument);
             Type *parameterType = functionType->getParameter(i);
             if (argumentType != parameterType) {
+                auto [unifyResult, wrapped] = unifyTypes(*parameterType, *argumentType, argument);
+
+                if (wrapped) {
+                    call.setWrappedArgument(i, std::move(wrapped));
+                }
+                parameterResult |= unifyResult;
+                continue;
+
                 // TODO: Printable types.
                 Diagnostic::error(argument, std::format("Wrong argument type in call. Expected {}, got {}", int(parameterType->getKind()), int(argumentType->getKind())));
                 return {};
@@ -145,7 +155,11 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
 
         Type *type = functionType->getReturnType();
         call.setType(type);
-        return type;
+        if (parameterResult.failed()) {
+            return {};
+        } else {
+            return type;
+        }
     } else {
         Diagnostic::error(call, "Attempting to call non-function value.");
         return {};
@@ -191,7 +205,6 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 Diagnostic::error(*pair.first, "Cannot assign to [GET FIELD TYPE] in struct initializer expression.");
                 return {};
             }
-            
 
             auto valueType = typeCheckExpression(*pair.second, fieldType);
             if (!valueType) {
@@ -308,11 +321,15 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             return signed64;
         case Double:
             if (propagatedType) {
-
+                if (auto fpType = dyn_cast<FPType>(propagatedType)) {
+                    literal.setType(propagatedType);
+                    return propagatedType;
+                }
             } else {
                 return TypeConstraint::Floating;
             }
-            Diagnostic::error(literal, "Floating-point literals are currently not supported.");
+            // TODO: Add default type for floating point.
+            Diagnostic::error(literal, "Unbound loating-point literals are currently not supported.");
             return {};
             break;
         case String:

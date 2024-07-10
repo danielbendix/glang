@@ -149,6 +149,10 @@ public:
         }
         return type;
     }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Num_Integer;
+    }
 };
 
 class PointerType : public Type {
@@ -234,6 +238,8 @@ public:
         : NumericType{TK_Num_FP}
         , precision{precision} {}
 
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
+
     uint32_t fractionBits() {
         switch (precision) {
             case Precision::Single:
@@ -250,6 +256,10 @@ public:
             case Precision::Double:
                 return 11;
         }
+    }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Num_FP;
     }
 };
 

@@ -28,7 +28,7 @@ private:
     iterator end;
     int line;
     int offset;
-    ErrorCause _error;
+    ErrorCause _error = NO_ERROR;
 
     bool isAtEnd() {
         return current == end;

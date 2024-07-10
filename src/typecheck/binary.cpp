@@ -2,9 +2,11 @@
 #include "typecheck/expression.h"
 
 #include "llvm/Support/Casting.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using llvm::isa;
 using llvm::dyn_cast;
+using llvm::TypeSwitch;
 
 /* TODO: We need an "unbound" type for ambiguous literals.
  */
@@ -23,21 +25,6 @@ Type *ExpressionTypeChecker::typeCheckLogicalOperator(AST::BinaryExpression& bin
         return {};
     }
     return left;
-}
-
-Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right) {
-    if (left->getKind() != right->getKind()) {
-        Diagnostic::error(binary, "Attempting to compare different types.");
-        return {};
-    }
-
-    // FIXME
-    if (left != signed64) {
-        Diagnostic::error(binary, "Attempting to compare non-integer types.");
-        return {};
-    } else {
-        return boolean;
-    }
 }
 
 Type *ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& binary, Type *left, Type *right, Type *propagatedType) {
@@ -92,11 +79,11 @@ Type *ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary, Typ
         // TODO: Do we do anything here?
     }
 
-    unsigned leftWidth = leftInteger->getBitWidth();
-    unsigned rightWidth = rightInteger->getBitWidth();
+    unsigned leftWidth = leftInteger->bitWidth;
+    unsigned rightWidth = rightInteger->bitWidth;
 
     if (leftWidth == rightWidth) {
-        if (leftInteger->getIsSigned()) {
+        if (leftInteger->isSigned) {
             return rightInteger;
         } else {
             return leftInteger;
@@ -109,5 +96,57 @@ Type *ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary, Typ
 }
 
 Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right) {
+    if (left == right) {
+        return TypeSwitch<Type *, Type *>(left)
+            .Case([](IntegerType *_) {
+                return boolean;
+            })
+            .Case([](FPType *_) {
+                return boolean;
+            })
+            .Case([](BooleanType *_) {
+                return boolean;
+            })
+            .Default([](Type *type) -> Type * {
+                // TODO: Diagnostic.
+                return nullptr;
+            });
+    }
+    
+    assert(false);
     
 }
+
+Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right) {
+    if (left == right) {
+        return TypeSwitch<Type *, Type *>(left)
+            .Case([](IntegerType *_) {
+                return boolean;
+            })
+            .Case([](FPType *_) {
+                return boolean;
+            })
+            .Case([](BooleanType *_) {
+                return boolean;
+            })
+            .Default([](Type *type) -> Type * {
+                // TODO: Diagnostic.
+                return nullptr;
+            });
+
+    }
+    // TODO: Unify types.
+    if (left->getKind() != right->getKind()) {
+        Diagnostic::error(binary, "Attempting to compare different types.");
+        return {};
+    }
+
+    // FIXME
+    if (left != signed64) {
+        Diagnostic::error(binary, "Attempting to compare non-integer types.");
+        return {};
+    } else {
+        return boolean;
+    }
+}
+
