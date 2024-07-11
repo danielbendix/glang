@@ -1,5 +1,5 @@
 #include "typecheck/expression.h"
-#include "typecheck/unify.h"
+#include "typecheck/coerce.h"
 #include "type.h"
 #include "type/struct.h"
 #include "type/enum.h"
@@ -39,7 +39,13 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
                 return {type, true};
             }
             break;
-    }
+        case AST::UnaryOperator::ZeroExtend:
+        case AST::UnaryOperator::SignExtend:
+        case AST::UnaryOperator::IntegerToFP:
+        case AST::UnaryOperator::FPExtend:
+        case AST::UnaryOperator::OptionalWrap:
+            llvm_unreachable("Synthetic operations should not be occurring during type checking.");
+}
 
     unary.setType(type);
     return type;
@@ -139,12 +145,12 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
             Type *argumentType = typeCheckExpression(argument);
             Type *parameterType = functionType->getParameter(i);
             if (argumentType != parameterType) {
-                auto [unifyResult, wrapped] = unifyTypes(*parameterType, *argumentType, argument);
+                auto [coerceResult, wrapped] = coerceType(*parameterType, *argumentType, argument);
 
                 if (wrapped) {
                     call.setWrappedArgument(i, std::move(wrapped));
                 }
-                parameterResult |= unifyResult;
+                parameterResult |= coerceResult;
                 continue;
 
                 // TODO: Printable types.
@@ -186,11 +192,11 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         return {};
     }
 
-
     if (auto structType = dyn_cast<StructType>(initializingType)) {
         initializer.setType(structType);
         // TODO: Use a set of fields to ensure that all values are being set.
         // TODO: Use a set of fields to ensure no duplicates.
+        Result result = OK;
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
@@ -213,14 +219,20 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 assert(false);
             }
 
-            auto [unifyResult, wrapped] = unifyTypes(*fieldType, *valueType.asType(), *pair.second);
+            auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.second);
         
             if (wrapped) {
                 std::ignore = pair.second.release();
                 pair.second = std::move(wrapped);
             }
+
+            result |= coerceResult;
         }
-        return structType;
+        if (result.failed()) {
+            return {};
+        } else {
+            return structType;
+        }
     } else {
         Diagnostic::error(initializer, "Initializer expression is not supported for [INSERT TYPE] types.");
         return {};

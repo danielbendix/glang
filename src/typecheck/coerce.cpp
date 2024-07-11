@@ -1,4 +1,4 @@
-#include "typecheck/unify.h"
+#include "typecheck/coerce.h"
 #include "diagnostic.h"
 
 #include <llvm/Support/Casting.h>
@@ -13,7 +13,7 @@ using enum AST::UnaryOperator;
 // There is an overarching problem here in that we're not using the "value transfer" node,
 // but the value node for diagnostics.
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyIntegerTypes(
+std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenIntegerTypes(
     IntegerType& destination, 
     IntegerType& source,
     AST::Expression& expression
@@ -45,7 +45,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyIntegerTypes(
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyFPTypes(
+std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenFPTypes(
     FPType& destination, 
     FPType& source,
     AST::Expression& expression
@@ -58,7 +58,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyFPTypes(
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyIntegerToFP(
+std::pair<Result, unique_ptr_t<AST::Expression>> coerceIntegerToFP(
     FPType& destination, 
     IntegerType& source,
     AST::Expression& expression
@@ -77,7 +77,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unwrappingOptionals(OptionalTyp
     if (auto optionalType = dyn_cast<OptionalType>(destination.getContained())) {
         result = unwrappingOptionals(*optionalType, source, expression);
     } else {
-        result = unifyTypes(*destination.getContained(), source, expression);
+        result = coerceType(*destination.getContained(), source, expression);
     }
     if (result.second) {
         return {result.first, AST::UnaryExpression::wrap(*result.second.release(), OptionalWrap, destination)};
@@ -86,7 +86,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unwrappingOptionals(OptionalTyp
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypes(Type& destination, Type& source, AST::Expression& expression) noexcept {
+std::pair<Result, unique_ptr_t<AST::Expression>> coerceType(Type& destination, Type& source, AST::Expression& expression) noexcept {
     if (&source == &destination) {
         return {OK, nullptr};
     }
@@ -101,7 +101,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypes(Type& destination, T
     case TK_Num_Integer: {
         auto& integerDestination = cast<IntegerType>(destination);
         if (auto integerSource = dyn_cast<IntegerType>(&source)) {
-            return unifyIntegerTypes(integerDestination, *integerSource, expression);
+            return coerceBetweenIntegerTypes(integerDestination, *integerSource, expression);
         } else if (auto floatingSource = dyn_cast<FPType>(&source)) {
 
         }
@@ -112,9 +112,9 @@ std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypes(Type& destination, T
     case TK_Num_FP: {
         auto& fpDestination = cast<FPType>(destination);
         if (auto fpSource = dyn_cast<FPType>(&source)) {
-            return unifyFPTypes(fpDestination, *fpSource, expression);
+            return coerceBetweenFPTypes(fpDestination, *fpSource, expression);
         } else if (auto integerSource = dyn_cast<IntegerType>(&source)) {
-            return unifyIntegerToFP(fpDestination, *integerSource, expression);
+            return coerceIntegerToFP(fpDestination, *integerSource, expression);
         }
         Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to floating point type.");
         return {ERROR, nullptr};

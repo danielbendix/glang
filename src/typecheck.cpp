@@ -2,7 +2,7 @@
 #include "AST_Visitor.h"
 #include "diagnostic.h"
 #include "typecheck.h"
-#include "typecheck/unify.h"
+#include "typecheck/coerce.h"
 #include "typecheck/resolver.h"
 #include "typecheck/expression.h"
 #include "typecheck/internal.h"
@@ -149,11 +149,11 @@ public:
             }
 
             if (declaredType && type != declaredType) {
-                auto [unifyResult, wrapped] = unifyTypes(*declaredType, *type, *initial);
+                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
                 if (wrapped) {
                     variable.setWrappedInitialValue(std::move(wrapped));
                 }
-                result |= unifyResult;
+                result |= coerceResult;
                 type = declaredType;
             }
         } else {
@@ -211,11 +211,11 @@ public:
             result = ERROR;
         }
 
-        auto [unifyResult, wrapped] = unifyTypes(*targetType, *valueType, assignment.getValue());
+        auto [coerceResult, wrapped] = coerceType(*targetType, *valueType, assignment.getValue());
         if (wrapped) {
             assignment.setWrappedValue(std::move(wrapped));
         }
-        result |= unifyResult;
+        result |= coerceResult;
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
@@ -293,13 +293,13 @@ public:
             }
             
             if (returnType != type) {
-                auto [unifyResult, wrapped] = unifyTypes(*returnType, *type, *value);
+                auto [coerceResult, wrapped] = coerceType(*returnType, *type, *value);
 
                 if (wrapped) {
                     returnStatement.setWrappedValue(std::move(wrapped));
                 }
 
-                result |= unifyResult;
+                result |= coerceResult;
             }
         } else {
             if (currentFunction->getReturnType() != void_) {

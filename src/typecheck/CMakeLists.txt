@@ -1,5 +1,5 @@
 target_sources(glang PRIVATE
-    unify.cpp
+    coerce.cpp
     expression.cpp
     assignment.cpp
     binary.cpp
