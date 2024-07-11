@@ -1,0 +1,42 @@
+
+fn test(a: f32, b: f32, c: f32) -> f64 {
+    if a == b {
+        if b == c {
+            return a / b;
+        } else if b < c {
+            return b / c;
+        } else {
+            return c / a;
+
+        }
+    } else {
+        if b == c {
+            return b * c;
+        } else if b < c {
+            return c * a;
+        } else {
+            return a * b;
+        }
+    }
+}
+
+fn negate(number: f64) -> f64 {
+    return -number;
+}
+
+fn main() -> i64 {
+    let a: f32 = 13.5;
+    let b: f32 = 18.5;
+
+    var c: f64;
+
+    if a == b {
+        c = a - b;
+    } else {
+        c = a + b;
+    }
+
+    negate(a);
+
+    return 0;
+}

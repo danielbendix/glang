@@ -1,4 +1,6 @@
 #include "AST.h"
+#include "templates.h"
+
 
 namespace AST {
     void Node::deleteNode(AST::Node *node) {
@@ -301,28 +303,35 @@ namespace AST {
     }
 
     void Literal::print(PrintContext& pc) const {
-        using enum Type;
-        switch (type) {
-            case Boolean: 
-                if (internal.boolean) {
-                    pc << "true";
-                } else {
-                    pc << "false";
+        std::visit([&](auto&& arg) {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, bool>) {
+                pc << (arg ? "true" : "false");
+            } else if constexpr (std::is_same_v<T, llvm::APInt>) {
+                switch (integerType) {
+                case IntegerType::Binary:
+                    pc << "0b";
+                    return pc.printInteger(arg, 2);
+                case IntegerType::Octal:
+                    pc << "0o";
+                    return pc.printInteger(arg, 8);
+                case IntegerType::Decimal:
+                    return pc.printInteger(arg, 10);
+                case IntegerType::Hexadecimal:
+                    pc << "0o";
+                    return pc.printInteger(arg, 16);
                 }
-                break;
-            case Integer:
-                pc << internal.integer;
-                break;
-            case Double:
-                pc << internal.double_;
-                break;
-            case String:
-                pc << '"' << *internal.string << '"';
-                break;
-            case Nil:
+                pc.printInteger(arg, 10);
+            } else if constexpr (std::is_same_v<T, double>) {
+                pc << arg;
+            } else if constexpr (std::is_same_v<T, std::string>) {
+                pc << arg;
+            } else if constexpr (std::is_same_v<T, std::monostate>) {
                 pc << "nil";
-                break;
-        }
+            } else { 
+                static_assert(always_false_v<T>, "Switch falls through.");
+            }
+        }, internal);
     }
 
     void CallExpression::print(PrintContext& pc) const {

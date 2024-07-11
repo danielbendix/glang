@@ -504,9 +504,15 @@ public:
         switch (literal.getLiteralType()) {
             case Integer: {
                 // FIXME: FIXME: FIXME: allow different number types.
-                auto bitWidth = cast<IntegerType>(literal.getType())->bitWidth;
-                llvm::APInt i(bitWidth, literal.getInteger(), true);
-                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
+                auto integerType = cast<IntegerType>(literal.getType());
+                auto bitWidth = integerType->bitWidth;
+                llvm::APInt i;
+                if (integerType->isSigned) {
+                    i = literal.getInteger().sextOrTrunc(bitWidth);
+                } else {
+                    i = literal.getInteger().zextOrTrunc(bitWidth);
+                }
+                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
             }
             case Double: {
                 auto type = cast<FPType>(literal.getType());

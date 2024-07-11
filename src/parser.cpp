@@ -518,32 +518,28 @@ unique_ptr<AST::Expression> Parser::binary(unique_ptr<AST::Expression>&& left)
     return AST::BinaryExpression::create(token, op, std::move(left), std::move(right));
 }
 
-template <typename T>
-T parseNumber(Token& token)
-{
-    T value;
-    std::string_view string = token.chars;
-    auto result = std::from_chars(string.data(), string.data() + string.size(), value);
-    if (result.ec == std::errc::invalid_argument) {
-        throw ParserException(token, ParserException::Cause::InvalidInteger);
+template <int skip, int base>
+unsigned bitCount(unsigned length) {
+    if constexpr (__builtin_popcount(base) == 1) {
+        int digits = length - skip;
+        unsigned bits = ceil(__builtin_ctz(base) * digits);
+        return bits;
+    } else {
+        int digits = length - skip;
+        unsigned bits = ceil(log2(base) * digits);
+        return bits;
     }
-    return value;
 }
 
-template <typename T, int skip, int base>
-T parseNumber(Token token)
-{
-    T value;
-    std::string_view string = token.chars;
-    auto result = std::from_chars(string.data() + skip, string.data() + string.size(), value, base);
-    if (result.ec == std::errc::invalid_argument) {
-        throw ParserException(token, ParserException::Cause::InvalidInteger);
-    }
-    return value;
+template <int skip, int base>
+llvm::APInt parseInteger(Token token) {
+    unsigned bits = bitCount<skip, base>(token.chars.length());
+    std::string_view chars = token.chars;
+    chars.remove_prefix(skip);
+    return llvm::APInt{bits, {chars}, base};
 }
 
-template <>
-double parseNumber(Token& token)
+double parseDouble(Token& token)
 {
     char *end = nullptr;
     double value = strtod(token.chars.data(), &end);
@@ -568,8 +564,8 @@ std::optional<char> escapeCharacter(char c)
 
 unique_ptr<AST::Literal> createStringLiteral(const Token& token)
 {
-    std::unique_ptr<std::string> string{new std::string()};
-    string->reserve(token.chars.length() - 2); // Don't reserve for quotes
+    std::string string;
+    string.reserve(token.chars.length() - 2); // Don't reserve for quotes
     
     // NOTE: This currently only supports double quotes as separators
     std::string_view characters = token.chars;
@@ -582,12 +578,12 @@ unique_ptr<AST::Literal> createStringLiteral(const Token& token)
             ++it;
             auto escaped = escapeCharacter(*it);
             if (escaped.has_value()) {
-                string->push_back(escaped.value());
+                string.push_back(escaped.value());
             } else {
                 throw ParserException(token, ParserException::Cause::InvalidEscapeSequence);
             }
         } else {
-            string->push_back(c);
+            string.push_back(c);
         }
     }
 
@@ -600,13 +596,15 @@ unique_ptr<AST::Expression> Parser::literal()
     // FIXME: Check overflow of numerical literals
     using enum TokenType;
     using AST::Literal;
+    using IntegerType = AST::Literal::IntegerType;
 
     switch (previous.type) {
-        case Integer: return Literal::create(previous, parseNumber<uint64_t>(previous));
-        case Binary: return Literal::create(previous, parseNumber<uint64_t, 2, 2>(previous));
-        case Octal: return Literal::create(previous, parseNumber<uint64_t, 2, 8>(previous));
-        case Hexadecimal: return Literal::create(previous, parseNumber<uint64_t, 2, 16>(previous));
-        case Floating: return Literal::create(previous, parseNumber<double>(previous));
+        case Integer: return Literal::create(previous, parseInteger<0, 10>(previous), IntegerType::Decimal);
+        case Binary: return Literal::create(previous, parseInteger<2, 2>(previous), IntegerType::Binary);
+        case Octal: return Literal::create(previous, parseInteger<2, 8>(previous), IntegerType::Octal);
+        case Hexadecimal: return Literal::create(previous, parseInteger<2, 16>(previous), IntegerType::Hexadecimal);
+
+        case Floating: return Literal::create(previous, parseDouble(previous));
 
         case String: return createStringLiteral(previous);
 

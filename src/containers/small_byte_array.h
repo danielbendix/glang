@@ -5,7 +5,8 @@
 
 #include <span>
 
-/// Small read-only array optimized for 
+/// Small read-only array.
+/// Allows storing 8 bytes of information without indirection.
 template <typename T>
 requires (sizeof(T) == 1 && sizeof(T *) == sizeof(size_t))
 class SmallByteArray {

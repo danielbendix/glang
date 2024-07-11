@@ -293,8 +293,6 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
         return resolution.second;
     }
 
-    std::cout << declaredType << "\n";
-
     Diagnostic::error(inferredMemberAccess, "Type checking of implicit member access is not yet implemented.");
     return {};
 }

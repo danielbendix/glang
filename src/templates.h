@@ -4,6 +4,9 @@
 #include <concepts>
 #include <functional>
 
+template<class>
+inline constexpr bool always_false_v = false;
+
 template <typename T>
 concept Pointer = std::is_pointer_v<T>;
 

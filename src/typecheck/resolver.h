@@ -34,7 +34,6 @@ public:
         if (auto type = typeNode.acceptVisitor(*this)) {
             return type;
         } else {
-            std::cout << typeNode << '\n';
             Diagnostic::error(typeNode, "Unable to resolve type name");
             return nullptr;
         }
@@ -67,7 +66,6 @@ public:
                     break;
             }
             if (!type) {
-                std::cout << "FAILED\n";
                 break;
             }
         }

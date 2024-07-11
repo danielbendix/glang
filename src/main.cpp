@@ -10,10 +10,11 @@
 #include "codegen.h"
 #include "control.h"
 
+#include "llvm/ADT/APInt.h"
+
 void compile(std::string&& string)
 {
     auto parser = Parser{std::move(string)};
-
     try {
         IODiagnosticWriter writer{std::cout};
         Diagnostic::setWriter(writer);

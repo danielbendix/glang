@@ -15,6 +15,7 @@
 #include <cassert>
 
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/Support/Casting.h"
 
 #include <iostream>
@@ -30,6 +31,8 @@
  *  Expression:
  *  Type:
  */
+
+using llvm::APInt;
 
 struct DeclarationAttributes {
     bool static_ : 1;
@@ -284,10 +287,6 @@ namespace AST {
         }
 
         SmallByteArray<Modifier>::iterator begin() const {
-            std::cout << modifiers.size() << '\n';
-            if (modifiers.size() == 2) {
-                std::cout << int(modifiers[0]) << ' ' << int(modifiers[1]) << '\n';
-            }
             return modifiers.begin();
         }
 
@@ -438,71 +437,77 @@ namespace AST {
 
     class Literal : public Expression {
     public:
-        enum class Type {
-            Boolean,
+        enum class Type: uint8_t {
+            Boolean = 0,
             Integer,
             Double,
             String,
             Nil,
         };
-    protected:
-        // TODO: Implement this using APInt from llvm
-        union Internal {
-            bool boolean;
-            uint64_t integer;
-            double double_;
-            std::string* string;
-        };
 
-        Type type;
+        enum class IntegerType: uint8_t {
+            Binary,
+            Octal,
+            Decimal,
+            Hexadecimal,
+        };
+    protected:
+        using Internal = std::variant<
+            bool,
+            APInt,
+            double,
+            std::string,
+            std::monostate
+        >;
         Internal internal;
+        IntegerType integerType;
 
         virtual void print(PrintContext& pc) const override;
 
-        explicit Literal(Token token, Type type, Internal internal) : Expression{NK_Expr_Literal, Location{token}}, type{type}, internal{internal} {}
+        explicit Literal(Token token, Internal&& internal) : Expression{NK_Expr_Literal, Location{token}}, internal{std::move(internal)} {}
     public:
-        explicit Literal(Token token, bool boolean) : Literal{token, Type::Boolean, {.boolean = true}} {}
-        explicit Literal(Token token, uint64_t integer) : Literal{token, Type::Integer, {.integer=integer}} {}
-        explicit Literal(Token token, double double_) : Literal{token, Type::Double, {.double_=double_}} {}
-        explicit Literal(Token token, std::unique_ptr<std::string>&& string) : Literal{token, Type::String, {.string=string.release()}} {}
+        explicit Literal(Token token, APInt&& integer, IntegerType integerType) : Literal{token, {std::move(integer)}} {
+            this->integerType = integerType;
+        }
 
-        template <typename T>
-        static unique_ptr<Literal> create(Token token, T value) {
+        static unique_ptr<Literal> create(Token token, bool value) {
             return unique_ptr<Literal>{new Literal(token, value)};
         }
 
-        static unique_ptr<Literal> create(Token token, std::unique_ptr<std::string> value) {
-            return unique_ptr<Literal>{new Literal(token, std::move(value))};
+        static unique_ptr<Literal> create(Token token, double value) {
+            return unique_ptr<Literal>{new Literal(token, value)};
+        }
+
+        static unique_ptr<Literal> create(Token token, APInt&& value, IntegerType integerType) {
+            return unique_ptr<Literal>{new Literal(token, std::move(value), integerType)};
+        }
+
+        static unique_ptr<Literal> create(Token token, std::string&& value) {
+            return unique_ptr<Literal>{new Literal(token, value)};
         }
 
         static unique_ptr<Literal> createNil(Token token) {
-            return unique_ptr<Literal>{new Literal(token, Type::Nil, {.integer = 0})};
+            return unique_ptr<Literal>{new Literal(token, std::monostate{})};
         }
 
         Literal::Type getLiteralType() const {
-            return type;
+            return Literal::Type(internal.index());
         }
 
-        bool getBoolean() const {
-            return internal.boolean;
+        bool getBoolean() const noexcept {
+            return std::get<bool>(internal);
         }
 
-        uint64_t getInteger() const {
-            return internal.integer;
+        const APInt& getInteger() const {
+            return std::get<APInt>(internal);
         }
 
         double getDouble() const {
-            return internal.double_;
+            return std::get<double>(internal);
         }
 
-        std::string *getString() const {
-            return internal.string;
-        }
-
-        ~Literal() {
-            if (type == Type::String) {
-                delete internal.string;
-            }
+        const std::string& getString() const {
+            return std::get<std::string>(internal);
         }
 
         static bool classof(const Node *node) {
@@ -1506,6 +1511,12 @@ namespace AST {
         PrintContext& operator<<(T value) requires std::is_arithmetic_v<T> {
             os << value;
             return *this;
+        }
+
+        void printInteger(const llvm::APInt& integer, unsigned base) {
+            llvm::SmallVector<char, 20> string;
+            integer.toString(string, base, false);
+            os << std::string_view{string.data(), string.data() + string.size()};
         }
 
         friend class Node;
