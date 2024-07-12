@@ -416,6 +416,11 @@ public:
         }
     }
 
+    void visitSubscriptExpression(AST::SubscriptExpression& subscript) {
+        subscript.getTarget().acceptVisitor(*this);
+        subscript.getIndex().acceptVisitor(*this);
+    }
+
     void visitInitializerExpression(AST::InitializerExpression& initializer) {
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);

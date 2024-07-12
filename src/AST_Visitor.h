@@ -104,6 +104,8 @@ namespace AST {
                     return subclass().visitBinaryExpression(*static_cast<BinaryExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Call:
                     return subclass().visitCallExpression(*static_cast<CallExpression *>(&expression), std::forward<Args>(args)...);
+                case NK_Expr_Subscript:
+                    return subclass().visitSubscriptExpression(*static_cast<SubscriptExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Initializer:
                     return subclass().visitInitializerExpression(*static_cast<InitializerExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Member_Access:

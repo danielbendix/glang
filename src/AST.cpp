@@ -49,6 +49,8 @@ namespace AST {
                 return delete static_cast<BinaryExpression *>(node);
             case NK_Expr_Call:
                 return delete static_cast<CallExpression *>(node);
+            case NK_Expr_Subscript:
+                return delete static_cast<SubscriptExpression *>(node);
             case NK_Expr_Member_Access:
                 return delete static_cast<MemberAccessExpression *>(node);
             case NK_Expr_Inferred_Member_Access:
@@ -347,6 +349,10 @@ namespace AST {
             pc << *argument;
         }
         pc << ")";
+    }
+
+    void SubscriptExpression::print(PrintContext& pc) const {
+        pc << *target << "[" << *index << "]";
     }
 
     void InitializerExpression::print(PrintContext& pc) const {

@@ -120,9 +120,9 @@ public:
     [[nodiscard]]
     unique_ptr<AST::Expression> call(unique_ptr<AST::Expression>&& left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> member(unique_ptr<AST::Expression>&& left);
+    unique_ptr<AST::Expression> subscript(unique_ptr<AST::Expression>&& left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> inferredMember();
+    unique_ptr<AST::Expression> member(unique_ptr<AST::Expression>&& left);
     [[nodiscard]]
     unique_ptr<AST::Expression> binary(unique_ptr<AST::Expression>&& left);
 
@@ -136,6 +136,8 @@ public:
     unique_ptr<AST::Expression> grouping();
     [[nodiscard]]
     unique_ptr<AST::Expression> inferredInitializer();
+    [[nodiscard]]
+    unique_ptr<AST::Expression> inferredMember();
 
     [[nodiscard]]
     unique_ptr<AST::Expression> initializer(unique_ptr<AST::Identifier>&& identifier);

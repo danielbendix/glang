@@ -459,6 +459,16 @@ unique_ptr<AST::Expression> Parser::call(unique_ptr<AST::Expression>&& left)
     return AST::CallExpression::create(token, std::move(left), std::move(arguments));
 }
 
+unique_ptr<AST::Expression> Parser::subscript(unique_ptr<AST::Expression>&& left) {
+    auto token = previous;
+
+    auto index = expression({});
+
+    consume(TokenType::RightBrace);
+
+    return AST::SubscriptExpression::create(token, std::move(left), std::move(index));
+}
+
 unique_ptr<AST::Expression> Parser::member(unique_ptr<AST::Expression>&& left)
 {
     auto token = previous;
@@ -661,7 +671,6 @@ unique_ptr<AST::Expression> Parser::grouping()
 unique_ptr<AST::Expression> Parser::inferredInitializer()
 {
     return initializer(nullptr);
-    
 }
 
 unique_ptr<AST::Expression> Parser::initializer(unique_ptr<AST::Identifier>&& identifier)
@@ -684,6 +693,10 @@ unique_ptr<AST::Expression> Parser::initializer(unique_ptr<AST::Identifier>&& id
 }
 
 ParseRule ParseRule::expressionRules[] = {
+    // FIXME: Figure out the precedence.
+    [static_cast<int>(LeftBrace)]             = {NULL, &Parser::subscript, Precedence::Call},
+    [static_cast<int>(RightBrace)]            = {NULL, NULL, Precedence::None},
+
     [static_cast<int>(LeftParenthesis)]       = {&Parser::grouping,            &Parser::call,      Precedence::Call},
     [static_cast<int>(RightParenthesis)]      = {NULL,                         NULL,               Precedence::None},
 

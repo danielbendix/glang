@@ -39,6 +39,7 @@ public:
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
+    TypeResult visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType);
 
     TypeResult visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType);
 

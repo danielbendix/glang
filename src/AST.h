@@ -82,6 +82,7 @@ namespace AST {
             NK_Expr_Unary,
             NK_Expr_Binary,
             NK_Expr_Call,
+            NK_Expr_Subscript,
             NK_Expr_Initializer,
             NK_Expr_Member_Access,
             NK_Expr_Inferred_Member_Access,
@@ -553,6 +554,34 @@ namespace AST {
 
         static bool classof(const Node *node) {
             return node->getKind() == NK_Expr_Call;
+        }
+    };
+
+    class SubscriptExpression : public Expression {
+        unique_ptr<Expression> target;
+        unique_ptr<Expression> index;
+    protected:
+        SubscriptExpression(Token token, unique_ptr<Expression>&& target, unique_ptr<Expression>&& index)
+            : Expression{NK_Expr_Subscript, token}
+            , target{std::move(target)}
+            , index{std::move(index)} {}
+
+        virtual void print(PrintContext& pc) const override;
+    public:
+        static unique_ptr<SubscriptExpression> create(Token token, unique_ptr<Expression>&& target, unique_ptr<Expression>&& index) {
+            return unique_ptr<SubscriptExpression>{new SubscriptExpression(token, std::move(target), std::move(index))};
+        }
+
+        Expression& getTarget() const {
+            return *target;
+        }
+
+        Expression& getIndex() const {
+            return *index;
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Expr_Subscript;
         }
     };
 

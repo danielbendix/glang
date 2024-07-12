@@ -774,6 +774,10 @@ public:
         }
     }
 
+    llvm::Value *visitSubscriptExpression(AST::SubscriptExpression& subscript) {
+        assert(false);
+    }
+
     llvm::Value *visitInitializerExpression(AST::InitializerExpression& initializer) {
         auto structType = cast<StructType>(initializer.getType());
         llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));

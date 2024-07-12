@@ -172,6 +172,10 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
     }
 }
 
+TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType) {
+    assert(false);
+}
+
 TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
     Type *resolvedType = nullptr;
     if (auto identifier = initializer.getIdentifier()) {
