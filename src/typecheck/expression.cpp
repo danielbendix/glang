@@ -371,8 +371,8 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
     auto *resolution = identifier.getResolution();
     TypeResult result = llvm::TypeSwitch<IdentifierResolution *, TypeResult>(resolution)
         .Case<LocalResolution>([](auto local) {
-            auto& declaration = local->getVariableDeclaration();
-            return TypeResult{declaration.getType(), declaration.getIsMutable()};
+            auto& binding = local->getBinding();
+            return TypeResult{binding.getType(), binding.getIsMutable()};
         })
         .Case<FunctionResolution>([](auto functionResolution) {
             AST::FunctionDeclaration *function = functionResolution->getFunctionDeclaration();

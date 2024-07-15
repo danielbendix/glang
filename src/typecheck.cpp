@@ -159,7 +159,10 @@ public:
         } else {
             type = declaredType;
         }
-
+        
+        auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        binding.setType(type);
+        binding.setIsMutable(variable.getIsMutable());
         variable.setType(*type);
     }
 

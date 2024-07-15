@@ -62,6 +62,9 @@ namespace AST {
                 return delete static_cast<TypeLiteral *>(node);
             case NK_Type_Modifier:
                 return delete static_cast<TypeModifier *>(node);
+
+            case NK_Binding_Identifier:
+                return delete static_cast<IdentifierBinding *>(node);
         }
         llvm_unreachable("Unsupported node kind.");
     }
@@ -126,9 +129,8 @@ namespace AST {
 
     void Block::print(PrintContext& pc) const {
         pc.indent();
-        // TODO: Convert to range-based for loop
-        for (int i = 0; i < size(); i++) {
-            pc << (*this)[i];
+        for (auto& declaration : *this) {
+            pc << declaration;
         }
         pc.outdent();
     }
@@ -267,16 +269,7 @@ namespace AST {
 
     void ForStatement::print(PrintContext& pc) const {
         pc.startLine();
-        pc << "for (";
-        if (auto *initialization = getInitialization()) {
-            pc << *initialization;
-        }
-        pc << "; ";
-        pc << getCondition() << ";";
-        if (auto *increment = getIncrement()) {
-            pc << *increment;
-        }
-        pc << ") {\n";
+        pc << "for " << *binding << " in " << *iterable << " {\n";
         code.print(pc);
         pc.startLine();
         pc << "}\n";
@@ -294,7 +287,7 @@ namespace AST {
 
     void VariableDeclaration::print(PrintContext& pc) const {
         pc.startLine();
-        pc << (isMutable ? "var " : "let ") << identifier;
+        pc << (isMutable ? "var " : "let ") << *binding;
         if (typeDeclaration) {
             pc << ": " << *typeDeclaration;
         }
@@ -378,6 +371,12 @@ namespace AST {
 
     void InferredMemberAccessExpression::print(PrintContext& pc) const {
         pc << '.' << memberName;
+    }
+
+    // Bindings
+
+    void IdentifierBinding::print(PrintContext& pc) const {
+        pc << identifier;
     }
 }
 

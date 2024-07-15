@@ -155,7 +155,7 @@ TokenType Scanner::identifierType()
         case 'i': 
             switch (*it++) {
                 case 'f': return testKeyword(it, current, "", 0, TokenType::If);
-                case 'n': return testKeyword(it, current, "it", 2, TokenType::If);
+                case 'n': return testKeyword(it, current, "", 0, TokenType::In);
             }
             break;
         case 'l': return testKeyword(it, current, "et", 2, TokenType::Let);
@@ -340,6 +340,13 @@ Token Scanner::next() noexcept {
             case '&': return makeToken(Ampersand);
             case '|': return makeToken(Pipe);
             case '^': return makeToken(Caret);
+            case '!': {
+                if (peek() == '=') {
+                    advance();
+                    return makeToken(BangEqual);
+                }
+                return makeToken(Bang);
+            }
             case '.': {
                 if (peek() == '.') {
                     advance();

@@ -14,6 +14,9 @@
 
 void compile(std::string&& string)
 {
+    std::cout << "sizeof(std::span<char, 8>): " << sizeof(std::span<char, 8>) << "\n";
+    std::cout << "sizeof(std::span<char>): " << sizeof(std::span<char>) << "\n";
+
     auto parser = Parser{std::move(string)};
     try {
         IODiagnosticWriter writer{std::cout};

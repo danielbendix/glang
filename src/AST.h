@@ -90,6 +90,9 @@ namespace AST {
             // Type nodes
             NK_Type_Literal,
             NK_Type_Modifier,
+
+            // Binding nodes
+            NK_Binding_Identifier,
         };
 
         const Kind kind;
@@ -273,6 +276,9 @@ namespace AST {
         enum class Modifier : uint8_t {
             Pointer,
             Optional,
+            Location,
+            Array,
+            UnboundedArray,
         };
     protected:
         unique_ptr<TypeNode> child;
@@ -772,7 +778,11 @@ namespace AST {
         unique_ptr<Expression> left;
         unique_ptr<Expression> right;
         BinaryExpression(Token token, BinaryOperator op, unique_ptr<Expression> left, unique_ptr<Expression> right) 
-            : Expression{NK_Expr_Binary, Location{token}}, op{op}, left{std::move(left)}, right{std::move(right)} {}
+            : Expression{NK_Expr_Binary, Location{token}}
+            , op{op}
+            , left{std::move(left)}
+            , right{std::move(right)} 
+        {}
 
         void print(PrintContext& pc) const override;
     public:
@@ -800,6 +810,61 @@ namespace AST {
 
         static bool classof(const Node *node) {
             return node->getKind() == NK_Expr_Binary;
+        }
+    };
+
+    // Bindings
+    class Binding : public Node {
+        Type *type;
+
+        // TODO: Binding visitor
+    protected:
+        using Node::Node;
+
+    public:
+        void setType(Type *type) {
+            this->type = type;
+        }
+
+        Type *getType() {
+            return type;
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() >= NK_Binding_Identifier && node->getKind() <= NK_Binding_Identifier;
+        }
+    };
+
+    class IdentifierBinding : public Binding {
+        std::string identifier;
+        bool isMutable = false;
+
+        IdentifierBinding(Token identifier) 
+            : Binding{NK_Binding_Identifier, identifier}
+            , identifier{identifier.chars} 
+        {}
+
+        virtual void print(PrintContext& pc) const override;
+
+    public:
+        static unique_ptr<IdentifierBinding> create(Token identifier) {
+            return unique_ptr<IdentifierBinding>{new IdentifierBinding(identifier)};
+        }
+
+        const std::string& getIdentifier() const {
+            return identifier;
+        }
+
+        bool getIsMutable() const {
+            return isMutable;
+        }
+
+        void setIsMutable(bool isMutable) {
+            this->isMutable = isMutable;
+        }
+    
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Binding_Identifier;
         }
     };
 
@@ -1059,36 +1124,38 @@ namespace AST {
 
     class ForStatement : public Statement {
     protected:
-        unique_ptr<Declaration> initialization;
-        unique_ptr<Expression> condition;
-        unique_ptr<Statement> increment;
+        unique_ptr<Binding> binding;
+        unique_ptr<Expression> iterable;
         Block code;
 
-        ForStatement(Token token, unique_ptr<Declaration> initialization, unique_ptr<Expression> condition, unique_ptr<Statement> increment, Block&& code)
+        ForStatement(Token token, unique_ptr<Binding>&& binding, unique_ptr<Expression>&& iterable, Block&& code)
             : Statement{NK_Stmt_For, token}
-            , initialization{std::move(initialization)}
-            , condition{std::move(condition)}
-            , increment{std::move(increment)}
+            , binding{std::move(binding)}
+            , iterable{std::move(iterable)}
             , code{std::move(code)}
         {}
 
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<ForStatement> create(Token token, unique_ptr<Declaration> initialization, unique_ptr<Expression> condition, unique_ptr<Statement> increment, Block&& code) {
-            return unique_ptr<ForStatement>{new ForStatement(token, std::move(initialization), std::move(condition), std::move(increment), std::move(code))};
+        static unique_ptr<ForStatement> create(Token token, unique_ptr<Binding>&& binding, unique_ptr<Expression>&& iterable, Block&& code) {
+            return unique_ptr<ForStatement>{new ForStatement(token, std::move(binding), std::move(iterable), std::move(code))};
         }
 
-        const Declaration *getInitialization() const {
-            return initialization.get();
+        Binding& getBinding() {
+            return *binding;
         }
 
-        const Expression& getCondition() const {
-            return *condition;
+        const Binding& getBinding() const {
+            return *binding;
         }
 
-        const Statement *getIncrement() const {
-            return increment.get();
+        Expression& getIterable() {
+            return *iterable;
+        }
+
+        const Expression& getIterable() const {
+            return *iterable;
         }
 
         Block& getBlock() {
@@ -1145,7 +1212,7 @@ namespace AST {
 
     class VariableDeclaration : public Declaration {
     protected:
-        std::string identifier;
+        unique_ptr<Binding> binding;
         Type* type = nullptr;
         unique_ptr<TypeNode> typeDeclaration;
         unique_ptr<Expression> initial;
@@ -1154,12 +1221,12 @@ namespace AST {
         VariableDeclaration(
             Token token, 
             bool isMutable,
-            std::string&& identifier, 
+            unique_ptr<Binding>&& binding,
             unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& initial
         ) : Declaration{NK_Decl_Variable, token}
           , isMutable{isMutable}
-          , identifier{std::move(identifier)}
+          , binding{std::move(binding)}
           , typeDeclaration{std::move(type)}
           , initial{std::move(initial)} {}
         
@@ -1169,14 +1236,14 @@ namespace AST {
         static unique_ptr<VariableDeclaration> create(
             Token token, 
             bool isMutable,
-            std::string&& identifier, 
+            unique_ptr<Binding>&& binding,
             unique_ptr<TypeNode>&& type, 
             unique_ptr<Expression>&& initial
         ) {
             return unique_ptr<VariableDeclaration>{new VariableDeclaration{
                 token, 
                 isMutable, 
-                std::move(identifier), 
+                std::move(binding),
                 std::move(type), 
                 std::move(initial)
             }};
@@ -1186,8 +1253,12 @@ namespace AST {
             return isMutable;
         }
 
-        const std::string& getName() const {
-            return identifier;
+        const Binding& getBinding() const {
+            return *binding;
+        }
+
+        Binding& getBinding() {
+            return *binding;
         }
 
         Expression *getInitialValue() const {

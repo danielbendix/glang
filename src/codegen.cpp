@@ -133,14 +133,24 @@ public:
         currentScope -= 1;
     }
 
-    void addConstant(AST::VariableDeclaration& variable, llvm::Value *value) {
-        locals.push_back(Local(&variable, value, currentScope));
+    void addConstant(AST::Binding binding, llvm::Value *value) {
+        // TODO: Destructure bindings
+        locals.push_back(Local{&binding, value, currentScope});
     }
 
+    // TODO: Remove
     llvm::AllocaInst& addVariable(AST::VariableDeclaration& variable) {
         llvm::Type *type = variable.getType()->getLLVMType(context.llvmContext);
         auto& alloca = makeStackSlot(type);
         locals.push_back(Local(&variable, &alloca, currentScope));
+        return alloca;
+    }
+
+    llvm::AllocaInst& addVariable(AST::Binding& binding) {
+        // TODO: Destructure bindings
+        llvm::Type *type = binding.getType()->getLLVMType(context.llvmContext);
+        auto& alloca = makeStackSlot(type);
+        locals.push_back(Local{&binding, &alloca, currentScope});
         return alloca;
     }
 
@@ -232,15 +242,15 @@ public:
             switch (identifier->getResolution()->getKind()) {
                 case IdentifierResolution::IRK_Local: {
                     LocalResolution *local = static_cast<LocalResolution *>(identifier->getResolution());
-                    assert(local->getVariableDeclaration().getIsMutable());
-                    auto alloca = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getVariableDeclaration());
+                    auto alloca = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getBinding());
                     return alloca;
                 }
                 case IdentifierResolution::IRK_Global: {
-                    assert(false);
+                    assert(false && "TODO");
                 }
                 case IdentifierResolution::IRK_Parameter:
                 case IdentifierResolution::IRK_Function:
+                case IdentifierResolution::IRK_Type:
                     assert(false);
             }
         }
@@ -291,7 +301,7 @@ public:
     // Declaration
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        auto& alloca = function.addVariable(variable);
+        auto& alloca = function.addVariable(variable.getBinding());
         if (auto *initial = variable.getInitialValue()) {
             auto *value = initial->acceptVisitor(*this);
             function.builder.CreateStore(value, &alloca);
@@ -486,9 +496,9 @@ public:
             case IdentifierResolution::IRK_Local: {
                 auto type = function.getLLVMType(identifier.getType());
                 LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
-                auto *declaration = &local->getVariableDeclaration();
+                auto *binding = &local->getBinding();
 
-                auto alloca = function.getVariable(declaration);
+                auto alloca = function.getVariable(binding);
                 return function.builder.CreateLoad(type, alloca);
             }
             case IdentifierResolution::IRK_Global:

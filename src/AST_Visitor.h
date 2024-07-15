@@ -135,7 +135,6 @@ namespace AST {
                 default:
                     llvm_unreachable("Unsupported type node kind.");
             }
-
         }
     };
 }

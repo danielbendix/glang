@@ -8,7 +8,7 @@
 
 namespace AST {
     class Declaration;
-    class VariableDeclaration;
+    class IdentifierBinding;
     class FunctionDeclaration;
     class StructDeclaration;
 };
@@ -36,16 +36,16 @@ public:
 
 
 class LocalResolution : public IdentifierResolution {
-    AST::VariableDeclaration *variable;
+    AST::IdentifierBinding *binding;
 
-    LocalResolution(AST::VariableDeclaration *variable) : IdentifierResolution{IRK_Local}, variable{variable} {}
+    LocalResolution(AST::IdentifierBinding *binding) : IdentifierResolution{IRK_Local}, binding{binding} {}
 public:
-    static unique_ptr_t<LocalResolution> create(AST::VariableDeclaration& variable) {
-        return unique_ptr_t<LocalResolution>{new LocalResolution(&variable)};
+    static unique_ptr_t<LocalResolution> create(AST::IdentifierBinding& binding) {
+        return unique_ptr_t<LocalResolution>{new LocalResolution(&binding)};
     }
     
-    AST::VariableDeclaration& getVariableDeclaration() const {
-        return *variable;
+    AST::IdentifierBinding& getBinding() const {
+        return *binding;
     }
 
     static bool classof(const IdentifierResolution *resolution) {
@@ -55,11 +55,11 @@ public:
 
 class GlobalResolution : public IdentifierResolution {
     bool isExtern;
-    AST::VariableDeclaration *variable;
+    AST::IdentifierBinding *variable;
 
-    GlobalResolution(AST::VariableDeclaration *variable, bool isExtern) : IdentifierResolution{IRK_Global}, variable{variable}, isExtern{isExtern} {}
+    GlobalResolution(AST::IdentifierBinding *variable, bool isExtern) : IdentifierResolution{IRK_Global}, variable{variable}, isExtern{isExtern} {}
 public:
-    static unique_ptr_t<GlobalResolution> create(AST::VariableDeclaration& variable, bool isExtern) {
+    static unique_ptr_t<GlobalResolution> create(AST::IdentifierBinding& variable, bool isExtern) {
         return unique_ptr_t<GlobalResolution>{new GlobalResolution(&variable, isExtern)};
     }
     static bool classof(const IdentifierResolution *resolution) {

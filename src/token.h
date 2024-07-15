@@ -19,8 +19,9 @@ enum class TokenType : uint8_t {
     Colon,
     Semicolon,
     Arrow,
-    Equal,
+    Bang,
     Question,
+    Equal,
 
     // Operators
     Plus,
@@ -48,7 +49,7 @@ enum class TokenType : uint8_t {
     Or,
 
     // Comparison
-    NotEqual,
+    BangEqual,
     EqualEqual,
     Less,
     Greater,
@@ -68,6 +69,7 @@ enum class TokenType : uint8_t {
     Init,
     Fn,
     For,
+    In,
     Guard,
     While,
     Repeat,

@@ -56,6 +56,9 @@ void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
     table.insert("f64", f64Type);
     owner.push_back(f64Type);
 
+    // TODO: Add [ui]size, [ui]ptr
+    
+
 #define INT_TYPE(bits) { \
     Type *type = new IntegerType{bits, true}; \
     table.insert("i" #bits, type); \

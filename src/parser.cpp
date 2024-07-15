@@ -54,6 +54,24 @@ unique_ptr<AST::TypeNode> Parser::type(bool hasIdentifier)
             modifiers.push_back(Optional);
             continue;
         }
+
+        if (match(TokenType::Ampersand)) {
+            modifiers.push_back(Location);
+            continue;
+        }
+        if (match(TokenType::LeftBrace)) {
+            if (match(TokenType::Bang)) {
+                modifiers.push_back(UnboundedArray);
+            } else if (match(TokenType::Identifier)) {
+                assert(false && "TODO: Support binding to size");
+            } else if (match(TokenType::Integer)) {
+                assert(false && "TODO: Support binding to size");
+            } else {
+                modifiers.push_back(Array);
+            }
+            consume(TokenType::RightBrace);
+            continue;
+        }
         break;
     }
 
@@ -62,6 +80,15 @@ unique_ptr<AST::TypeNode> Parser::type(bool hasIdentifier)
     } else {
         return AST::TypeModifier::create(AST::TypeLiteral::create(name), modifiers);
     }
+}
+
+// Bindings
+
+unique_ptr<AST::Binding> Parser::binding()
+{
+    auto identifier = consume(TokenType::Identifier);
+
+    return AST::IdentifierBinding::create(identifier);
 }
 
 // Declarations
@@ -219,7 +246,8 @@ unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()
 {
     auto token = previous;
     bool isMutable = token.type == TokenType::Var;
-    auto identifier = consume(TokenType::Identifier);
+
+    auto variableBinding = binding();
     unique_ptr<AST::TypeNode> tp = nullptr;
     if (match(TokenType::Colon)) {
         tp = type();
@@ -232,7 +260,7 @@ unique_ptr<AST::VariableDeclaration> Parser::variableDeclaration()
 
     consume(TokenType::Semicolon);
 
-    return AST::VariableDeclaration::create(token, isMutable, std::string(identifier.chars), std::move(tp), std::move(initial));
+    return AST::VariableDeclaration::create(token, isMutable, std::move(variableBinding), std::move(tp), std::move(initial));
 }
 
 unique_ptr<AST::StatementDeclaration> Parser::statementDeclaration()
@@ -260,6 +288,7 @@ bool isAssignmentOperator(TokenType tokenType)
 unique_ptr<AST::Statement> Parser::statement()
 {
     if (match(TokenType::If)) return ifStatement();
+    if (match(TokenType::For)) return forStatement();
     if (match(TokenType::Return)) return returnStatement();
     if (match(TokenType::While)) return whileStatement();
     if (match(TokenType::Guard)) return guardStatement();
@@ -287,6 +316,21 @@ unique_ptr<AST::IfStatement> Parser::ifStatement()
     }
 
     return AST::IfStatement::create(token, std::move(conditionals), std::move(fallback));
+}
+
+unique_ptr<AST::ForStatement> Parser::forStatement()
+{
+    auto token = previous;
+
+    auto loopBinding = binding();
+
+    consume(TokenType::In);
+
+    auto iterable = expression({.allowInitializer = false});
+
+    auto code = block();
+
+    return AST::ForStatement::create(token, std::move(loopBinding), std::move(iterable), std::move(code));
 }
 
 unique_ptr<AST::GuardStatement> Parser::guardStatement() 
@@ -378,7 +422,7 @@ enum class Precedence {
     BitwiseXor,     // ^
     BitwiseOr,      // |
     Unary,          // ! -
-    Call,           // . ()
+    Call,           // . () []
     Primary
 };
 
@@ -504,7 +548,7 @@ std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
         case Caret: return {BinaryOperator::BitwiseXor, Precedence::BitwiseXor};
 
         case EqualEqual: return {BinaryOperator::Equal, Precedence::Equality};
-        case NotEqual: return {BinaryOperator::NotEqual, Precedence::Equality};
+        case BangEqual: return {BinaryOperator::NotEqual, Precedence::Equality};
         case Less: return {BinaryOperator::Less, Precedence::Comparison};
         case LessEqual: return {BinaryOperator::Less, Precedence::Comparison};
         case Greater: return {BinaryOperator::Greater, Precedence::Comparison};
@@ -721,7 +765,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(And)]                   = {NULL,                         &Parser::binary,    Precedence::LogicalAnd},
     [static_cast<int>(Or)]                    = {NULL,                         &Parser::binary,    Precedence::LogicalOr},
 
-    [static_cast<int>(NotEqual)]              = {NULL,                         &Parser::binary,    Precedence::Equality},
+    [static_cast<int>(BangEqual)]              = {NULL,                         &Parser::binary,    Precedence::Equality},
     [static_cast<int>(EqualEqual)]            = {NULL,                         &Parser::binary,    Precedence::Equality},
 
     [static_cast<int>(Greater)]               = {NULL,                         &Parser::binary,    Precedence::Comparison},

@@ -17,9 +17,10 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     // Declaration visitor
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        if (!properties.insert(variable.getName(), &variable)) {
+        auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        if (!properties.insert(binding.getIdentifier(), &variable)) {
             Diagnostic::error(variable, "Duplicate declaration of struct field.");
-            auto& existing = *static_cast<AST::Node *>(properties[variable.getName()].getOpaqueValue());
+            auto& existing = *static_cast<AST::Node *>(properties[binding.getIdentifier()].getOpaqueValue());
             Diagnostic::note(existing, "Previously declared here.");
             return ERROR;
         }

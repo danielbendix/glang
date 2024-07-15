@@ -100,7 +100,9 @@ public:
     }
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        return builder.addVariable(variable.getName(), unique_ptr_t<AST::VariableDeclaration>{&variable});
+        assert(false && "TODO: Implement global variables.");
+
+        //return builder.addVariable(variable.getName(), unique_ptr_t<AST::VariableDeclaration>{&variable});
     }
 
     Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -156,12 +158,12 @@ class ScopeManager {
                 AST::FunctionDeclaration *function;
                 int index;
             } parameter;
-            AST::VariableDeclaration *variableDeclaration;
+            AST::IdentifierBinding *binding;
         } as;
 
         Local(const std::string& identifier, int scopeLevel, AST::FunctionDeclaration& function, int index) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
 
-        Local(const std::string& identifier, int scopeLevel, AST::VariableDeclaration& variableDeclaration) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{false}, as{.variableDeclaration = &variableDeclaration} {}
+        Local(const std::string& identifier, int scopeLevel, AST::IdentifierBinding& binding) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{false}, as{.binding = &binding} {}
     };
 
     int scopeLevel = -1;
@@ -199,14 +201,15 @@ public:
         scopeLevel--;
     }
 
-    bool pushParameter(std::string& identifier, AST::FunctionDeclaration& function, int index) {
+    bool pushParameter(const std::string& identifier, AST::FunctionDeclaration& function, int index) {
         locals.emplace_back(identifier, scopeLevel, function, index);
 
         return true;
     }
 
-    void pushDeclaration(const std::string& identifier, AST::VariableDeclaration& declaration) {
-        locals.emplace_back(identifier, scopeLevel, declaration);
+    void pushBinding(const std::string& identifier, AST::IdentifierBinding& binding) {
+        // FIXME: Push the bindings.
+        locals.emplace_back(identifier, scopeLevel, binding);
     }
 
     std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> getResolution(const std::string& identifier) {
@@ -216,7 +219,7 @@ public:
                 if (local.isParameter) {
                     return FunctionParameterResolution::create(local.as.parameter.function, local.as.parameter.index);
                 } else {
-                    return LocalResolution::create(*local.as.variableDeclaration);
+                    return LocalResolution::create(*local.as.binding);
                 }
             }
         }
@@ -227,7 +230,9 @@ public:
                     return FunctionResolution::create(*function);
                 })
                 .Case<AST::VariableDeclaration *>([](auto variable) {
-                    return GlobalResolution::create(*variable, false);
+                    assert(false);
+                    return nullptr;
+                    //return GlobalResolution::create(variable->getBinding(), false);
                 })
                 .Case<Type *>([](auto type) {
                     return IdentifierTypeResolution::create(type);
@@ -304,11 +309,12 @@ public:
     // Declarations
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        manager.pushDeclaration(variable.getName(), variable);
-
         if (variable.getInitialValue()) {
             variable.getInitialValue()->acceptVisitor(*this);
         }
+        // FIXME: Support other binding types.
+        auto& identifierBinding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        manager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -375,8 +381,15 @@ public:
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
-        assert(false);
-        // TODO: Implement this.
+        forStatement.getIterable().acceptVisitor(*this);
+        manager.pushInnerScope();
+
+        // FIXME: Support other binding types.
+        auto& identifierBinding = llvm::cast<AST::IdentifierBinding>(forStatement.getBinding());
+        manager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
+
+        visitBlock(forStatement.getBlock());
+        manager.popInnerScope();
     }
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {

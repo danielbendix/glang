@@ -1,0 +1,46 @@
+fn sum1(numbers: i64[]) -> i64 {
+    var sum: i64 = 0;
+    for n in numbers {
+        sum += n;
+    }
+    return sum;
+}
+
+fn sumOptionals(numbers: i64?[]) -> i64 {
+    var sum: i64 = 0;
+    for ?n in numbers {
+        sum += n;
+    }
+    return sum;
+}
+
+fn sum2(numbers: i64[!], n: i64) -> i64 {
+    var sum: i64 = 0;
+
+    var i: i64 = 0;
+    while i < n {
+        sum = sum + numbers[i];
+    }
+
+    return sum;
+}
+
+fn main() -> i64 {
+    //let a = 100;
+    var a: i64 = 100;
+    var a2: i64 = 200;
+
+    var b = &a;
+
+    let c: i64** = &b;
+
+    *c = &a2;
+    **c = 100;
+
+    let d: i64*? = &a;
+
+    let e: i8? = nil;
+    let f: i16? = 0b1;
+
+    return a2;
+}

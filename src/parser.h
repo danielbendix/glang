@@ -76,6 +76,10 @@ public:
     [[nodiscard]]
     unique_ptr<AST::TypeNode> type(bool hasIdentifier = false);
 
+    // Bindings
+    [[nodiscard]]
+    unique_ptr<AST::Binding> binding();
+
     // Declarations
     [[nodiscard]]
     unique_ptr<AST::Declaration> declaration();
@@ -101,6 +105,8 @@ public:
     unique_ptr<AST::Statement> statement();
     [[nodiscard]]
     unique_ptr<AST::IfStatement> ifStatement();
+    [[nodiscard]]
+    unique_ptr<AST::ForStatement> forStatement();
     [[nodiscard]]
     unique_ptr<AST::GuardStatement> guardStatement();
     [[nodiscard]]
