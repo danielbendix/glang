@@ -467,15 +467,24 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
+        auto& preheader = function.currentBlock();
+        auto& header = function.createOrphanedBlock();
+        auto& end = function.createOrphanedBlock();
         auto& loop = function.createOrphanedBlock();
-        function.builder.CreateBr(&loop);
+
+        function.builder.CreateBr(&header);
+        
+        function.patchOrphanedBlock(header);
+        auto *condition = whileStatement.getCondition().acceptVisitor(*this);
+
+        function.builder.CreateCondBr(condition, &loop, &end);
+
         function.patchOrphanedBlock(loop);
         visitBlock(whileStatement.getBlock());
 
-        auto *condition = whileStatement.getCondition().acceptVisitor(*this);
-        auto& loopEnd = function.createOrphanedBlock();
-        function.builder.CreateCondBr(condition, &loop, &loopEnd);
-        function.patchOrphanedBlock(loopEnd);
+        function.builder.CreateBr(&header);
+
+        function.patchOrphanedBlock(end);
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
