@@ -589,7 +589,7 @@ public:
                 return function.builder.CreateSExt(target, function.getLLVMType(integerType));
             }
             case ZeroExtend: {
-                auto integerType = cast<IntegerType>(*unary.getType());
+                auto& integerType = cast<IntegerType>(*unary.getType());
                 return function.builder.CreateZExt(target, function.getLLVMType(integerType));
             }
             case FPExtend: {
@@ -654,21 +654,6 @@ public:
                     return function.builder.CreateFMul(left, right);
                 });
 
-            case BitwiseAnd: return function.builder.CreateAnd(left, right);
-            case BitwiseOr: return function.builder.CreateOr(left, right);
-            case BitwiseXor: return function.builder.CreateXor(left, right);
-
-            case ShiftLeft: return function.builder.CreateShl(left, right);
-            // TODO: Arithmetic shift for signed types.
-            case ShiftRight: {
-                auto integerType = cast<IntegerType>(binary.getType());
-                if (integerType->isSigned) {
-                    return function.builder.CreateAShr(left, right);
-                } else {
-                    return function.builder.CreateLShr(left, right);
-                }
-            }
-
             case Divide: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
                 .Case([&](IntegerType *integerType) {
                     if (integerType->isSigned) {
@@ -683,13 +668,28 @@ public:
 
             case Modulo: {
                 IntegerType *integerType = cast<IntegerType>(binary.getType());
-                if (integerType->getIsSigned()) {
+                if (integerType->isSigned) {
                     return function.builder.CreateSRem(left, right);
                 } else {
                     return function.builder.CreateURem(left, right);
                 }
                 break;
             }
+
+            case BitwiseAnd: return function.builder.CreateAnd(left, right);
+            case BitwiseOr: return function.builder.CreateOr(left, right);
+            case BitwiseXor: return function.builder.CreateXor(left, right);
+
+            case ShiftLeft: return function.builder.CreateShl(left, right);
+            case ShiftRight: {
+                auto integerType = cast<IntegerType>(binary.getType());
+                if (integerType->isSigned) {
+                    return function.builder.CreateAShr(left, right);
+                } else {
+                    return function.builder.CreateLShr(left, right);
+                }
+            }
+
             case Equal: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
                 .Case([&](IntegerType *integerType) {
                     return function.builder.CreateICmpEQ(left, right);
