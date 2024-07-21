@@ -212,6 +212,7 @@ public:
         Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), targetType);
         if (!valueType) {
             result = ERROR;
+            return;
         }
 
         auto [coerceResult, wrapped] = coerceType(*targetType, *valueType, assignment.getValue());

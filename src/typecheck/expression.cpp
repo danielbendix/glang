@@ -26,7 +26,9 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
             if (target.isConstraint()) {
                 return target.asConstraint();
             }
-            type = typeCheckNegationOperator(unary, propagatedType).type();
+            type = target.type();
+            break;
+        }
         case BitwiseNegate: {
             TypeResult target = typeCheckBitwiseNegationOperator(unary, propagatedType);
             if (target.isConstraint()) {
@@ -73,7 +75,7 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
         }
     } else {
         if (right.isConstraint()) {
-            right = typeCheckExpression(binary.getRight(), right.asType());
+            right = typeCheckExpression(binary.getRight(), left.asType());
         } else {
             // Both are types, and should be unifiable.
         }
@@ -148,8 +150,17 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
         Result parameterResult = OK;
         for (int i = 0; i < functionType->parameterCount(); ++i) {
             AST::Expression& argument = call.getArgument(i);
-            Type *argumentType = typeCheckExpression(argument);
             Type *parameterType = functionType->getParameter(i);
+            TypeResult argumentResult = typeCheckExpression(argument, parameterType);
+
+            if (argumentResult.isConstraint()) {
+                parameterResult |= ERROR;
+                Diagnostic::error(argument, "Unable to determine type of parameter.");
+                continue;
+            }
+
+            Type *argumentType = argumentResult.type();
+
             if (argumentType != parameterType) {
                 auto [coerceResult, wrapped] = coerceType(*parameterType, *argumentType, argument);
 

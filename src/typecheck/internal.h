@@ -43,8 +43,12 @@ public:
         return pointer.get<Type *>();
     }
 
-    operator Type*() {
-        return pointer.get<Type *>();
+    Type *asTypeOrNull() const {
+        return *this;
+    }
+
+    operator Type*() const {
+        return llvm::dyn_cast<Type *>(pointer);
     }
 
     TypeConstraint *constraint() const {
