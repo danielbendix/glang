@@ -45,6 +45,30 @@ TypeResult ExpressionTypeChecker::typeCheckNegationOperator(AST::UnaryExpression
     return {};
 }
 
+TypeResult ExpressionTypeChecker::typeCheckBitwiseNegationOperator(AST::UnaryExpression& unary, Type *propagatedType) {
+    auto target = unary.getTarget().acceptVisitor(*this, propagatedType);
+
+    if (!target) {
+        return {};
+    }
+    if (target.isConstraint()) {
+        auto constraint = target.asConstraint();
+        if (isIntegralConstraint(constraint)) {
+            return constraint;
+        } else {
+            Diagnostic::error(unary, "Cannot bitwise negate non-integral value.");
+            return {};
+        }
+    }
+    Type *targetType = target.asType();
+    if (auto numericType = dyn_cast<IntegerType>(targetType)) {
+        return numericType;
+    }
+    Diagnostic::error(unary, "Cannot bitwise negate non-integral value.");
+
+    return {};
+}
+
 Type *getPointeeTypeOrNull(Type *type) {
     if (!type) {
         return {};

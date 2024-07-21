@@ -27,6 +27,12 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
                 return target.asConstraint();
             }
             type = typeCheckNegationOperator(unary, propagatedType).type();
+        case BitwiseNegate: {
+            TypeResult target = typeCheckBitwiseNegationOperator(unary, propagatedType);
+            if (target.isConstraint()) {
+                return target.asConstraint();
+            }
+            type = target.type();
             break;
         }
         case AddressOf:

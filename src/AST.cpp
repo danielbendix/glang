@@ -86,6 +86,7 @@ namespace AST {
         using enum UnaryOperator;
         switch (op) {
             case Negate: return pc << '-';
+            case BitwiseNegate: return pc << '~';
             case Not: return pc << "not ";
             case AddressOf: return pc << '&';
             case Dereference: return pc << '*';

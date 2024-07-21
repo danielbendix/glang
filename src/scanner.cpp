@@ -337,6 +337,7 @@ Token Scanner::next() noexcept {
             case ';': return makeToken(Semicolon);
             case ',': return makeToken(Comma);
             case '?': return makeToken(Question);
+            case '~': return makeToken(Tilde);
             case '&': return makeToken(Ampersand);
             case '|': return makeToken(Pipe);
             case '^': return makeToken(Caret);

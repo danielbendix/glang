@@ -572,6 +572,11 @@ public:
                     return function.builder.CreateFNeg(target);
                 });
 
+            case BitwiseNegate: {
+                auto& integerType = cast<IntegerType>(*unary.getType());
+                return function.builder.CreateXor(target, function.getIntegerConstant(integerType.bitWidth, -1));
+            }
+
             case AddressOf: {
                 return getAssignmentTarget(unary.getTarget());
             }

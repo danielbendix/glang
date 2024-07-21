@@ -697,6 +697,7 @@ namespace AST {
 
     enum class UnaryOperator {
         Negate,
+        BitwiseNegate,
         Not,
         AddressOf,
         Dereference,

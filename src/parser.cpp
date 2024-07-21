@@ -673,18 +673,22 @@ unique_ptr<AST::Expression> Parser::literal()
     return nullptr;
 }
 
-unique_ptr<AST::Expression> Parser::unary()
+AST::UnaryOperator unaryOperator(TokenType type)
 {
-    // TODO: Convert to function.
-    auto token = previous;
-    AST::UnaryOperator op;
-    switch (previous.type) {
-        case TokenType::Not: op = AST::UnaryOperator::Not; break;
-        case TokenType::Minus: op = AST::UnaryOperator::Negate; break;
-        case TokenType::Ampersand: op = AST::UnaryOperator::AddressOf; break;
-        case TokenType::Star: op = AST::UnaryOperator::Dereference; break;
+    switch (type) {
+        case TokenType::Not: return AST::UnaryOperator::Not;
+        case TokenType::Minus: return AST::UnaryOperator::Negate;
+        case TokenType::Tilde: return AST::UnaryOperator::BitwiseNegate;
+        case TokenType::Ampersand: return AST::UnaryOperator::AddressOf;
+        case TokenType::Star: return AST::UnaryOperator::Dereference;
         default: llvm_unreachable("Token type is not a unary operator");
     }
+}
+
+unique_ptr<AST::Expression> Parser::unary()
+{
+    auto token = previous;
+    AST::UnaryOperator op = unaryOperator(previous.type);
 
     auto target = parseExpression(Precedence::Unary);
 
@@ -758,6 +762,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(LessLess)]              = {NULL,                         &Parser::binary,    Precedence::Shift},
     [static_cast<int>(GreaterGreater)]        = {NULL,                         &Parser::binary,    Precedence::Shift},
 
+    [static_cast<int>(Tilde)]                 = {&Parser::unary,               NULL,               Precedence::BitwiseAnd},
     [static_cast<int>(Ampersand)]             = {&Parser::unary,               &Parser::binary,    Precedence::BitwiseAnd},
     [static_cast<int>(Caret)]                 = {NULL,                         &Parser::binary,    Precedence::BitwiseXor},
     [static_cast<int>(Pipe)]                  = {NULL,                         &Parser::binary,    Precedence::BitwiseOr},

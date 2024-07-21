@@ -26,6 +26,7 @@ public:
 
     Type *typeCheckBooleanNegationOperator(AST::UnaryExpression& unary);
     TypeResult typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
+    TypeResult typeCheckBitwiseNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
     Type *typeCheckAddressOfOperator(AST::UnaryExpression& unary, Type *propagatedType);
     Type *typeCheckDereferenceOperator(AST::UnaryExpression& unary);
     TypeResult visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType);

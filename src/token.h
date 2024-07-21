@@ -33,6 +33,7 @@ enum class TokenType : uint8_t {
     LessLess,
     GreaterGreater,
 
+    Tilde,
     Ampersand,
     Caret,
     Pipe,
