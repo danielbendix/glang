@@ -1,25 +1,28 @@
 fn sum1(numbers: i64[]) -> i64 {
     var sum: i64 = 0;
     for n in numbers {
-        sum += n;
+        //sum += n;
+        sum = sum + n;
     }
     return sum;
 }
 
-fn sumOptionals(numbers: i64?[]) -> i64 {
-    var sum: i64 = 0;
-    for ?n in numbers {
-        sum += n;
-    }
-    return sum;
-}
+//fn sumOptionals(numbers: i64?[]) -> i64 {
+//    var sum: i64 = 0;
+//    for ?n in numbers {
+//        sum += n;
+//    }
+//    return sum;
+//}
 
 fn sum2(numbers: i64[!], n: i64) -> i64 {
     var sum: i64 = 0;
 
     var i: i64 = 0;
     while i < n {
+        //sum += numbers[i];
         sum = sum + numbers[i];
+        i = i + 1;
     }
 
     return sum;

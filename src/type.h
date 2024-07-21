@@ -23,22 +23,37 @@ enum TypeKind {
     TK_Struct,
     TK_Enum,
     TK_Protocol,
+
+    TK_Array,
+    TK_Range,
 };
 
 class PointerType;
 class OptionalType;
+class ArrayType;
+class RangeType;
 
 class Type {
+    // Used to intern types, but keep base Type objects small.
+    struct TypeIndex {
+        ArrayType *boundedArrayType = nullptr;
+        ArrayType *unboundedArrayType = nullptr;
+        RangeType *rangeType = nullptr;
+    };
+
     const TypeKind kind;
     mutable llvm::Type *llvmType = nullptr;
     mutable PointerType *pointerType = nullptr;
     mutable OptionalType *optionalType = nullptr;
+    mutable TypeIndex *index = nullptr;
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
     PointerType *_getPointerType();
     OptionalType *_getOptionalType();
 
 protected:
+    TypeIndex& getTypeIndex();
+
     Type(TypeKind kind) : kind{kind} {}
 
 public:
@@ -65,6 +80,9 @@ public:
             return (optionalType = _getOptionalType());
         }
     }
+
+    ArrayType *getBoundedArrayType();
+    ArrayType *getUnboundedArrayType();
 
     Type *removeImplicitWrapperTypes();
 
@@ -265,6 +283,42 @@ public:
 
 class StringType : public Type {
     StringType() : Type{TK_String} {}
+};
+
+class ArrayType : public Type {
+    static llvm::Type *llvmTypeBounded;
+    static llvm::Type *llvmTypeUnbounded;
+
+    Type& contained;
+public:
+    const bool isBounded;
+
+    ArrayType(Type& contained, bool isBounded) : Type{TK_Array}, contained{contained}, isBounded{isBounded} {}
+
+    Type *getContained() const {
+        return &contained;
+    }
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Array;
+    }
+};
+
+// This is a quick and dirty type to get ranges working.
+// Ideally it would be based on conformance to a protocol.
+class RangeType : public Type {
+    IntegerType *integerType;
+
+public:
+    Type *getBoundType() const {
+        return integerType;
+    }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Range;
+    }
 };
 
 void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner);

@@ -190,6 +190,47 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
 }
 
 TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType) {
+    auto target = typeCheckExpression(subscript.getTarget());
+
+    if (!target) {
+        return {};
+    } else if (target.isConstraint()) {
+        Diagnostic::error(subscript, "Cannot determine type of subscript target.");
+        return {};
+    }
+
+    auto targetType = target.asType();
+    auto arrayType = dyn_cast<ArrayType>(targetType);
+
+    if (!arrayType) {
+        Diagnostic::error(subscript, "Cannot apply subscript to non-array type.");
+        return {};
+    }
+
+    // TODO: Add default integer type as declared type here:
+    auto index = typeCheckExpression(subscript.getIndex());
+
+    
+    if (!index) {
+        return {};
+    } else if (index.isConstraint()) {
+        Diagnostic::error(subscript, "Cannot determine type of subscript index.");
+        return {};
+    }
+
+    auto indexType = index.asType();
+    auto integerType = dyn_cast<IntegerType>(indexType);
+
+    if (!integerType) {
+        Diagnostic::error(subscript, "Cannot use non-integer type as array index.");
+        return {};
+    }
+
+    auto elementType = arrayType->getContained();
+    subscript.setType(elementType);
+
+    return elementType;
+
     assert(false);
 }
 

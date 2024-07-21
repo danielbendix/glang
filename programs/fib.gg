@@ -1,10 +1,10 @@
-fun fib(n: int64) -> int64 {
-    var f1 = 0;
-    var f2 = 1;
+fn fib(n: i64) -> i64 {
+    var f1: i64 = 0;
+    var f2: i64 = 1;
 
     var i = n;
 
-    while (i >= 0) {
+    while i >= 0 {
         let tmp = f2;
         f2 = f1 + f2;
         f1 = tmp;
@@ -14,6 +14,6 @@ fun fib(n: int64) -> int64 {
     return f1;
 }
 
-fun main() -> int64 {
+fn main() -> i64 {
     return fib(11);
 }

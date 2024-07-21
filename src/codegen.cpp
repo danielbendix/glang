@@ -138,12 +138,8 @@ public:
         locals.push_back(Local{&binding, value, currentScope});
     }
 
-    // TODO: Remove
-    llvm::AllocaInst& addVariable(AST::VariableDeclaration& variable) {
-        llvm::Type *type = variable.getType()->getLLVMType(context.llvmContext);
-        auto& alloca = makeStackSlot(type);
-        locals.push_back(Local(&variable, &alloca, currentScope));
-        return alloca;
+    void pushBinding(AST::Binding& binding, llvm::Value *value) {
+        locals.push_back(Local{&binding, value, currentScope});
     }
 
     llvm::AllocaInst& addVariable(AST::Binding& binding) {
@@ -163,10 +159,10 @@ public:
         llvm_unreachable("Unable to find local.");
     }
 
-    llvm::AllocaInst *getVariable(const AST::Node *node) {
+    llvm::Value *getVariable(const AST::Node *node) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             if (locals[i].node == node) {
-                return llvm::cast<llvm::AllocaInst>(locals[i].value);
+                return locals[i].value;
             }
         }
         llvm_unreachable("Unable to find local.");
@@ -467,7 +463,6 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
-        auto& preheader = function.currentBlock();
         auto& header = function.createOrphanedBlock();
         auto& end = function.createOrphanedBlock();
         auto& loop = function.createOrphanedBlock();
@@ -488,7 +483,56 @@ public:
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
-        assert(false);
+        auto iterable = forStatement.getIterable().acceptVisitor(*this);
+        auto iterableType = forStatement.getIterable().getType();
+        if (auto arrayType = dyn_cast<ArrayType>(iterableType)) {
+            auto elementType = function.getLLVMType(arrayType->getContained());
+
+            auto& preheader = function.currentBlock();
+            auto& header = function.createOrphanedBlock();
+            auto& end = function.createOrphanedBlock();
+            auto& loop = function.createOrphanedBlock();
+
+            auto iterable = forStatement.getIterable().acceptVisitor(*this);
+
+            auto initialPointer = function.builder.CreateExtractValue(iterable, {0});
+            auto size = function.builder.CreateExtractValue(iterable, 1);
+
+            auto firstAfterEnd = function.builder.CreateGEP(elementType, initialPointer, {size});
+
+            function.builder.CreateBr(&header);
+
+            function.patchOrphanedBlock(header);
+
+            initialPointer->getType();
+            auto currentPointer = function.builder.CreatePHI(initialPointer->getType(), 2);
+            currentPointer->addIncoming(initialPointer, &preheader);
+
+            auto ptrDiff = function.builder.CreatePtrDiff(elementType, currentPointer, firstAfterEnd);
+            auto isAtEnd = function.builder.CreateICmpEQ(ptrDiff, function.getIntegerConstant(64, 0));
+            function.builder.CreateCondBr(isAtEnd, &end, &loop);
+
+
+            function.patchOrphanedBlock(loop);
+
+            function.pushBinding(forStatement.getBinding(), currentPointer);
+            visitBlock(forStatement.getBlock());
+
+            auto& latch = function.currentBlock();
+            auto incrementedPointer = function.builder.CreateConstGEP1_64(elementType, currentPointer, 1);
+
+            currentPointer->addIncoming(incrementedPointer, &latch);
+            function.builder.CreateBr(&header);
+
+            function.patchOrphanedBlock(end);
+
+
+        } else if (auto rangeType = dyn_cast<RangeType>(iterableType)) {
+            assert(false);
+        } else {
+            llvm_unreachable("[PROGRAMMER ERROR]: Iterating over value that is not array or range.");
+        }
+        
         // TODO: Implement this.
     }
 
@@ -799,7 +843,23 @@ public:
     }
 
     llvm::Value *visitSubscriptExpression(AST::SubscriptExpression& subscript) {
-        assert(false);
+        auto& arrayType = cast<ArrayType>(*subscript.getTarget().getType());
+        auto elementType = function.getLLVMType(arrayType.getContained());
+
+        auto target = subscript.getTarget().acceptVisitor(*this);
+        auto index = subscript.getIndex().acceptVisitor(*this);
+
+        auto base = function.builder.CreateExtractValue(target, {0});
+
+        if (arrayType.isBounded) {
+            // TODO: Allow boundary checking to be toggled.
+            auto size = function.builder.CreateExtractValue(target, {1});
+
+            assert(false && "TODO: Implement array bounds checking.");
+        } else {
+            auto address = function.builder.CreateGEP(elementType, base, {index});
+            return function.builder.CreateLoad(elementType, address);
+        }
     }
 
     llvm::Value *visitInitializerExpression(AST::InitializerExpression& initializer) {

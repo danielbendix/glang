@@ -64,7 +64,16 @@ public:
                 case Optional:
                     type = type->getOptionalType();
                     break;
-            }
+                case AST::TypeModifier::Modifier::Location:
+                    assert(false);
+                    break;
+                case AST::TypeModifier::Modifier::Array:
+                    type = type->getBoundedArrayType();
+                    break;
+                case AST::TypeModifier::Modifier::UnboundedArray:
+                    type = type->getUnboundedArrayType();
+                    break;
+                }
             if (!type) {
                 break;
             }

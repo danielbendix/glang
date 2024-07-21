@@ -19,6 +19,7 @@ using Result = PassResult;
 
 using llvm::dyn_cast;
 using llvm::isa;
+using llvm::TypeSwitch;
 
 VoidType _void_;
 BooleanType _boolean;
@@ -323,7 +324,40 @@ public:
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
-        // TODO: Implement this.
+        ExpressionTypeChecker typeChecker{typeResolver};
+
+        // TODO: Make a version that discards constraints and returns nullptr.
+        Type *type = typeChecker.typeCheckExpression(forStatement.getIterable());
+
+        if (!type) {
+            result = ERROR;
+            return;
+        }
+
+        Type *elementType =  TypeSwitch<Type *, Type *>(type)
+                .Case([&forStatement](ArrayType *arrayType) -> Type * {
+                    if (!arrayType->isBounded) {
+                        Diagnostic::error(forStatement.getIterable(), "Cannot iterate over unbounded array.");
+                        return nullptr;
+                    } else {
+                        return arrayType->getContained();
+                    }
+                })
+                .Case([](RangeType *rangeType) -> Type * {
+                    return rangeType->getBoundType();
+                })
+                .Default([&forStatement](Type *type) -> Type * {
+                    Diagnostic::error(forStatement.getIterable(), "Target of for loop is not iterable.");
+                    return nullptr;
+                });
+
+        if (!elementType) {
+            return;
+        }
+
+        forStatement.getBinding().setType(elementType);
+
+        visitBlock(forStatement.getBlock());
     }
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {

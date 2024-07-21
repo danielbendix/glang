@@ -6,6 +6,40 @@
 
 using llvm::dyn_cast;
 
+Type::TypeIndex& Type::getTypeIndex() {
+    if (index) {
+        return *index;
+    } else {
+        auto index = new TypeIndex{};
+        this->index = index;
+        return *index;
+    }
+}
+
+ArrayType *Type::getBoundedArrayType() {
+    auto index = getTypeIndex();
+
+    if (index.boundedArrayType) {
+        return index.boundedArrayType;
+    } else {
+        auto type = new ArrayType(*this, true);
+        index.boundedArrayType = type;
+        return type;
+    }
+}
+
+ArrayType *Type::getUnboundedArrayType() {
+    auto index = getTypeIndex();
+
+    if (index.unboundedArrayType) {
+        return index.unboundedArrayType;
+    } else {
+        auto type = new ArrayType(*this, false);
+        index.unboundedArrayType = type;
+        return type;
+    }
+}
+
 Type *Type::removeImplicitWrapperTypes()
 {
     switch (getKind()) {
@@ -19,6 +53,8 @@ Type *Type::removeImplicitWrapperTypes()
         case TK_Protocol:
         case TK_Enum:
         case TK_Pointer:
+        case TK_Array:
+        case TK_Range:
             return this;
         case TK_Optional:
             return static_cast<OptionalType *>(this)->getContained()->removeImplicitWrapperTypes();
@@ -39,6 +75,9 @@ void Type::deleteValue(Type *type) {
 
         case TK_Optional: return delete static_cast<OptionalType *>(type);
         case TK_Pointer: return delete static_cast<PointerType *>(type);
+
+        case TK_Array: return delete static_cast<ArrayType *>(type);
+        case TK_Range: return delete static_cast<RangeType *>(type);
     }
 }
 
@@ -119,6 +158,37 @@ llvm::FunctionType *FunctionType::getFunctionType(llvm::LLVMContext& context) co
     }
 }
 
+llvm::Type *ArrayType::llvmTypeBounded = nullptr;
+llvm::Type *ArrayType::llvmTypeUnbounded = nullptr;
+
+llvm::Type *ArrayType::_getLLVMType(llvm::LLVMContext& context) const {
+    if (isBounded) {
+        if (llvmTypeBounded) {
+            return llvmTypeBounded;
+        } else {
+            llvm::Type *childTypes[2] = {
+                llvm::PointerType::getUnqual(context),
+                // TODO: This should be architecture dependent, usize
+                llvm::IntegerType::get(context, 64),
+            };
+            auto type = llvm::StructType::get(context, childTypes, false);
+            llvmTypeBounded = type;
+            return type;
+        }
+    } else {
+        if (llvmTypeUnbounded) {
+            return llvmTypeUnbounded;
+        } else {
+            llvm::Type *childTypes[1] = {
+                llvm::PointerType::getUnqual(context),
+            };
+            auto type = llvm::StructType::get(context, childTypes, false);
+            llvmTypeUnbounded = type;
+            return type;
+        }
+    }
+}
+
 llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
     switch (kind) {
         case TK_Void:
@@ -137,6 +207,8 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
             return llvm::PointerType::getUnqual(context);
         case TK_Optional:
             return static_cast<const OptionalType *>(this)->_getLLVMType(context);
+        case TK_Array:
+            return static_cast<const ArrayType *>(this)->_getLLVMType(context);
 
         default:
             assert(false);
