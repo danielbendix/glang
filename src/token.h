@@ -75,6 +75,7 @@ enum class TokenType : uint8_t {
     In,
     Guard,
     While,
+    Where,
     Repeat,
     Break,
     Return,

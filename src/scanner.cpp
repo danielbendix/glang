@@ -145,16 +145,13 @@ TokenType Scanner::identifierType()
                 case 'n': return testKeyword(it, current, "um", 2, TokenType::Enum);
             }
             break;
-        case 'f': {
+        case 'f':
             switch (*it++) {
                 case 'o': return testKeyword(it, current, "r", 1, TokenType::For);
                 case 'n': return testKeyword(it, current, "", 0, TokenType::Fn);
             }
             break;
-        }
-        case 'g': {
-            return testKeyword(it, current, "uard", 4, TokenType::Guard);
-        }
+        case 'g': return testKeyword(it, current, "uard", 4, TokenType::Guard);
         case 'i': 
             switch (*it++) {
                 case 'f': return testKeyword(it, current, "", 0, TokenType::If);
@@ -167,8 +164,9 @@ TokenType Scanner::identifierType()
                 case 'i': return testKeyword(it, current, "l", 1, TokenType::Nil);
                 case 'o': return testKeyword(it, current, "t", 1, TokenType::Not);
             }
+            break;
         case 'o': return testKeyword(it, current, "r", 1, TokenType::Or);
-        case 'r': {
+        case 'r':
             if (*it++ == 'e') {
                 switch (*it++) {
                     case 'p': return testKeyword(it, current, "eat", 3, TokenType::Repeat);
@@ -176,20 +174,27 @@ TokenType Scanner::identifierType()
                 }
             }
             break;
-        }
         case 's': 
             switch (*it++) {
                 case 'e': return testKeyword(it, current, "lf", 2, TokenType::Self);
                 case 't': return testKeyword(it, current, "ruct", 4, TokenType::Struct);
             }
-        case 't': {
+            break;
+        case 't':
             switch (*it++) {
                 case 'h': return testKeyword(it, current, "row", 3, TokenType::Throw);
                 case 'r': return testTry(it, current);
             }
-        }
+            break;
         case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
-        case 'w': return testKeyword(it, current, "hile", 4, TokenType::While);
+        case 'w': 
+            if (*it++ == 'h') {
+                switch (*it++) {
+                    case 'e': return testKeyword(it, current, "re", 2, TokenType::Where);
+                    case 'i': return testKeyword(it, current, "le", 2, TokenType::While);
+                }
+            }
+            break;
     }
 
     return TokenType::Identifier;
