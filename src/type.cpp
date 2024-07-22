@@ -40,6 +40,30 @@ ArrayType *Type::getUnboundedArrayType() {
     }
 }
 
+RangeType *IntegerType::getOpenRangeType() {
+    auto index = getTypeIndex();
+
+    if (index.openRangeType) {
+        return index.openRangeType;
+    } else {
+        auto type = new RangeType(*this, false);
+        index.openRangeType = type;
+        return type;
+    }
+}
+
+RangeType *IntegerType::getClosedRangeType() {
+    auto index = getTypeIndex();
+
+    if (index.closedRangeType) {
+        return index.closedRangeType;
+    } else {
+        auto type = new RangeType(*this, true);
+        index.closedRangeType = type;
+        return type;
+    }
+}
+
 Type *Type::removeImplicitWrapperTypes()
 {
     switch (getKind()) {
@@ -189,6 +213,17 @@ llvm::Type *ArrayType::_getLLVMType(llvm::LLVMContext& context) const {
     }
 }
 
+llvm::Type *RangeType::_getLLVMType(llvm::LLVMContext& context) const {
+    auto llvmBoundType = integerType.getLLVMType(context);
+
+    llvm::Type *childTypes[2] = {
+        llvmBoundType,
+        llvmBoundType,
+    };
+
+    return llvm::StructType::get(context, childTypes, false);
+}
+
 llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
     switch (kind) {
         case TK_Void:
@@ -209,6 +244,8 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
             return static_cast<const OptionalType *>(this)->_getLLVMType(context);
         case TK_Array:
             return static_cast<const ArrayType *>(this)->_getLLVMType(context);
+        case TK_Range:
+            return static_cast<const RangeType *>(this)->_getLLVMType(context);
 
         default:
             assert(false);

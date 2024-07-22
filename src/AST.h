@@ -749,6 +749,9 @@ namespace AST {
     };
 
     enum class BinaryOperator {
+        OpenRange,
+        ClosedRange,
+
         Add,
         Subtract,
         Multiply,

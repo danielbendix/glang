@@ -38,7 +38,8 @@ class Type {
     struct TypeIndex {
         ArrayType *boundedArrayType = nullptr;
         ArrayType *unboundedArrayType = nullptr;
-        RangeType *rangeType = nullptr;
+        RangeType *openRangeType = nullptr;
+        RangeType *closedRangeType = nullptr;
     };
 
     const TypeKind kind;
@@ -55,6 +56,8 @@ protected:
     TypeIndex& getTypeIndex();
 
     Type(TypeKind kind) : kind{kind} {}
+    Type(const Type&) = delete;
+    Type& operator=(const Type&) = delete;
 
 public:
     llvm::Type *getLLVMType(llvm::LLVMContext& context) const {
@@ -157,6 +160,9 @@ public:
 
         return (64 - leadingZeros) <= bits;
     }
+
+    RangeType *getOpenRangeType();
+    RangeType *getClosedRangeType();
 
     unsigned getBitWidth() const { return bitWidth; }
     bool getIsSigned() const { return isSigned; }
@@ -309,12 +315,17 @@ public:
 // This is a quick and dirty type to get ranges working.
 // Ideally it would be based on conformance to a protocol.
 class RangeType : public Type {
-    IntegerType *integerType;
-
+    IntegerType& integerType;
 public:
-    Type *getBoundType() const {
-        return integerType;
+    bool isClosed;
+
+    RangeType(IntegerType& integerType, bool isClosed) : Type{TK_Range}, integerType{integerType}, isClosed{isClosed} {}
+
+    IntegerType *getBoundType() const {
+        return &integerType;
     }
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
 
     static bool classof(const Type *type) {
         return type->getKind() == TK_Range;

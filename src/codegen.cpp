@@ -89,11 +89,13 @@ bool populateContext(Context& context, ModuleDef& moduleDefinition) {
 
 class CompilingFunction {
 
+    using Binding = llvm::PointerIntPair<llvm::Value *, 1>;
+
     struct Local {
         AST::Node *node;
-        llvm::Value *value;
+        Binding value;
         int depth;
-        Local(AST::Node *node, llvm::Value *value, int depth) : node{node}, value{value}, depth{depth} {}
+        Local(AST::Node *node, Binding value, int depth) : node{node}, value{value}, depth{depth} {}
     };
 
     Context& context;
@@ -135,22 +137,31 @@ public:
 
     void addConstant(AST::Binding binding, llvm::Value *value) {
         // TODO: Destructure bindings
-        locals.push_back(Local{&binding, value, currentScope});
+        locals.push_back(Local{&binding, {value, 1}, currentScope});
     }
 
     void pushBinding(AST::Binding& binding, llvm::Value *value) {
-        locals.push_back(Local{&binding, value, currentScope});
+        locals.push_back(Local{&binding, {value, 0}, currentScope});
+    }
+
+    void pushValueBinding(AST::Binding& binding, llvm::Value *value) {
+        locals.push_back(Local{&binding, {value, 1}, currentScope});
+    }
+
+    void pushAddressBinding(AST::Binding& binding, llvm::Value *address) {
+        locals.push_back(Local{&binding, {address, 0}, currentScope});
+
     }
 
     llvm::AllocaInst& addVariable(AST::Binding& binding) {
         // TODO: Destructure bindings
         llvm::Type *type = binding.getType()->getLLVMType(context.llvmContext);
         auto& alloca = makeStackSlot(type);
-        locals.push_back(Local{&binding, &alloca, currentScope});
+        locals.push_back(Local{&binding, {&alloca, 0}, currentScope});
         return alloca;
     }
 
-    llvm::Value *getConstant(const AST::Node *node) {
+    Binding getConstant(const AST::Node *node) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             if (locals[i].node == node) {
                 return locals[i].value;
@@ -159,7 +170,7 @@ public:
         llvm_unreachable("Unable to find local.");
     }
 
-    llvm::Value *getVariable(const AST::Node *node) {
+    Binding getVariable(const AST::Node *node) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             if (locals[i].node == node) {
                 return locals[i].value;
@@ -238,8 +249,9 @@ public:
             switch (identifier->getResolution()->getKind()) {
                 case IdentifierResolution::IRK_Local: {
                     LocalResolution *local = static_cast<LocalResolution *>(identifier->getResolution());
-                    auto alloca = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getBinding());
-                    return alloca;
+                    auto value = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getBinding());
+                    assert(value.getInt() == 0);
+                    return value.getPointer();
                 }
                 case IdentifierResolution::IRK_Global: {
                     assert(false && "TODO");
@@ -387,6 +399,8 @@ public:
             case GreaterEqual:
             case LogicalAnd:
             case LogicalOr:
+            case OpenRange:
+            case ClosedRange:
                 llvm_unreachable("Unsupported assignment operator type.");
         }
 
@@ -490,8 +504,8 @@ public:
 
             auto& preheader = function.currentBlock();
             auto& header = function.createOrphanedBlock();
-            auto& end = function.createOrphanedBlock();
             auto& loop = function.createOrphanedBlock();
+            auto& end = function.createOrphanedBlock();
 
             auto iterable = forStatement.getIterable().acceptVisitor(*this);
 
@@ -512,10 +526,9 @@ public:
             auto isAtEnd = function.builder.CreateICmpEQ(ptrDiff, function.getIntegerConstant(64, 0));
             function.builder.CreateCondBr(isAtEnd, &end, &loop);
 
-
             function.patchOrphanedBlock(loop);
 
-            function.pushBinding(forStatement.getBinding(), currentPointer);
+            function.pushAddressBinding(forStatement.getBinding(), currentPointer);
             visitBlock(forStatement.getBlock());
 
             auto& latch = function.currentBlock();
@@ -525,15 +538,57 @@ public:
             function.builder.CreateBr(&header);
 
             function.patchOrphanedBlock(end);
-
-
         } else if (auto rangeType = dyn_cast<RangeType>(iterableType)) {
-            assert(false);
+            auto elementType = rangeType->getBoundType();
+            auto llvmElementType = function.getLLVMType(rangeType->getBoundType());
+
+            auto& preheader = function.currentBlock();
+            auto& header = function.createOrphanedBlock();
+            auto& loop = function.createOrphanedBlock();
+            auto& end = function.createOrphanedBlock();
+
+            auto range = forStatement.getIterable().acceptVisitor(*this);
+
+            auto startValue = function.builder.CreateExtractValue(range, {0});
+            auto endValue = function.builder.CreateExtractValue(range, {1});
+
+            function.builder.CreateBr(&header);
+            function.patchOrphanedBlock(header);
+            
+            auto current = function.builder.CreatePHI(llvmElementType, 2);
+            current->addIncoming(startValue, &preheader);
+
+            llvm::Value *condition;
+            if (rangeType->isClosed) {
+                if (elementType->isSigned) {
+                    condition = function.builder.CreateICmpSLE(current, endValue);
+                } else {
+                    condition = function.builder.CreateICmpULE(current, endValue);
+                }
+            } else {
+                if (elementType->isSigned) {
+                    condition = function.builder.CreateICmpSLT(current, endValue);
+                } else {
+                    condition = function.builder.CreateICmpULT(current, endValue);
+                }
+            }
+
+            function.builder.CreateCondBr(condition, &loop, &end);
+
+            function.patchOrphanedBlock(loop);
+
+            function.pushValueBinding(forStatement.getBinding(), current);
+            visitBlock(forStatement.getBlock());
+
+            auto& latch = function.currentBlock();
+            auto incremented = function.builder.CreateAdd(current, function.getIntegerConstant(elementType->bitWidth, 1));
+            current->addIncoming(incremented, &latch);
+            function.builder.CreateBr(&header);
+
+            function.patchOrphanedBlock(end);
         } else {
             llvm_unreachable("[PROGRAMMER ERROR]: Iterating over value that is not array or range.");
         }
-        
-        // TODO: Implement this.
     }
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
@@ -551,8 +606,12 @@ public:
                 LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
                 auto *binding = &local->getBinding();
 
-                auto alloca = function.getVariable(binding);
-                return function.builder.CreateLoad(type, alloca);
+                auto value = function.getVariable(binding);
+                if (value.getInt()) {
+                    return value.getPointer();
+                } else {
+                    return function.builder.CreateLoad(type, value.getPointer());
+                }
             }
             case IdentifierResolution::IRK_Global:
             case IdentifierResolution::IRK_Type:
@@ -818,6 +877,20 @@ public:
                 .Case([&](BooleanType *_) {
                     return function.builder.CreateICmpUGT(left, right);
                 });
+
+            case OpenRange: 
+            case ClosedRange: {
+                auto start = left;
+                auto end = right;
+
+                auto llvmType = function.getLLVMType(binary.getType());
+                llvm::Value *structValue = llvm::UndefValue::get(llvmType);
+
+                auto insertStart = function.builder.CreateInsertValue(structValue, start, {0});
+                auto insertEnd = function.builder.CreateInsertValue(insertStart, end, {1});
+
+                return insertEnd;
+            }
 
             case LogicalAnd: assert(false);
             case LogicalOr: assert(false);

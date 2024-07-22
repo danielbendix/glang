@@ -23,7 +23,7 @@ Type *ExpressionTypeChecker::typeCheckBooleanNegationOperator(AST::UnaryExpressi
 }
 
 TypeResult ExpressionTypeChecker::typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType) {
-    auto target = typeCheckExpression(unary.getTarget(), propagatedType);
+    auto target = unary.getTarget().acceptVisitor(*this, propagatedType);
     if (!target) {
         return {};
     }

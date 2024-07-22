@@ -69,7 +69,7 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
 
     if (left.isConstraint()) {
         if (right.isConstraint()) {
-            // Nothing we can do right now.
+            assert(false && "TODO: Unify constraints and create default type.");
         } else {
             left = typeCheckExpression(binary.getLeft(), right.asType());
         }
@@ -97,7 +97,7 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
             break;
         case ShiftLeft:
         case ShiftRight:
-
+            type = typeCheckArithmetic(binary, left, right, declaredType);
             break;
         case BitwiseAnd:
         case BitwiseOr:
@@ -114,6 +114,10 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
         case Divide:
         case Modulo:
             type = typeCheckArithmetic(binary, left, right, declaredType);
+            break;
+        case OpenRange:
+        case ClosedRange:
+            type = typeCheckRangeOperator(binary, left, right);
             break;
     }
 
@@ -370,6 +374,9 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
             if (propagatedType) {
                 if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
+                    auto& value = literal.getInteger();
+
+                    
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
                     return propagatedType;

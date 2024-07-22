@@ -37,6 +37,7 @@ public:
     Type *typeCheckShift(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right);
     Type *typeCheckArithmetic(AST::BinaryExpression& binary, Type *left, Type *right, Type *propagatedType);
+    Type *typeCheckRangeOperator(AST::BinaryExpression& binary, Type *left, Type *right);
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);

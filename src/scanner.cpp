@@ -351,6 +351,14 @@ Token Scanner::next() noexcept {
             case '.': {
                 if (peek() == '.') {
                     advance();
+                    switch(peek()) {
+                        case '.':
+                            advance();
+                            return makeToken(DotDotDot);
+                        case '<':
+                            advance();
+                            return makeToken(DotDotLess);
+                    }
                     return makeToken(DotDot);
                 }
                 return makeToken(Dot);

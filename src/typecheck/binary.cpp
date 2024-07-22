@@ -135,18 +135,37 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, 
             });
 
     }
-    // TODO: Unify types.
     if (left->getKind() != right->getKind()) {
         Diagnostic::error(binary, "Attempting to compare different types.");
         return {};
     }
 
-    // FIXME
-    if (left != signed64) {
-        Diagnostic::error(binary, "Attempting to compare non-integer types.");
-        return {};
-    } else {
-        return boolean;
-    }
+    // TODO: Unify types.
+    
+    assert(false && "TODO: Unify types.");
 }
 
+Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binary, Type *left, Type *right) {
+    if (left == right) {
+        if (auto integerType = dyn_cast<IntegerType>(left)) {
+            if (binary.getOp() == AST::BinaryOperator::OpenRange) {
+                return integerType->getOpenRangeType();
+            } else if (binary.getOp() == AST::BinaryOperator::ClosedRange) {
+                return integerType->getClosedRangeType();
+            }
+            llvm_unreachable("Unknown range type op.");
+        } else {
+            Diagnostic::error(binary, "Cannot create-range with non-integer types.");
+            return {};
+        }
+    }
+
+    if (left->getKind() != right->getKind()) {
+        Diagnostic::error(binary, "Attempting to create range with different types.");
+        return {};
+    }
+
+    // TODO: Unify types.
+    
+    assert(false && "TODO: Unify types.");
+}

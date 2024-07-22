@@ -16,6 +16,8 @@ enum class TokenType : uint8_t {
     Comma, 
     Dot,
     DotDot,
+    DotDotDot,
+    DotDotLess,
     Colon,
     Semicolon,
     Arrow,

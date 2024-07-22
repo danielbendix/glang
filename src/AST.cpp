@@ -102,6 +102,9 @@ namespace AST {
     PrintContext& operator<<(PrintContext& pc, BinaryOperator op) {
         using enum BinaryOperator;
         switch (op) {
+            case OpenRange: return pc << "..<";
+            case ClosedRange: return pc << "...";
+
             case Add: return pc << '+';
             case Subtract: return pc << '-';
             case Multiply: return pc << '*';

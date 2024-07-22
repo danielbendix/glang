@@ -415,6 +415,7 @@ enum class Precedence {
     Equality,       // == !=
     Comparison,     // < > <= >=
     Shift,          // << >>
+    Range,          // ... ..<
     Term,           // + -
     Factor,         // * /
     // FIXME: Ensure bit operators have the desired precedence
@@ -534,6 +535,9 @@ std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
     using AST::BinaryOperator;
     using enum TokenType;
     switch (token.type) {
+        case DotDotDot: return {BinaryOperator::ClosedRange, Precedence::Range};
+        case DotDotLess: return {BinaryOperator::OpenRange, Precedence::Range};
+
         case Plus: return {BinaryOperator::Add, Precedence::Term};
         case Minus: return {BinaryOperator::Subtract, Precedence::Term};
         case Star: return {BinaryOperator::Multiply, Precedence::Factor};
@@ -559,7 +563,6 @@ std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
 
         default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported binary operator.");
     }
-
 }
 
 unique_ptr<AST::Expression> Parser::binary(unique_ptr<AST::Expression>&& left)
@@ -752,6 +755,9 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(RightBracket)]          = {NULL,                         NULL,               Precedence::None},
     [static_cast<int>(Comma)]                 = {NULL,                         NULL,               Precedence::None},
     [static_cast<int>(Dot)]                   = {&Parser::inferredMember,      &Parser::member,    Precedence::Call},
+
+    [static_cast<int>(DotDotDot)]             = {NULL,                         &Parser::binary,    Precedence::Range},
+    [static_cast<int>(DotDotLess)]            = {NULL,                         &Parser::binary,    Precedence::Range},
 
     [static_cast<int>(Plus)]                  = {NULL,                         &Parser::binary,    Precedence::Term},
     [static_cast<int>(Minus)]                 = {&Parser::unary,               &Parser::binary,    Precedence::Term},
