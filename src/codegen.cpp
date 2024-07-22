@@ -22,20 +22,6 @@ using llvm::TypeSwitch;
 using Result = PassResult;
 using enum PassResultKind;
 
-struct Local {
-    std::string const *identifier;
-    llvm::AllocaInst *alloca;
-    Type *type;
-    int depth;
-
-    Local() {}
-    Local(const std::string& identifier, llvm::AllocaInst& alloca, Type *type, int depth) 
-        : identifier{&identifier}
-        , alloca{&alloca}
-        , type{type}
-        , depth{depth} {}
-};
-
 class Context {
 public:
     llvm::Module& llvmModule;

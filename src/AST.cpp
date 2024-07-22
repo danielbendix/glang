@@ -71,6 +71,13 @@ namespace AST {
 }
 
 namespace AST {
+    std::ostream& operator<<(std::ostream& os, const Location& location) {
+        if (location.length == 1) {
+            return os << '[' << location.line << ':' << location.column <<']';
+        } else {
+            return os << '[' << location.line << ':' << location.column << '-' << location.column + location.length - 1 <<']';
+        }
+    }
 
     void Node::print(std::ostream& os) const {
         PrintContext pc{os};

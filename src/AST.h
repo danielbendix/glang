@@ -49,10 +49,13 @@ namespace AST {
     struct Location {
         // TODO: SourceFile reference
         int line;
-        int offset;
+        int column;
+        int length;
 
-        Location(Token token) : line{token.line}, offset{token.offset} {}
+        Location(Token token) : line{token.line}, column{token.column}, length{token.length} {}
     };
+
+    std::ostream& operator<<(std::ostream& os, const Location& location);
 
     class Node {
     public:
@@ -104,7 +107,7 @@ namespace AST {
         ~Node() = default;
 
         Kind getKind() const { return kind; }
-        Location getLocation() const { return location; }
+        const Location& getLocation() const { return location; }
 
         //void acceptVisitor();
 
