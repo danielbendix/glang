@@ -104,14 +104,17 @@ enum class TokenType : uint8_t {
 
 std::ostream& operator<<(std::ostream& os, TokenType tokenType);
 
-struct Token {
-    int line;
-    int offset;
-    std::string_view chars;
+struct Token final {
     TokenType type;
+    int line;
+    int column;
+    int length;
+    // Since we're storing the length (in bytes), we could compute the
+    // string_view from a char * and the length;
+    std::string_view chars;
 
-    Token(TokenType type, std::string_view chars, int line, int offset) 
-        : type{type}, chars{chars}, line{line}, offset{offset} {}
+    Token(TokenType type, std::string_view chars, int line, int column, int length) 
+        : type{type}, chars{chars}, line{line}, column{column}, length{length} {}
 };
 
 #endif // LANG_token_h

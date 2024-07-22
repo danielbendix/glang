@@ -49,7 +49,7 @@ void compile(std::string&& string)
     } catch (ParserException exception) {
         std::cout << "EXCEPTION CAUGHT:\n";
         std::cout << int(exception.cause) << "\n";
-        std::cout << exception.token.line << ":" << exception.token.offset << "\n";
+        std::cout << exception.token.line << ":" << exception.token.column << "\n";
         std::cout << exception.token.chars << "\n";
     }
 }

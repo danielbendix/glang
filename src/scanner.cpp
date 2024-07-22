@@ -99,7 +99,10 @@ void Scanner::skipWhitespace() {
 Token Scanner::makeToken(TokenType type)
 {
     std::string_view chars = std::string_view(start, current);
-    return Token(type, chars, line, offset);
+    int length = current - start;
+    int column = this->column - length;
+    assert(column >= 0);
+    return Token(type, chars, line, column, current - start);
 }
 
 [[nodiscard]]
@@ -228,7 +231,7 @@ Token Scanner::string()
     }
     
     if (isAtEnd()) {
-        error(UnterminatedStringLiteral, std::format("{}:{}: error: unterminated string literal", this->line, this->offset));
+        error(UnterminatedStringLiteral, std::format("{}:{}: error: unterminated string literal", this->line, this->column));
         return errorToken();
     }
 

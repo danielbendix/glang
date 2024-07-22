@@ -12,7 +12,7 @@ public:
     static const ErrorCause NO_ERROR;
 
     // TODO: Maybe we don't need to move the string here.
-    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, offset{0} {}
+    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, column{0} {}
 
     Token next() noexcept;
 
@@ -27,7 +27,7 @@ private:
     iterator current;
     iterator end;
     int line;
-    int offset;
+    int column;
     ErrorCause _error = NO_ERROR;
 
     bool isAtEnd() {
@@ -35,14 +35,13 @@ private:
     }
 
     char advance() {
-        offset += 1;
+        column += 1;
         return *current++;
-        int a = 0x3;
     }
 
     void newline() {
         line += 1;
-        offset = -1;
+        column = 0;
     }
 
     char peek() {

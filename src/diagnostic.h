@@ -22,15 +22,15 @@ public:
     IODiagnosticWriter(std::ostream& out) : out{out} {}
 
     virtual void error(AST::Node& node, std::string& message) override {
-        out << "ERROR: " << message << "\n";
+        out << "Error: " << node.getLocation() << ' ' << message << "\n";
     }
 
     virtual void warning(AST::Node& node, std::string& message) override {
-        out << "Warning: " << message << "\n";
+        out << "Warning: " << node.getLocation() << ' ' << message << "\n";
     }
 
     virtual void note(AST::Node& node, std::string& message) override {
-        out << "Note: " << message << "\n";
+        out << "Note: " << node.getLocation() << ' ' << message << "\n";
     }
 };
 
