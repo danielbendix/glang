@@ -76,6 +76,10 @@ namespace AST {
                     return subclass().visitForStatement(*static_cast<ForStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_Return:
                     return subclass().visitReturnStatement(*static_cast<ReturnStatement *>(&statement), std::forward<Args>(args)...);
+                case NK_Stmt_Break:
+                    return subclass().visitBreakStatement(*static_cast<BreakStatement *>(&statement), std::forward<Args>(args)...);
+                case NK_Stmt_Continue:
+                    return subclass().visitContinueStatement(*static_cast<ContinueStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_Expression:
                     return subclass().visitExpressionStatement(*static_cast<ExpressionStatement *>(&statement), std::forward<Args>(args)...);
                 default:

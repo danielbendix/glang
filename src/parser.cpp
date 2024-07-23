@@ -292,6 +292,8 @@ unique_ptr<AST::Statement> Parser::statement()
     if (match(TokenType::Return)) return returnStatement();
     if (match(TokenType::While)) return whileStatement();
     if (match(TokenType::Guard)) return guardStatement();
+    if (match(TokenType::Break)) return breakStatement();
+    if (match(TokenType::Continue)) return continueStatement();
     return assignmentOrExpression();
 }
 
@@ -361,6 +363,20 @@ unique_ptr<AST::WhileStatement> Parser::whileStatement()
     auto code = block();
 
     return AST::WhileStatement::create(token, std::move(condition), std::move(code));
+}
+
+unique_ptr<AST::BreakStatement> Parser::breakStatement()
+{
+    auto token = previous;
+    consume(TokenType::Semicolon);
+    return AST::BreakStatement::create(token);
+}
+
+unique_ptr<AST::ContinueStatement> Parser::continueStatement()
+{
+    auto token = previous;
+    consume(TokenType::Semicolon);
+    return AST::ContinueStatement::create(token);
 }
 
 std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)

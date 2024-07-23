@@ -360,6 +360,9 @@ public:
         visitBlock(forStatement.getBlock());
     }
 
+    void visitBreakStatement(AST::BreakStatement&) {}
+    void visitContinueStatement(AST::ContinueStatement&) {}
+
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         ExpressionTypeChecker typeChecker{typeResolver};
         Type *type = typeChecker.typeCheckExpression(expression.getExpression());

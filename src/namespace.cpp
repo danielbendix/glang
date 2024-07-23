@@ -392,6 +392,9 @@ public:
         manager.popInnerScope();
     }
 
+    void visitBreakStatement(AST::BreakStatement&) {}
+    void visitContinueStatement(AST::ContinueStatement&) {}
+
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         expression.getExpression().acceptVisitor(*this);
     }

@@ -223,10 +223,31 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
                             , public AST::StatementVisitorT<FunctionCodeGenerator, void>
                             , public AST::ExpressionVisitorT<FunctionCodeGenerator, llvm::Value *> 
 {
+    struct LoopInfo {
+        llvm::BasicBlock& continueBlock;
+        llvm::BasicBlock& endBlock;
+        LoopInfo *previous = nullptr;
+
+        LoopInfo(llvm::BasicBlock& continueBlock, llvm::BasicBlock& endBlock)
+            : continueBlock{continueBlock}
+            , endBlock{endBlock}
+        {}
+    };
+
     CompilingFunction function;
     AST::FunctionDeclaration *functionDeclaration;
     Result result = OK;
-    bool error = false;
+
+    LoopInfo *currentLoop = nullptr;
+
+    void pushLoop(LoopInfo& loop) {
+        loop.previous = currentLoop;
+        currentLoop = &loop;
+    }
+
+    void popLoop() {
+        currentLoop = currentLoop->previous;
+    }
 public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
     
@@ -282,14 +303,13 @@ public:
         }
     }
 
-    bool startCodeGen(AST::FunctionDeclaration& function) {
+    void startCodeGen(AST::FunctionDeclaration& function) {
         functionDeclaration = &function;
         auto& block = function.getCode();
         for (auto& declaration : block) {
             declaration.acceptVisitor(*this);
         }
         finalize();
-        return error;
     }
 
     // Declaration
@@ -475,9 +495,15 @@ public:
         function.builder.CreateCondBr(condition, &loop, &end);
 
         function.patchOrphanedBlock(loop);
-        visitBlock(whileStatement.getBlock());
 
-        function.builder.CreateBr(&header);
+        LoopInfo loopInfo{header, end};
+        pushLoop(loopInfo);
+        visitBlock(whileStatement.getBlock());
+        popLoop();
+
+        if (!function.currentBlock().getTerminator()) {
+            function.builder.CreateBr(&header);
+        }
 
         function.patchOrphanedBlock(end);
     }
@@ -515,9 +541,19 @@ public:
             function.patchOrphanedBlock(loop);
 
             function.pushAddressBinding(forStatement.getBinding(), currentPointer);
-            visitBlock(forStatement.getBlock());
 
-            auto& latch = function.currentBlock();
+            auto& latch = function.createOrphanedBlock();
+            LoopInfo loopInfo{latch, end};
+            pushLoop(loopInfo);
+            visitBlock(forStatement.getBlock());
+            popLoop();
+
+            if (!function.currentBlock().getTerminator()) {
+                function.builder.CreateBr(&latch);
+            }
+
+            function.patchOrphanedBlock(latch);
+
             auto incrementedPointer = function.builder.CreateConstGEP1_64(elementType, currentPointer, 1);
 
             currentPointer->addIncoming(incrementedPointer, &latch);
@@ -564,9 +600,18 @@ public:
             function.patchOrphanedBlock(loop);
 
             function.pushValueBinding(forStatement.getBinding(), current);
-            visitBlock(forStatement.getBlock());
 
-            auto& latch = function.currentBlock();
+            auto& latch = function.createOrphanedBlock();
+            LoopInfo loopInfo{latch, end};
+            pushLoop(loopInfo);
+            visitBlock(forStatement.getBlock());
+            popLoop();
+
+            if (!function.currentBlock().getTerminator()) {
+                function.builder.CreateBr(&latch);
+            }
+            function.patchOrphanedBlock(latch);
+
             auto incremented = function.builder.CreateAdd(current, function.getIntegerConstant(elementType->bitWidth, 1));
             current->addIncoming(incremented, &latch);
             function.builder.CreateBr(&header);
@@ -575,6 +620,14 @@ public:
         } else {
             llvm_unreachable("[PROGRAMMER ERROR]: Iterating over value that is not array or range.");
         }
+    }
+
+    void visitBreakStatement(AST::BreakStatement&) {
+        function.builder.CreateBr(&currentLoop->endBlock);
+    }
+
+    void visitContinueStatement(AST::ContinueStatement&) {
+        function.builder.CreateBr(&currentLoop->continueBlock);
     }
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
@@ -979,9 +1032,9 @@ public:
     }
 };
 
-bool codeGenFunction(AST::FunctionDeclaration& function, llvm::Function& llvmFunction, Context& context) {
+void codeGenFunction(AST::FunctionDeclaration& function, llvm::Function& llvmFunction, Context& context) {
     FunctionCodeGenerator generator{llvmFunction, context};
-    return generator.startCodeGen(function);
+    generator.startCodeGen(function);
 }
 
 class GlobalCodeGenerator : public AST::DeclarationVisitorT<GlobalCodeGenerator, void> {

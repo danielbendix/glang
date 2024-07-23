@@ -7,20 +7,35 @@
 using Result = PassResult;
 using enum PassResultKind;
 
+enum class ControlFlowEffect {
+    Continues,
+    EndsBlock,
+    EndsFunction,
+};
+
+using enum ControlFlowEffect;
+
+enum class LoopType {
+    None,
+    While,
+    For,
+};
+
 /// Returns true iff the statement as a whole will return on all paths.
-class FunctionBodyAnalyzer : public AST::DeclarationVisitorT<FunctionBodyAnalyzer, bool>,
-                             public AST::StatementVisitorT<FunctionBodyAnalyzer, bool> {
+class FunctionBodyAnalyzer : public AST::DeclarationVisitorT<FunctionBodyAnalyzer, ControlFlowEffect>,
+                             public AST::StatementVisitorT<FunctionBodyAnalyzer, ControlFlowEffect> {
     Result result = OK;
     bool isVoid;
+    LoopType loop = LoopType::None;
 public:
     FunctionBodyAnalyzer() {}
 
     Result analyzeFunction(AST::FunctionDeclaration& function) {
         isVoid = function.getType()->getReturnType()->isVoid();
 
-        bool returns = visitBlock(function.getCode());
+        auto effect = visitBlock(function.getCode());
 
-        if (!isVoid && !returns) {
+        if (!isVoid && effect != EndsFunction) {
             Diagnostic::error(function, "Control reaches end of non-void function.");
             result = ERROR;
         }
@@ -29,87 +44,112 @@ public:
     }
 
     /// Returns true iff the declaration as a whole will return.
-    bool willReturn(AST::Declaration& declaration) {
+    ControlFlowEffect willReturn(AST::Declaration& declaration) {
         return declaration.acceptVisitor(*this);
     }
 
-    bool visitBlock(AST::Block& block) {
+    ControlFlowEffect visitBlock(AST::Block& block) {
         for (int i = 0; i < block.size(); ++i) {
-            if (willReturn(block[i])) {
+            auto effect = block[i].acceptVisitor(*this);
+            if (effect > Continues) {
                 if (i + 1 < block.size()) {
                     Diagnostic::warning(block[i + 1], "Code after [[GET STATEMENT NAME]] will not be executed");
                     block.resize(i + 1);
                 }
-                return true;
+                return effect;
             }
         }
-        return false;
+        return Continues;
     }
 
     // Declarations
 
-    bool visitVariableDeclaration(AST::VariableDeclaration& variable) { return false; }
-    bool visitFunctionDeclaration(AST::FunctionDeclaration& function) { return false; }
-    bool visitStructDeclaration(AST::StructDeclaration& structDeclaration) { return false; }
-    bool visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) { return false; }
-    bool visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return false; }
+    ControlFlowEffect visitVariableDeclaration(AST::VariableDeclaration& variable) { return Continues; }
+    ControlFlowEffect visitFunctionDeclaration(AST::FunctionDeclaration& function) { return Continues; }
+    ControlFlowEffect visitStructDeclaration(AST::StructDeclaration& structDeclaration) { return Continues; }
+    ControlFlowEffect visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) { return Continues; }
+    ControlFlowEffect visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return Continues; }
 
-    bool visitStatementDeclaration(AST::StatementDeclaration& statement) {
+    ControlFlowEffect visitStatementDeclaration(AST::StatementDeclaration& statement) {
         return statement.getStatement().acceptVisitor(*this);
     }
 
     // Statements
 
-    bool visitReturnStatement(AST::ReturnStatement& returnStatement) {
-        return true;
+    ControlFlowEffect visitReturnStatement(AST::ReturnStatement& returnStatement) {
+        return EndsFunction;
     }
 
-    bool visitIfStatement(AST::IfStatement& ifStatement) {
-        bool allReturn = true;
+    ControlFlowEffect visitIfStatement(AST::IfStatement& ifStatement) {
+        auto minEffect = EndsFunction;
 
         for (size_t i = 0; i < ifStatement.getConditionCount(); ++i) {
             auto& branch = ifStatement.getCondition(i);
 
-            bool returns = visitBlock(branch.getBlock());
+            auto effect = visitBlock(branch.getBlock());
 
-            allReturn = allReturn && returns;
+            minEffect = std::min(minEffect, effect);
         }
         if (auto *fallback = ifStatement.getFallback()) {
-            bool returns = visitBlock(*fallback);
+            auto effect = visitBlock(*fallback);
 
-            allReturn = allReturn && returns;
+            minEffect = std::min(minEffect, effect);
         } else {
-            allReturn = false;
+            minEffect = Continues;
         }
 
-        return allReturn;
+        return minEffect;
     }
 
-    bool visitGuardStatement(AST::GuardStatement& guardStatement) {
-        bool returns = visitBlock(guardStatement.getBlock());
+    ControlFlowEffect visitGuardStatement(AST::GuardStatement& guardStatement) {
+        auto effect = visitBlock(guardStatement.getBlock());
 
-        if (!returns) {
+        if (effect != EndsFunction) {
             Diagnostic::error(guardStatement, "Guard statement body must return.");
             result = ERROR;
         }
 
-        return false;
+        return Continues;
     }
 
-    bool visitWhileStatement(AST::WhileStatement& whileStatement) {
+    ControlFlowEffect visitWhileStatement(AST::WhileStatement& whileStatement) {
+        auto savedLoop = loop;
+        loop = LoopType::While;
         // TODO: This can be evaluated differently if condition is the literal 'true'
         visitBlock(whileStatement.getBlock());
-        return false;
+        loop = savedLoop;
+        return Continues;
     }
 
-    bool visitForStatement(AST::ForStatement& forStatement) { 
+    ControlFlowEffect visitForStatement(AST::ForStatement& forStatement) { 
+        auto savedLoop = loop;
+        loop = LoopType::For;
         visitBlock(forStatement.getBlock());
-        return false;
+        loop = savedLoop;
+        return Continues;
     }
 
-    bool visitAssignmentStatement(AST::AssignmentStatement& assignment) { return false; }
-    bool visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) { return false; }
-    bool visitExpressionStatement(AST::ExpressionStatement& expression) { return false; }
+    ControlFlowEffect visitBreakStatement(AST::BreakStatement& breakStatement) {
+        if (loop == LoopType::None) {
+            Diagnostic::error(breakStatement, "'break' statement not in loop.");
+            result |= ERROR;
+            return Continues;
+        }
+        return EndsBlock;
+    }
+
+    ControlFlowEffect visitContinueStatement(AST::ContinueStatement& continueStatement) {
+        if (loop == LoopType::None) {
+            Diagnostic::error(continueStatement, "'continue' statement not in loop.");
+            result |= ERROR;
+            return Continues;
+        }
+        return EndsBlock;
+    }
+    
+    ControlFlowEffect visitAssignmentStatement(AST::AssignmentStatement& assignment) { return Continues; }
+    ControlFlowEffect visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) { return Continues; }
+    ControlFlowEffect visitExpressionStatement(AST::ExpressionStatement& expression) { return Continues; }
 
 };
 

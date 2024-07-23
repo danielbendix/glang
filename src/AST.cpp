@@ -33,6 +33,10 @@ namespace AST {
                 return delete static_cast<WhileStatement *>(node);
             case NK_Stmt_Return:
                 return delete static_cast<ReturnStatement *>(node);
+            case NK_Stmt_Break:
+                return delete static_cast<BreakStatement *>(node);
+            case NK_Stmt_Continue:
+                return delete static_cast<ContinueStatement *>(node);
             case NK_Stmt_Expression:
                 return delete static_cast<ExpressionStatement *>(node);
 
@@ -284,6 +288,16 @@ namespace AST {
         code.print(pc);
         pc.startLine();
         pc << "}\n";
+    }
+
+    void BreakStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "break;\n";
+    }
+
+    void ContinueStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "continue;\n";
     }
 
     void ExpressionStatement::print(PrintContext& pc) const {

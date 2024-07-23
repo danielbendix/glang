@@ -114,6 +114,10 @@ public:
     [[nodiscard]]
     unique_ptr<AST::WhileStatement> whileStatement();
     [[nodiscard]]
+    unique_ptr<AST::BreakStatement> breakStatement();
+    [[nodiscard]]
+    unique_ptr<AST::ContinueStatement> continueStatement();
+    [[nodiscard]]
     unique_ptr<AST::Statement> assignmentOrExpression();
 
     // Expression

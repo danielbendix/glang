@@ -76,6 +76,8 @@ namespace AST {
             NK_Stmt_Return,
             NK_Stmt_While,
             NK_Stmt_For,
+            NK_Stmt_Break,
+            NK_Stmt_Continue,
             NK_Stmt_Expression,
 
             // Expression
@@ -1171,6 +1173,38 @@ namespace AST {
 
         const Block& getBlock() const {
             return code;
+        }
+    };
+
+    class BreakStatement : public Statement {
+    protected:
+        BreakStatement(Token token) : Statement{NK_Stmt_Break, token} {}
+
+        virtual void print(PrintContext& pc) const override;
+
+    public:
+        static unique_ptr<BreakStatement> create(Token token) {
+            return unique_ptr<BreakStatement>{new BreakStatement(token)};
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Stmt_Break;
+        }
+    };
+
+    class ContinueStatement : public Statement {
+    protected:
+        ContinueStatement(Token token) : Statement{NK_Stmt_Continue, token} {}
+
+        virtual void print(PrintContext& pc) const override;
+
+    public:
+        static unique_ptr<ContinueStatement> create(Token token) {
+            return unique_ptr<ContinueStatement>{new ContinueStatement(token)};
+        }
+
+        static bool classof(const Node *node) {
+            return node->getKind() == NK_Stmt_Continue;
         }
     };
 

@@ -1,4 +1,4 @@
-fn ifChain(n: int) -> int64 {
+fn ifChain(n: i64) -> i64 {
     if (n == 0) {
         return 1;
     } else if n == 1 {
@@ -7,10 +7,12 @@ fn ifChain(n: int) -> int64 {
         return 4;
     } else if n == 3 {
         return 8;
+    } else {
+        return 16;
     }
 }
 
-fn sign(n: int) -> int64 {
+fn sign(n: i64) -> i64 {
     if n > 0 {
         return 1;
     } else if n < 0 {

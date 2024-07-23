@@ -78,6 +78,7 @@ enum class TokenType : uint8_t {
     Where,
     Repeat,
     Break,
+    Continue,
     Return,
 
     LastKeyWord = Return,
