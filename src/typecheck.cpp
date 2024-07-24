@@ -1,5 +1,6 @@
 #include "AST.h"
 #include "AST_Visitor.h"
+#include "builtins.h"
 #include "diagnostic.h"
 #include "typecheck.h"
 #include "typecheck/coerce.h"
@@ -17,18 +18,7 @@
 using enum PassResultKind;
 using Result = PassResult;
 
-using llvm::dyn_cast;
-using llvm::isa;
 using llvm::TypeSwitch;
-
-VoidType _void_;
-BooleanType _boolean;
-IntegerType _signed64{64, true};
-
-VoidType *void_ = &_void_;
-BooleanType *boolean = &_boolean;
-IntegerType *signed64 = &_signed64;
-
 
 class GlobalDeclarationTypeChecker {
     ModuleDef& moduleDefinition;
@@ -36,7 +26,10 @@ class GlobalDeclarationTypeChecker {
     // TODO: Add check stack here, to support recursive checking.
 
 public:
-    GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : moduleDefinition{moduleDefinition}, typeResolver{moduleDefinition, builtins} {}
+    GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins) 
+        : moduleDefinition{moduleDefinition}
+        , typeResolver{moduleDefinition, builtins} 
+    {}
 
     Result typeCheckGlobal(AST::VariableDeclaration& variable) {
         Type *declaredType = nullptr;
@@ -72,7 +65,7 @@ public:
                 // TODO: Emit error
             }
         } else {
-            returnType = void_;
+            returnType = typeResolver.voidType();
         }
 
         std::vector<Type *> parameterTypes;
@@ -89,7 +82,7 @@ public:
             parameterTypes.push_back(type);
         }
         if (result.ok()) {
-            auto* functionType = new FunctionType{returnType, std::move(parameterTypes)};
+            auto *functionType = new FunctionType{returnType, std::move(parameterTypes)};
             function.setType(*functionType);
         }
         return result;
@@ -109,7 +102,9 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
     }
 
 public:
-    FunctionTypeChecker(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : typeResolver{moduleDefinition, builtins} {}
+    FunctionTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins) 
+        : typeResolver{moduleDefinition, builtins} 
+    {}
 
     Result typeCheckFunctionBody(AST::FunctionDeclaration& function) {
         result = OK;
@@ -256,10 +251,10 @@ public:
         ExpressionTypeChecker typeChecker{typeResolver};
         for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
             auto& branch = ifStatement.getCondition(ci);
-            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), boolean);
+            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), typeResolver.booleanType());
             if (!type) {
                 result = ERROR;
-            } else if (type != boolean) {
+            } else if (type != typeResolver.booleanType()) {
                 Diagnostic::error(branch.getCondition(), "Condition in if statement is not a boolean");
                 result = ERROR;
             }
@@ -273,10 +268,10 @@ public:
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
         ExpressionTypeChecker typeChecker{typeResolver};
 
-        Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), boolean);
+        Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), typeResolver.booleanType());
         if (!type) {
             result = ERROR;
-        } else if (type != boolean) {
+        } else if (type != typeResolver.booleanType()) {
             Diagnostic::error(guardStatement.getCondition(), "Condition in if statement is not a boolean");
             result = ERROR;
         }
@@ -286,7 +281,7 @@ public:
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         Type *returnType = currentFunction->getReturnType();
         if (auto* value = returnStatement.getValue()) {
-            if (returnType == void_) {
+            if (returnType == typeResolver.voidType()) {
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
             }
@@ -307,7 +302,7 @@ public:
                 result |= coerceResult;
             }
         } else {
-            if (currentFunction->getReturnType() != void_) {
+            if (currentFunction->getReturnType() != typeResolver.voidType()) {
                 Diagnostic::error(returnStatement, "No return value in function with non-void return type.");
                 result = ERROR;
             }
@@ -316,7 +311,7 @@ public:
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
         ExpressionTypeChecker typeChecker{typeResolver};
-        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), boolean);
+        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), typeResolver.booleanType());
         if (!type) {
             result = ERROR;
         }
@@ -368,7 +363,7 @@ public:
         Type *type = typeChecker.typeCheckExpression(expression.getExpression());
         if (!type) {
             result = ERROR;
-        } else if (type != void_) {
+        } else if (type != typeResolver.voidType()) {
             Diagnostic::warning(expression, "Discarding non-void result");
         }
     }
@@ -386,12 +381,9 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 {
     PassResult result = OK;
 
-    StringMap<Type *> builtins;
     std::vector<Type *> _owner;
 
     TypeResolver resolver{moduleDefinition, builtins};
-
-    createNumericTypes(builtins, _owner);
 
     result |= populateEnumCases(moduleDefinition.enums, resolver);
 

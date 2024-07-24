@@ -105,58 +105,6 @@ void Type::deleteValue(Type *type) {
     }
 }
 
-void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
-{
-    Type *booleanType = new BooleanType;
-    table.insert("bool", booleanType);
-    owner.push_back(booleanType);
-
-    Type *f32Type = new FPType{FPType::Precision::Single};
-    table.insert("f32", f32Type);
-    owner.push_back(f32Type);
-
-    Type *f64Type = new FPType{FPType::Precision::Double};
-    table.insert("f64", f64Type);
-    owner.push_back(f64Type);
-
-    // TODO: Add [ui]size, [ui]ptr
-    
-
-#define INT_TYPE(bits) { \
-    Type *type = new IntegerType{bits, true}; \
-    table.insert("i" #bits, type); \
-    table.insert("int" #bits, type); \
-    owner.push_back(type); }
-    INT_TYPE(8);
-    INT_TYPE(16);
-    INT_TYPE(32);
-    INT_TYPE(64);
-#undef INT_TYPE
-
-#define UINT_TYPE(bits) { \
-    Type *type = new IntegerType{bits, false}; \
-    table.insert("u" #bits, type); \
-    table.insert("uint" #bits, type); \
-    owner.push_back(type); }
-    UINT_TYPE(8);
-    UINT_TYPE(16);
-    UINT_TYPE(32);
-    UINT_TYPE(64);
-#undef INT_TYPE
-}
-
-void createStringType(StringMap<Type *>& table)
-{
-    
-
-}
-
-void createPrimitiveTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
-{
-    createNumericTypes(table, owner);
-    createStringType(table);
-}
-
 PointerType *Type::_getPointerType() {
     PointerType *pointerType = new PointerType(this);
     return pointerType;

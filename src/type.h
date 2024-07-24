@@ -332,6 +332,4 @@ public:
     }
 };
 
-void createNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner);
-
 #endif // LANG_type_h

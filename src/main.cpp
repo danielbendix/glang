@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "AST.h"
+#include "builtins.h"
 #include "diagnostic.h"
 #include "scanner.h"
 #include "parser.h"
@@ -10,7 +11,10 @@
 #include "codegen.h"
 #include "control.h"
 
-#include "llvm/ADT/APInt.h"
+void initialize()
+{
+    setupBuiltins();
+}
 
 void compile(std::string&& string)
 {
@@ -56,6 +60,8 @@ void compile(std::string&& string)
 
 int main(int argc, char **argv)
 {
+    initialize();
+
     std::string filename;
     if (argc <= 1) {
         std::cout << "No input file specified. Exiting." << std::endl;

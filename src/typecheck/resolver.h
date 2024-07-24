@@ -3,22 +3,24 @@
 
 #include "typecheck.h"
 
+#include "builtins.h"
+
 class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
     ModuleDef& moduleDefinition;
-    StringMap<Type *>& builtins;
+    const Builtins& builtins;
 
 private:
     Type *resolveType(const std::string& name) {
         if (auto type = moduleDefinition.types.lookup(name)) {
             return *type;
-        } else if (auto builtin = builtins.lookup(name)) {
+        } else if (auto builtin = builtins.types.lookup(name)) {
             return *builtin;
         }
         return nullptr;
     }
 
 public:
-    TypeResolver(ModuleDef& moduleDefinition, StringMap<Type *>& builtins) : moduleDefinition{moduleDefinition}, builtins{builtins} {};
+    TypeResolver(ModuleDef& moduleDefinition, const Builtins& builtins) : moduleDefinition{moduleDefinition}, builtins{builtins} {};
 
     Type *resolveType(AST::Identifier& identifier) {
         if (auto type = resolveType(identifier.getName())) {
@@ -79,6 +81,22 @@ public:
             }
         }
         return type;
+    }
+
+    VoidType *voidType() const {
+        return builtins.voidType;
+    }
+
+    BooleanType *booleanType() const {
+        return builtins.booleanType;
+    }
+
+    IntegerType *defaultIntegerType() const {
+        return builtins.defaultIntegerType;
+    }
+
+    FPType *defaultFPType() const {
+        return builtins.defaultFPType;
     }
 };
 

@@ -21,11 +21,11 @@ public:
         return *this;
     }
 
-    T operator[](const std::string& key) {
+    T operator[](const std::string& key) const {
         return internal.at(key);
     }
 
-    std::optional<T> lookup(const std::string& key) {
+    std::optional<T> lookup(const std::string& key) const {
         auto it = internal.find(key);
 
         if (it == internal.end()) {
@@ -34,18 +34,16 @@ public:
         return it->second;
     }
 
+    bool containsKey(const std::string& key) const {
+        auto it = internal.find(key);
+
+        return it != internal.end();
+    }
+
     bool insert(const std::string& key, T value) {
         auto it = internal.insert(std::make_pair(key, value));
         return it.second;
     }
-
-    template <typename P = T, typename V = std::remove_pointer<P>::type>
-        requires Pointer<P>
-    bool insert(const std::string& key, V& reference) {
-        return insert(key, &reference);
-    }
-
-    // TODO: Make iterable
 };
 
 #endif // LANG_containers_string_map

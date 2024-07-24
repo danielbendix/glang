@@ -14,6 +14,7 @@ add_executable(glang
     typeconstraint.cpp
     typecheck.cpp
     diagnostic.cpp
+    builtins.cpp
 )
 
 add_subdirectory(namespace)

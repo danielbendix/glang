@@ -368,9 +368,9 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
     // TODO: Validate against declaration type.
     switch (literal.getLiteralType()) {
         case Boolean:
-            literal.setType(boolean);
-            return boolean;
-        case Integer:
+            literal.setType(typeResolver.booleanType());
+            return typeResolver.booleanType();
+        case Integer: {
             // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
             if (propagatedType) {
                 if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
@@ -394,10 +394,11 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             } else {
                 return TypeConstraint::Numeric;
             }
-            // FIXME: Check declared integer type
-            // Can be converted to smaller integer types or a floating point value.
-            literal.setType(signed64);
-            return signed64;
+            // TODO: check if value is larger than 32 bit int, then set to i64.
+            auto defaultIntegerType = typeResolver.defaultIntegerType();
+            literal.setType(defaultIntegerType);
+            return defaultIntegerType;
+        }
         case Double:
             if (propagatedType) {
                 if (auto fpType = dyn_cast<FPType>(propagatedType)) {

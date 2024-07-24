@@ -29,7 +29,7 @@ public:
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
         }
-        declarations.insert(name, declaration);
+        declarations.insert(name, &declaration);
         return OK;
     }
 
@@ -38,7 +38,7 @@ public:
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
         }
-        declarations.insert(name, declaration);
+        declarations.insert(name, &declaration);
         return OK;
     }
 
@@ -48,7 +48,7 @@ public:
             return ERROR;
         }
         names.types.insert(name, &type);
-        declarations.insert(name, declaration);
+        declarations.insert(name, &declaration);
         return OK;
     }
 
@@ -56,7 +56,7 @@ public:
         Result result = OK;
         result |= addGlobal(name, *variable);
         // TODO: Create an ambiguous value
-        assert(names.definitions.insert(name, *variable));
+        assert(names.definitions.insert(name, variable.get()));
         names._globals.push_back(std::move(variable));
         return result;
     }
@@ -65,7 +65,7 @@ public:
         Result result = OK;
         result |= addFunction(name, *function);
         // TODO: Create an ambiguous value
-        assert(names.definitions.insert(name, *function));
+        assert(names.definitions.insert(name, function.get()));
         names._functions.push_back(std::move(function));
         return result;
     }

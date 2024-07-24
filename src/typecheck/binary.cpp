@@ -13,11 +13,11 @@ using llvm::TypeSwitch;
 
 Type *ExpressionTypeChecker::typeCheckLogicalOperator(AST::BinaryExpression& binary, Type *left, Type *right) {
     bool error = false;
-    if (!isa<BooleanType>(left)) {
+    if (left != typeResolver.booleanType()) {
         Diagnostic::error(binary.getLeft(), "Non-boolean type in logical operator.");
         error = true;
     }
-    if (!isa<BooleanType>(right)) {
+    if (right != typeResolver.booleanType()) {
         Diagnostic::error(binary.getRight(), "Non-boolean type in logical operator.");
         error = true;
     }
@@ -53,7 +53,6 @@ Type *ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& binary, 
     }
 
     llvm_unreachable("TODO: Implement safe numeric coercion.");
-
 
     // FIXME
     if (left != signed64) {
@@ -97,14 +96,15 @@ Type *ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary, Typ
 
 Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right) {
     if (left == right) {
+        auto boolean = typeResolver.booleanType();
         return TypeSwitch<Type *, Type *>(left)
-            .Case([](IntegerType *_) {
+            .Case([boolean](IntegerType *_) {
                 return boolean;
             })
-            .Case([](FPType *_) {
+            .Case([boolean](FPType *_) {
                 return boolean;
             })
-            .Case([](BooleanType *_) {
+            .Case([boolean](BooleanType *_) {
                 return boolean;
             })
             .Default([](Type *type) -> Type * {
@@ -119,14 +119,15 @@ Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary, Ty
 
 Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right) {
     if (left == right) {
+        auto boolean = typeResolver.booleanType();
         return TypeSwitch<Type *, Type *>(left)
-            .Case([](IntegerType *_) {
+            .Case([boolean](IntegerType *_) {
                 return boolean;
             })
-            .Case([](FPType *_) {
+            .Case([boolean](FPType *_) {
                 return boolean;
             })
-            .Case([](BooleanType *_) {
+            .Case([boolean](BooleanType *_) {
                 return boolean;
             })
             .Default([](Type *type) -> Type * {

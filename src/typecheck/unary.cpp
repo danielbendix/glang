@@ -6,6 +6,7 @@
 using llvm::dyn_cast;
 
 Type *ExpressionTypeChecker::typeCheckBooleanNegationOperator(AST::UnaryExpression& unary) {
+    auto boolean = typeResolver.booleanType();
     auto target = typeCheckExpression(unary.getTarget(), boolean);
     if (!target) {
         return {};
