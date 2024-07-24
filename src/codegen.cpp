@@ -691,7 +691,10 @@ public:
                     return llvm::Constant::getNullValue(function.getLLVMType(optionalType));
                 } else {
                     auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
-                    return llvm::ConstantStruct::get(structType, {function.getIntegerConstant(1, 0), llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))});
+                    return llvm::ConstantStruct::get(structType, {
+                        function.getIntegerConstant(1, 0), 
+                        llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))
+                    });
                 }
             }
             case String: assert(false);
@@ -765,12 +768,67 @@ public:
         return nullptr;
     }
 
+    llvm::Value *codegenLogicalOperator(AST::BinaryExpression& binary) {
+        using enum AST::BinaryOperator;
+        auto booleanType = function.getLLVMType(binary.getType());
+        switch (binary.getOp()) {
+            case LogicalAnd: {
+                auto left = binary.getLeft().acceptVisitor(*this);
+                auto& leftExit = function.currentBlock();
+
+                auto& rightEntry = function.createOrphanedBlock();
+                auto& endBlock = function.createOrphanedBlock();
+
+                function.builder.CreateCondBr(left, &rightEntry, &endBlock);
+
+                function.patchOrphanedBlock(rightEntry);
+                auto right = binary.getRight().acceptVisitor(*this);
+                auto& rightExit = function.currentBlock();
+                function.builder.CreateBr(&endBlock);
+
+                function.patchOrphanedBlock(endBlock);
+                auto phi = function.builder.CreatePHI(booleanType, 2);
+                phi->addIncoming(function.getIntegerConstant(1, false), &leftExit);
+                phi->addIncoming(right, &rightExit);
+                
+                return phi;
+            }
+            case LogicalOr: {
+                auto left = binary.getLeft().acceptVisitor(*this);
+                auto& leftExit = function.currentBlock();
+
+                auto& rightEntry = function.createOrphanedBlock();
+                auto& endBlock = function.createOrphanedBlock();
+
+                function.builder.CreateCondBr(left, &endBlock, &rightEntry);
+
+                function.patchOrphanedBlock(rightEntry);
+                auto right = binary.getRight().acceptVisitor(*this);
+                auto& rightExit = function.currentBlock();
+                function.builder.CreateBr(&endBlock);
+
+                function.patchOrphanedBlock(endBlock);
+                auto phi = function.builder.CreatePHI(booleanType, 2);
+                phi->addIncoming(function.getIntegerConstant(1, true), &leftExit);
+                phi->addIncoming(right, &rightExit);
+
+                return phi;
+            }
+            default: llvm_unreachable("[PROGRAMMER ERROR]");
+        }
+
+    }
+
     llvm::Value *visitBinaryExpression(AST::BinaryExpression& binary) {
+        using enum AST::BinaryOperator;
+        if (binary.getOp() == LogicalAnd || binary.getOp() == LogicalOr) {
+            return codegenLogicalOperator(binary);
+        }
+
         auto left = binary.getLeft().acceptVisitor(*this);
         auto right = binary.getRight().acceptVisitor(*this);
 
         // TODO: Support FP math
-        using enum AST::BinaryOperator;
         switch (binary.getOp()) {
             case Add: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
                 .Case([&](IntegerType *_) {
@@ -931,8 +989,8 @@ public:
                 return insertEnd;
             }
 
-            case LogicalAnd: assert(false);
-            case LogicalOr: assert(false);
+            case LogicalAnd: llvm_unreachable("[PRORAMMER EROR]");
+            case LogicalOr: llvm_unreachable("[PRORAMMER EROR]");
         }
 
         assert(false);

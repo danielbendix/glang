@@ -428,6 +428,7 @@ enum class Precedence {
     None,
     LogicalOr,      // or
     LogicalAnd,     // and
+    LogicalNot,     // not
     Equality,       // == !=
     Comparison,     // < > <= >=
     Shift,          // << >>
@@ -692,14 +693,14 @@ unique_ptr<AST::Expression> Parser::literal()
     return nullptr;
 }
 
-AST::UnaryOperator unaryOperator(TokenType type)
+std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type)
 {
     switch (type) {
-        case TokenType::Not: return AST::UnaryOperator::Not;
-        case TokenType::Minus: return AST::UnaryOperator::Negate;
-        case TokenType::Tilde: return AST::UnaryOperator::BitwiseNegate;
-        case TokenType::Ampersand: return AST::UnaryOperator::AddressOf;
-        case TokenType::Star: return AST::UnaryOperator::Dereference;
+        case TokenType::Not: return {AST::UnaryOperator::Not, Precedence::LogicalNot};
+        case TokenType::Minus: return {AST::UnaryOperator::Negate, Precedence::Unary};
+        case TokenType::Tilde: return {AST::UnaryOperator::BitwiseNegate, Precedence::Unary};
+        case TokenType::Ampersand: return {AST::UnaryOperator::AddressOf, Precedence::Unary};
+        case TokenType::Star: return {AST::UnaryOperator::Dereference, Precedence::Unary};
         default: llvm_unreachable("Token type is not a unary operator");
     }
 }
@@ -707,9 +708,9 @@ AST::UnaryOperator unaryOperator(TokenType type)
 unique_ptr<AST::Expression> Parser::unary()
 {
     auto token = previous;
-    AST::UnaryOperator op = unaryOperator(previous.type);
+    auto [op, precedence] = unaryOperator(previous.type);
 
-    auto target = parseExpression(Precedence::Unary);
+    auto target = parseExpression(precedence);
 
     return AST::UnaryExpression::create(token, op, std::move(target));
 }
@@ -800,7 +801,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Less)]                  = {NULL,                         &Parser::binary,    Precedence::Comparison},
     [static_cast<int>(LessEqual)]             = {NULL,                         &Parser::binary,    Precedence::Comparison},
 
-    [static_cast<int>(Not)]                   = {&Parser::unary,               NULL,               Precedence::Comparison},
+    [static_cast<int>(Not)]                   = {&Parser::unary,               NULL,               Precedence::None},
 
     [static_cast<int>(String)]                = {&Parser::literal,             NULL,               Precedence::None},
     [static_cast<int>(Integer)]               = {&Parser::literal,             NULL,               Precedence::None},
