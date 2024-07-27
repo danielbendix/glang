@@ -28,6 +28,12 @@ fn sum2(numbers: i64[!], n: i64) -> i64 {
     return sum;
 }
 
+fn add2(numbers: i64[]) -> i64 {
+    let i0: i32 = 0;
+    let i1: i32 = 1;
+    return numbers[i0] * numbers[i1];
+}
+
 fn main() -> i64 {
     //let a = 100;
     var a: i64 = 100;

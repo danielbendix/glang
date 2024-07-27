@@ -92,6 +92,7 @@ class CompilingFunction {
     llvm::IRBuilder<> allocaBuilder;
 
     std::vector<Local> locals;
+    std::vector<llvm::BasicBlock *> trapBlocks;
     int currentScope = 1;
 public:
 
@@ -136,7 +137,6 @@ public:
 
     void pushAddressBinding(AST::Binding& binding, llvm::Value *address) {
         locals.push_back(Local{&binding, {address, 0}, currentScope});
-
     }
 
     llvm::AllocaInst& addVariable(AST::Binding& binding) {
@@ -198,6 +198,21 @@ public:
 
     llvm::BasicBlock& currentBlock() {
         return *builder.GetInsertBlock();
+    }
+
+    llvm::BasicBlock& createTrapBlock() {
+        auto& block = createOrphanedBlock();
+        trapBlocks.push_back(&block);
+        return block;
+    }
+
+    void patchTrapBlocks() {
+        for (auto trapBlock : trapBlocks) {
+            patchOrphanedBlock(*trapBlock);
+            llvm::Function *trap = llvm::Intrinsic::getDeclaration(&context.llvmModule, llvm::Intrinsic::trap);
+            builder.CreateCall(trap);
+            builder.CreateUnreachable();
+        }
     }
 
     llvm::Type *getLLVMType(Type *type) {
@@ -301,6 +316,7 @@ public:
             function.builder.CreateRetVoid();
             // TODO: Assert that function returns void.
         }
+        function.patchTrapBlocks();
     }
 
     void startCodeGen(AST::FunctionDeclaration& function) {
@@ -828,7 +844,6 @@ public:
         auto left = binary.getLeft().acceptVisitor(*this);
         auto right = binary.getRight().acceptVisitor(*this);
 
-        // TODO: Support FP math
         switch (binary.getOp()) {
             case Add: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
                 .Case([&](IntegerType *_) {
@@ -1022,7 +1037,37 @@ public:
         auto base = function.builder.CreateExtractValue(target, {0});
 
         if (arrayType.isBounded) {
+            auto integerType = cast<IntegerType>(subscript.getIndex().getType());
+
+            auto& trapBlock = function.createTrapBlock();
+
+            if (integerType->isSigned) {
+                auto cond = function.builder.CreateICmpSGE(index, function.getIntegerConstant(integerType->bitWidth, 0));
+                auto& next = function.createOrphanedBlock();
+                function.builder.CreateCondBr(cond, &next, &trapBlock);
+                function.patchOrphanedBlock(next);
+            }
+
+            // The index value can now be treated as unsigned.
+            
             // TODO: Allow boundary checking to be toggled.
+            // TODO: We need to have a default index type, usize.
+            // For 32 bit, we might need to zext the length to 64 bit, if the index is 64 bit.
+
+            if (integerType->bitWidth < 64) {
+                // FIXME: get integer type properly.
+                index = function.builder.CreateZExt(index, function.getIntegerConstant(64, 0)->getIntegerType());
+            }
+
+            auto& next = function.createOrphanedBlock();
+            auto count = function.builder.CreateExtractValue(target, {1});
+            auto cond = function.builder.CreateICmpULT(index, count);
+            function.builder.CreateCondBr(cond, &next, &trapBlock);
+            function.patchOrphanedBlock(next);
+
+            auto address = function.builder.CreateGEP(elementType, base, {index});
+            return function.builder.CreateLoad(elementType, address);
+
             auto size = function.builder.CreateExtractValue(target, {1});
 
             assert(false && "TODO: Implement array bounds checking.");
