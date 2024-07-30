@@ -15,6 +15,11 @@
 using llvm::PointerUnion;
 
 class StructType : public Type {
+
+    bool test() {
+        return true;
+    }
+
     using Property = PointerUnion<AST::VariableDeclaration *, AST::FunctionDeclaration *>;
 
     bool wellFormed;

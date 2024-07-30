@@ -1655,7 +1655,7 @@ namespace AST {
         }
 
         void printInteger(const llvm::APInt& integer, unsigned base) {
-            llvm::SmallVector<char, 20> string;
+            llvm::SmallVector<char, 32> string;
             integer.toString(string, base, false);
             os << std::string_view{string.data(), string.data() + string.size()};
         }

@@ -10,6 +10,10 @@ TypeConstraint *TypeConstraint::Floating = &_Floating;
 TypeConstraint _Numeric = TypeConstraint(TypeConstraintKind::Numeric);
 TypeConstraint *TypeConstraint::Numeric = &_Numeric;
 
+bool isIntegralConstraint(TypeConstraint *constraint) {
+    return constraint->getKind() == TypeConstraintKind::Numeric;
+}
+
 bool isNumericConstraint(TypeConstraint *constraint) {
     switch (constraint->getKind()) {
         case TypeConstraintKind::Numeric:

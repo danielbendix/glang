@@ -26,6 +26,7 @@ public:
     static TypeConstraint *Floating;
 };
 
+bool isIntegralConstraint(TypeConstraint *constraint);
 bool isNumericConstraint(TypeConstraint *constraint);
 
 #endif // LANG_typeconstraint_h

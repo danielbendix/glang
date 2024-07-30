@@ -1208,8 +1208,6 @@ std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
 
     performCodegen(context);
 
-    llvm::outs() << *module;
-
     if (llvm::verifyModule(*module, &llvm::outs())) {
         module.reset();
         return module;

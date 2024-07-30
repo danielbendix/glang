@@ -15,6 +15,7 @@ add_executable(glang
     typecheck.cpp
     diagnostic.cpp
     builtins.cpp
+    cli.cpp
 )
 
 add_subdirectory(namespace)
