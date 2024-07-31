@@ -5,7 +5,6 @@
 #include <filesystem>
 
 struct Validate {
-    bool json = false;
 };
 
 struct Codegen {
@@ -15,6 +14,7 @@ struct Codegen {
 
 /// General-purpose flags
 struct Flags {
+    bool json = false;
     bool verbose = false;
 };
 

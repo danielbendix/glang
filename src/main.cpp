@@ -22,19 +22,12 @@ ParsedFile parse(std::string&& string) {
         auto parser = Parser{std::move(string)};
         return parser.parse();
     } catch (ParserException exception) {
-        std::cout << "EXCEPTION CAUGHT:\n";
-        std::cout << int(exception.cause) << "\n";
-        std::cout << exception.token.line << ":" << exception.token.column << "\n";
-        std::cout << exception.token.chars << "\n";
+        Diagnostic::writer().error(exception);
         exit(-1);
     }
 }
 
 std::unique_ptr<ModuleDef> validate(ParsedFile&& parsed, bool verbose = false) {
-    IODiagnosticWriter writer{std::cout};
-    Diagnostic::setWriter(writer);
-
-
     auto moduleDef = createModuleDefinition(parsed.declarations);
     if (resolveNamesInModuleDefinition(*moduleDef).failed()) {
         exit(1);
@@ -76,6 +69,16 @@ int main(int argc, char **argv)
     if (file.fail()) {
         std::cout << "File " << filename << " does not exist. Exiting...\n";
         return 1;
+    }
+
+    // TODO: Fix lifetimes here
+    JSONDiagnosticWriter jsonWriter{std::cout};
+    IODiagnosticWriter ioWriter{std::cout};
+
+    if (options.flags.json) {
+        Diagnostic::setWriter(jsonWriter);
+    } else {
+        Diagnostic::setWriter(ioWriter);
     }
 
     std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());

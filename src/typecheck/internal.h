@@ -48,7 +48,7 @@ public:
     }
 
     operator Type*() const {
-        return llvm::dyn_cast<Type *>(pointer);
+        return llvm::dyn_cast_or_null<Type *>(pointer);
     }
 
     TypeConstraint *constraint() const {

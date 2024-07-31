@@ -49,6 +49,27 @@ public:
     Cause cause;
     Token token;
 
+    std::string description() const {
+        switch (cause) {
+        case ParserException::Cause::ExpectedExpression:
+            return "Expected expression.";
+        case ParserException::Cause::ExpectedFunctionName:
+            return "Expected function name.";
+        case ParserException::Cause::ExpectedClassName:
+            return "Expected class name.";
+        case ParserException::Cause::ExpectedLiteral:
+            return "Expected literal.";
+        case ParserException::Cause::InvalidBinaryOperator:
+            return "Invalid binary operator.";
+        case ParserException::Cause::InvalidInteger:
+            return "Invalid integer.";
+        case ParserException::Cause::InvalidFloating:
+            return "Invalid floating-point number.";
+        case ParserException::Cause::InvalidEscapeSequence:
+            return "Invalid escape sequence in string.";
+        }
+    }
+
 public:
     ParserException(Token token, Cause cause) : cause{cause}, token{token}  {}
 };

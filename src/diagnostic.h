@@ -2,11 +2,14 @@
 #define LANG_diagnostic_h
 
 #include "AST.h"
+#include "parser.h"
 
 
 class DiagnosticWriter {
 
 public:
+    virtual void error(ParserException& parserException) = 0;
+
     virtual void error(AST::Node& node, std::string& message) = 0;
 
     virtual void warning(AST::Node& node, std::string& message) = 0;
@@ -14,12 +17,17 @@ public:
     virtual void note(AST::Node& node, std::string& message) = 0;
 };
 
+
 class IODiagnosticWriter : public DiagnosticWriter {
 
     std::ostream& out;
 
 public:
     IODiagnosticWriter(std::ostream& out) : out{out} {}
+
+    virtual void error(ParserException& parserException) override {
+        out << "Parser error: " << AST::Location{parserException.token} << ' ' << parserException.description() << '\n';
+    }
 
     virtual void error(AST::Node& node, std::string& message) override {
         out << "Error: " << node.getLocation() << ' ' << message << "\n";
@@ -34,12 +42,40 @@ public:
     }
 };
 
-class NoopWriter : public DiagnosticWriter {
-    virtual void error(AST::Node& node, std::string& message) override {}
+class JSONDiagnosticWriter : public DiagnosticWriter {
+    std::ostream& out;
+public:
+    JSONDiagnosticWriter(std::ostream& out) : out{out} {}
 
-    virtual void warning(AST::Node& node, std::string& message) override {}
+    void printLocation(const AST::Location& location) {
+        out << R"({"line": )" << location.line << R"(, "column": )" << location.column << R"(, "length": )" << location.length << R"(})";
+    }
 
-    virtual void note(AST::Node& node, std::string& message) override {}
+    virtual void error(ParserException& parserException) override {
+        out << R"({"kind": "error", "message": ")" << parserException.description() << R"(", "location": )";
+        auto location = AST::Location(parserException.token);
+        printLocation(location);
+        out << R"(})" << '\n';
+    }
+
+    virtual void error(AST::Node& node, std::string& message) override {
+        out << R"({"kind": "error", "message": ")" << message << R"(", "location": )";
+        printLocation(node.getLocation());
+        out << R"(})" << '\n';
+    }
+
+    virtual void warning(AST::Node& node, std::string& message) override {
+        out << R"({"kind": "warning", "message": ")" << message << R"(", "location": )";
+        printLocation(node.getLocation());
+        out << R"(})" << '\n';
+    }
+
+    virtual void note(AST::Node& node, std::string& message) override {
+        out << R"({"kind": "note", "message": ")" << message << R"(", "location": )";
+        printLocation(node.getLocation());
+        out << R"(})" << '\n';
+    }
+
 };
 
 class Diagnostic {

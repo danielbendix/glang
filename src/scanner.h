@@ -41,7 +41,7 @@ private:
 
     void newline() {
         line += 1;
-        column = 0;
+        column = -1;
     }
 
     char peek() {

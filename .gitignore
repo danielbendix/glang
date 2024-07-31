@@ -28,3 +28,6 @@ a.out*
 build/
 
 .cache/
+
+# Python
+**/.venv

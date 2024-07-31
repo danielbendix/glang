@@ -20,7 +20,6 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
     Flags flags;
 
     bool validateOnly = false;
-    bool json = false;
     bool printCode = false;
     bool printIR = false;
 
@@ -36,7 +35,7 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
                 validateOnly = true;
                 break;
             case 1:
-                json = true;
+                flags.json = true;
                 break;
             case 2:
                 printCode = true;
@@ -71,7 +70,7 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
     }
 
     if (validateOnly) {
-        return {Validate{json}, flags, std::move(files)};
+        return {Validate{}, flags, std::move(files)};
     } else {
         return {Codegen{printCode, printIR}, flags, std::move(files)};
     }

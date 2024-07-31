@@ -156,10 +156,15 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
             AST::Expression& argument = call.getArgument(i);
             Type *parameterType = functionType->getParameter(i);
             TypeResult argumentResult = typeCheckExpression(argument, parameterType);
-
-            if (argumentResult.isConstraint()) {
+            
+            if (!argumentResult) {
                 parameterResult |= ERROR;
                 Diagnostic::error(argument, "Unable to determine type of parameter.");
+                continue;
+            }
+            if (argumentResult.isConstraint()) {
+                parameterResult |= ERROR;
+                Diagnostic::error(argument, "Unable to determine type of parameter (is constraint).");
                 continue;
             }
 

@@ -126,6 +126,8 @@ std::pair<Result, unique_ptr_t<AST::Expression>> coerceType(Type& destination, T
     case TK_String:
         assert(false);
     case TK_Pointer:
+        Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to pointer type.");
+        // TODO: We need type names.
         return {ERROR, nullptr}; 
     case TK_Optional: {
         auto& optionalDestination = cast<OptionalType>(destination);
