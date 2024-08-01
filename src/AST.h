@@ -8,6 +8,7 @@
 #include "unique_ref.h"
 #include "type.h"
 
+#include "containers/symbol_table.h"
 #include "containers/small_byte_array.h"
 
 #include <string>
@@ -256,19 +257,22 @@ namespace AST {
 
     class TypeLiteral : public TypeNode {
     protected:
-        std::string identifier;
+        Symbol& name;
 
-        TypeLiteral(Token name) : TypeNode{NK_Type_Literal, Location{name}}, identifier{name.chars} {}
+        TypeLiteral(Token token, Symbol& name) 
+            : TypeNode{NK_Type_Literal, Location{token}}
+            , name{name} 
+        {}
 
         virtual void print(PrintContext& pc) const;
 
     public:
-        static unique_ptr<TypeLiteral> create(Token name) {
-            return unique_ptr<TypeLiteral>(new TypeLiteral(name));
+        static unique_ptr<TypeLiteral> create(Token token, Symbol& name) {
+            return unique_ptr<TypeLiteral>(new TypeLiteral(token, name));
         }
 
-        const std::string& getName() const {
-            return identifier;
+        const Symbol& getName() const {
+            return name;
         }
 
         static bool classof(const Node *node) {
@@ -406,17 +410,17 @@ namespace AST {
     protected:
         std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> resolution = nullptr;
 
-        std::string name;
+        Symbol& name;
 
-        Identifier(Token token) : Expression{NK_Expr_Identifier, token}, name{token.chars} {}
+        Identifier(Token token, Symbol& name) : Expression{NK_Expr_Identifier, token}, name{name} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<Identifier> create(Token token) {
-            return unique_ptr<Identifier>{new Identifier(token)};
+        static unique_ptr<Identifier> create(Token token, Symbol& name) {
+            return unique_ptr<Identifier>{new Identifier(token, name)};
         }
 
-        const std::string& getName() const {
+        const Symbol& getName() const {
             return name;
         }
 
@@ -598,17 +602,17 @@ namespace AST {
 
     class MemberAccessExpression : public Expression {
         unique_ptr<Expression> target;
-        std::string memberName;
+        Symbol& memberName;
         unique_ptr_t<MemberResolution> resolution = nullptr;
 
         virtual void print(PrintContext& pc) const override;
     protected:
-        MemberAccessExpression(Token token, unique_ptr<Expression>&& target, Token member) 
+        MemberAccessExpression(Token token, unique_ptr<Expression>&& target, Symbol& member) 
             : Expression{NK_Expr_Member_Access, token}
             , target{std::move(target)}
-            , memberName{member.chars} {}
+            , memberName{member} {}
     public:
-        static unique_ptr<MemberAccessExpression> create(Token token, unique_ptr<Expression>&& target, Token member) {
+        static unique_ptr<MemberAccessExpression> create(Token token, unique_ptr<Expression>&& target, Symbol& member) {
             return unique_ptr<MemberAccessExpression>{new MemberAccessExpression(token, std::move(target), member)};
         }
 
@@ -616,7 +620,7 @@ namespace AST {
             return *target;
         }
 
-        const std::string& getMemberName() const {
+        const Symbol& getMemberName() const {
             return memberName;
         }
 
@@ -634,21 +638,21 @@ namespace AST {
     };
 
     class InferredMemberAccessExpression : public Expression {
-        std::string memberName;
+        Symbol& memberName;
         unique_ptr_t<MemberResolution> resolution = nullptr;
         Type *inferredTarget = nullptr;
 
         virtual void print(PrintContext& pc) const override;
     protected:
-        InferredMemberAccessExpression(Token token, Token member)
+        InferredMemberAccessExpression(Token token, Symbol& memberName)
             : Expression{NK_Expr_Inferred_Member_Access, token}
-            , memberName{member.chars} {}
+            , memberName{memberName} {}
     public:
-        static unique_ptr<InferredMemberAccessExpression> create(Token token, Token member) {
-            return unique_ptr<InferredMemberAccessExpression>{new InferredMemberAccessExpression(token, member)};
+        static unique_ptr<InferredMemberAccessExpression> create(Token token, Symbol& memberName) {
+            return unique_ptr<InferredMemberAccessExpression>{new InferredMemberAccessExpression(token, memberName)};
         }
 
-        const std::string& getMemberName() const {
+        const Symbol& getMemberName() const {
             return memberName;
         }
 
@@ -845,22 +849,22 @@ namespace AST {
     };
 
     class IdentifierBinding : public Binding {
-        std::string identifier;
+        Symbol& identifier;
         bool isMutable = false;
 
-        IdentifierBinding(Token identifier) 
-            : Binding{NK_Binding_Identifier, identifier}
-            , identifier{identifier.chars} 
+        IdentifierBinding(Token token, Symbol& identifier) 
+            : Binding{NK_Binding_Identifier, token}
+            , identifier{identifier} 
         {}
 
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<IdentifierBinding> create(Token identifier) {
-            return unique_ptr<IdentifierBinding>{new IdentifierBinding(identifier)};
+        static unique_ptr<IdentifierBinding> create(Token token, Symbol& identifier) {
+            return unique_ptr<IdentifierBinding>{new IdentifierBinding(token, identifier)};
         }
 
-        const std::string& getIdentifier() const {
+        const Symbol& getIdentifier() const {
             return identifier;
         }
 
@@ -1331,11 +1335,11 @@ namespace AST {
 
     class FunctionParameter {
     public:
-        std::string name;
+        Symbol& name;
         unique_ptr<TypeNode> typeDeclaration;
         Type *type = nullptr;
         
-        FunctionParameter(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
+        FunctionParameter(Symbol& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
         //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
         //Parameter& operator=(Parameter&& parameter) = default;
     };
@@ -1361,7 +1365,7 @@ namespace AST {
 
     class FunctionDeclaration : public Declaration {
     protected:
-        std::string name;
+        Symbol& name;
         std::vector<FunctionParameter> parameters;
         int arity;
         unique_ptr<TypeNode> returnTypeDeclaration;
@@ -1369,9 +1373,9 @@ namespace AST {
         Type *returnType;
         Block code;
 
-        FunctionDeclaration(Token token, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
+        FunctionDeclaration(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
-            , name{token.chars}
+            , name{name}
             , parameters{std::move(parameters)}
             , arity{int(this->parameters.size())}
             , returnTypeDeclaration{std::move(returnType)}
@@ -1379,11 +1383,11 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<FunctionDeclaration> create(Token token, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
-            return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, std::move(parameters), std::move(returnType), std::move(code))};
+        static unique_ptr<FunctionDeclaration> create(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
+            return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, name, std::move(parameters), std::move(returnType), std::move(code))};
         }
 
-        const std::string& getName() const {
+        const Symbol& getName() const {
             return name;
         }
 
@@ -1429,31 +1433,22 @@ namespace AST {
     };
 
     class StructDeclaration : public Declaration {
-    public:
-        class Field {
-            std::string name;
-            unique_ptr<TypeNode> typeDeclaration;
-            Type *type;
-
-            Field(std::string_view& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
-        };
-
     protected:
-        std::string name;
+        Symbol& name;
         std::vector<unique_ptr<Declaration>> declarations;
 
-        StructDeclaration(Token token, std::string_view& name, std::vector<unique_ptr<Declaration>>&& declarations)
+        StructDeclaration(Token token, Symbol& name, std::vector<unique_ptr<Declaration>>&& declarations)
             : Declaration{NK_Decl_Struct, Location{token}}
             , name{name}
             , declarations{std::move(declarations)} {}
     public:
-        static unique_ptr<StructDeclaration> create(Token token, std::string_view& name, std::vector<unique_ptr<Declaration>>&& declarations) {
+        static unique_ptr<StructDeclaration> create(Token token, Symbol& name, std::vector<unique_ptr<Declaration>>&& declarations) {
             return unique_ptr<StructDeclaration>{new StructDeclaration(token, name, std::move(declarations))};
         }
 
         virtual void print(PrintContext& pc) const override;
 
-        const std::string& getName() const {
+        const Symbol& getName() const {
             return name;
         }
 
@@ -1483,14 +1478,13 @@ namespace AST {
         class Case {
         public:
             class Member {
-                // TODO: Nullable symbol pointer
-                std::string name;
+                Symbol *name;
                 unique_ptr<TypeNode> type;
             public:
-                Member(unique_ptr<TypeNode>&& type) : name{}, type{std::move(type)} {}
-                Member(std::string_view name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+                Member(unique_ptr<TypeNode>&& type) : name{nullptr}, type{std::move(type)} {}
+                Member(Symbol *name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
 
-                const std::string& getName() {
+                const Symbol *getName() {
                     return name;
                 }
 
@@ -1499,17 +1493,17 @@ namespace AST {
                 }
             };
         private:
-            std::string name;
+            Symbol& name;
             std::vector<Member> members;
         public:
-            Case(Token token, Token name) : name{name.chars}, members{} {}
-            Case(Token token, Token name, std::vector<Member>&& members) : name{name.chars}, members{std::move(members)} {}
+            Case(Token token, Symbol& name) : name{name}, members{} {}
+            Case(Token token, Symbol& name, std::vector<Member>&& members) : name{name}, members{std::move(members)} {}
             Case(Case&) = delete;
             Case& operator=(Case&) = delete;
             Case(Case&&) = default;
             Case& operator=(Case&&) = default;
 
-            const std::string& getName() const {
+            const Symbol& getName() const {
                 return name;
             }
 
@@ -1538,12 +1532,12 @@ namespace AST {
             }
         };
     protected:
-        std::string name;
+        Symbol& name;
         unique_ptr<TypeNode> rawType;
         std::vector<Case> cases;
         std::vector<unique_ptr<Declaration>> declarations;
 
-        EnumDeclaration(Token token, std::string_view& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) 
+        EnumDeclaration(Token token, Symbol& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) 
             : Declaration{NK_Decl_Enum, token}
             , name{name}
             , cases{std::move(cases)}
@@ -1552,7 +1546,7 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<EnumDeclaration> create(Token token, std::string_view& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) {
+        static unique_ptr<EnumDeclaration> create(Token token, Symbol& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) {
             return unique_ptr<EnumDeclaration>{new EnumDeclaration{token, name, std::move(rawType), std::move(cases), std::move(declarations)}};
         }
 
@@ -1576,7 +1570,7 @@ namespace AST {
             return const_value_iterator<Case>(cases.cend());
         }
 
-        const std::string& getName() const {
+        const Symbol& getName() const {
             return name;
         }
     };
@@ -1604,11 +1598,13 @@ namespace AST {
 
     class ProtocolDeclaration : public Declaration {
     protected:
-        std::string name;
+        Symbol& name;
+
+        ProtocolDeclaration(Token token, Symbol& name) : Declaration{NK_Decl_Protocol, token}, name{name} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        const std::string& getName() { return name; }
+        const Symbol& getName() { return name; }
     };
 };
 
@@ -1645,6 +1641,11 @@ namespace AST {
 
         PrintContext& operator<<(const char *str) {
             os << str;
+            return *this;
+        }
+
+        PrintContext& operator<<(const Symbol& symbol) {
+            os << symbol.string_view();
             return *this;
         }
 

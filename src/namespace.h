@@ -4,7 +4,7 @@
 #include "AST.h"
 #include "AST_Visitor.h"
 
-#include "containers/string_map.h"
+#include "containers/symbol_map.h"
 #include "diagnostic.h"
 
 #include "type.h"
@@ -15,10 +15,10 @@
 
 struct ModuleDef {
     using Definition = llvm::PointerUnion<AST::FunctionDeclaration *, AST::VariableDeclaration *, Type *>;
-    StringMap<Definition> all;
+    SymbolMap<Definition> all;
 
-    StringMap<AST::Declaration *> definitions;
-    StringMap<Type *> types;
+    SymbolMap<AST::Declaration *> definitions;
+    SymbolMap<Type *> types;
 
     std::vector<unique_ptr_t<StructType>> structs;
     std::vector<unique_ptr_t<EnumType>> enums;

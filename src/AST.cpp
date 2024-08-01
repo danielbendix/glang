@@ -151,7 +151,7 @@ namespace AST {
     }
 
     void TypeLiteral::print(PrintContext& pc) const {
-        pc << identifier;
+        pc << name;
     }
 
     void TypeModifier::print(PrintContext& pc) const {

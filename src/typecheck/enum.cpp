@@ -24,7 +24,7 @@ PassResult populateCasesInEnumType(EnumType& enumType, TypeResolver& typeResolve
 
     if (numberOfCases > 0) {
         std::vector<EnumType::Case> cases;
-        StringMap<size_t> caseMap;
+        SymbolMap<size_t> caseMap;
 
         cases.reserve(numberOfCases);
 

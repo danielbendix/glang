@@ -10,7 +10,7 @@ class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
     const Builtins& builtins;
 
 private:
-    Type *resolveType(const std::string& name) {
+    Type *resolveType(const Symbol& name) {
         if (auto type = moduleDefinition.types.lookup(name)) {
             return *type;
         } else if (auto builtin = builtins.types.lookup(name)) {
@@ -26,7 +26,7 @@ public:
         if (auto type = resolveType(identifier.getName())) {
             return type;
         } else {
-            Diagnostic::error(identifier, "Cannot resolve type with name " + identifier.getName());
+            Diagnostic::error(identifier, "Cannot resolve type with name " + identifier.getName().string());
             return {};
         }
     }
@@ -45,7 +45,7 @@ public:
         if (auto type = resolveType(literal.getName())) {
             return type;
         } else {
-            Diagnostic::error(literal, "Cannot resolve type with name " + literal.getName());
+            Diagnostic::error(literal, "Cannot resolve type with name " + literal.getName().string());
             return {};
         }
     }

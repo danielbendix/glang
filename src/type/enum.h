@@ -4,24 +4,26 @@
 #include "type.h"
 #include "AST.h"
 
+#include "containers/symbol_map.h"
+
 class EnumType : public Type {
 public:
     class Case {
     public:
         class Member {
-            std::string name;
+            const Symbol *name;
             Type *type;
         public:
-            Member(const std::string& name, Type *type) : name{name}, type{type} {}
+            Member(const Symbol *name, Type *type) : name{name}, type{type} {}
         };
 
-        Case(size_t tag, const std::string& name, Type *type) : tag{tag}, name{name}, type{type} {}
+        Case(size_t tag, const Symbol& name, Type *type) : tag{tag}, name{name}, type{type} {}
 
-        Case(size_t tag, const std::string& name, Type *type, std::vector<Member>&& members) : tag{tag}, name{name}, members{std::move(members)}, type{type} {}
+        Case(size_t tag, const Symbol& name, Type *type, std::vector<Member>&& members) : tag{tag}, name{name}, members{std::move(members)}, type{type} {}
 
     private:
         size_t tag;
-        std::string name;
+        const Symbol& name;
         std::vector<Member> members;
         Type *type;
 
@@ -32,7 +34,7 @@ private:
     AST::EnumDeclaration *declaration;
 
     bool wellFormed = true;
-    std::string name;
+    const Symbol& name;
 
     size_t minTag = -1;
     size_t maxTag = -1;
@@ -40,16 +42,16 @@ private:
     uint8_t bits = 0;
 
     std::vector<Case> cases;
-    StringMap<size_t> caseMap;
+    SymbolMap<size_t> caseMap;
 
 public:
     void *codegen;
 
 public:
-    EnumType(const std::string& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
+    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
 
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const std::string& name);
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const std::string& name);
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const Symbol& name);
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const Symbol& name);
 
     AST::EnumDeclaration *getDeclaration() const {
         return declaration;
@@ -63,7 +65,7 @@ public:
 
     }
 
-    void setCases(uint8_t bits, std::pair<size_t, size_t> tags, std::vector<Case>&& cases, StringMap<size_t>&& caseMap) {
+    void setCases(uint8_t bits, std::pair<size_t, size_t> tags, std::vector<Case>&& cases, SymbolMap<size_t>&& caseMap) {
         this->bits = bits;
         this->minTag = tags.first;
         this->maxTag = tags.second;

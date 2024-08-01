@@ -4,7 +4,7 @@
 
 #include "llvm/Support/Casting.h"
 
-std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveMember(const std::string& name) 
+std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveMember(const Symbol& name) 
 {
     if (auto property = properties.lookup(name)) {
         if (auto field = llvm::dyn_cast<AST::VariableDeclaration *>(*property)) {
@@ -20,7 +20,7 @@ std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveMember(cons
     return {nullptr, nullptr};
 }
 
-std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveStaticMember(const std::string& name)
+std::pair<unique_ptr_t<MemberResolution>, Type *> StructType::resolveStaticMember(const Symbol& name)
 {
     assert(false);
 
@@ -38,5 +38,5 @@ llvm::StructType *StructType::getStructType(llvm::LLVMContext& context) const
         }
     }
 
-    return llvm::StructType::create(context, {children, fields.size()}, name);
+    return llvm::StructType::create(context, {children, fields.size()}, name.string_view());
 }

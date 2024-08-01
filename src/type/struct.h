@@ -8,7 +8,7 @@
 
 #include "llvm/ADT/PointerUnion.h"
 
-#include "containers/string_map.h"
+#include "containers/symbol_map.h"
 
 #include "resolution/member.h"
 
@@ -24,14 +24,14 @@ class StructType : public Type {
 
     bool wellFormed;
 
-    std::string name;
+    const Symbol& name;
 
-    StringMap<Property> properties;
+    SymbolMap<Property> properties;
 
     std::vector<AST::VariableDeclaration *> fields;
     std::vector<AST::FunctionDeclaration *> methods;
 
-    StructType(const std::string& name, bool wellFormed, StringMap<Property>&& properties, std::vector<AST::VariableDeclaration *>&& fields, std::vector<AST::FunctionDeclaration *>&& methods) 
+    StructType(const Symbol& name, bool wellFormed, SymbolMap<Property>&& properties, std::vector<AST::VariableDeclaration *>&& fields, std::vector<AST::FunctionDeclaration *>&& methods) 
         : Type{TK_Struct}
         , wellFormed{wellFormed}
         , name{name}
@@ -39,12 +39,12 @@ class StructType : public Type {
         , fields{std::move(fields)}
         , methods{std::move(methods)} {}
 public:
-    static unique_ptr_t<StructType> create(const std::string& name, bool wellFormed,StringMap<Property>&& properties, std::vector<AST::VariableDeclaration *>&& fields, std::vector<AST::FunctionDeclaration *>&& methods) {
+    static unique_ptr_t<StructType> create(const Symbol& name, bool wellFormed, SymbolMap<Property>&& properties, std::vector<AST::VariableDeclaration *>&& fields, std::vector<AST::FunctionDeclaration *>&& methods) {
         return unique_ptr_t<StructType>{new StructType(name, wellFormed, std::move(properties), std::move(fields), std::move(methods))};
     }
 
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const std::string& name);
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const std::string& name);
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const Symbol& name);
+    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const Symbol& name);
 
     llvm::StructType *getStructType(llvm::LLVMContext& context) const;
 

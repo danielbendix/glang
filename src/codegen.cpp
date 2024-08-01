@@ -54,7 +54,7 @@ public:
         auto functionType = function.getType();
         auto llvmFunctionType = functionType->getFunctionType(context.llvmContext);
 
-        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName(), context.llvmModule);
+        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName().string_view(), context.llvmModule);
         context.llvmFunctions.insert(&function, llvmFunction);
     }
 };

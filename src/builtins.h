@@ -2,8 +2,9 @@
 #define LANG_builtins_h
 
 #include "type.h"
+#include "containers/symbol_map.h"
 
-void setupBuiltins();
+void setupBuiltins(SymbolTable& symbols);
 
 class Builtins {
     std::vector<Type *> allTypes;
@@ -13,9 +14,9 @@ public:
     BooleanType *booleanType;
     FPType *defaultFPType;
 
-    StringMap<Type *> types;
+    SymbolMap<Type *> types;
 
-    friend void setupBuiltins();
+    friend void setupBuiltins(SymbolTable& symbols);
 };
 
 extern const Builtins& builtins;

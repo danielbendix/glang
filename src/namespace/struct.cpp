@@ -8,7 +8,7 @@ using enum PassResultKind;
 struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     using Property = llvm::PointerUnion<AST::VariableDeclaration *, AST::FunctionDeclaration *>;
     AST::StructDeclaration& visiting;
-    StringMap<Property> properties;
+    SymbolMap<Property> properties;
     std::vector<AST::VariableDeclaration *> fields;
     std::vector<AST::FunctionDeclaration *> methods;
 

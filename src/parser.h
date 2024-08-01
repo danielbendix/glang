@@ -4,6 +4,8 @@
 #include "scanner.h"
 #include "AST.h"
 
+#include "containers/symbol_table.h"
+
 struct ParsedFile {
     //std::string path;
 public:
@@ -78,6 +80,7 @@ template <typename T>
 using unique_ptr = unique_ptr_t<T>;
 
 class Parser {
+    SymbolTable& symbols;
     Scanner scanner;
     Token previous;
     Token current;
@@ -199,7 +202,11 @@ public:
     }
 
 public:
-    Parser(std::string&& string) : scanner{std::move(string)}, previous{scanner.next()}, current{previous} {}
+    Parser(SymbolTable& symbols, std::string&& string) 
+        : symbols{symbols}
+        , scanner{std::move(string)}
+        , previous{scanner.next()}
+        , current{previous} {}
 
     ParsedFile parse();
 };

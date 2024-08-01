@@ -2,24 +2,26 @@
 
 Builtins _builtins;
 
-void setupNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
+void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vector<Type *>& owner)
 {
+    Symbol& voidName = symbols.getSymbol("void");
     VoidType *voidType = new VoidType;
-    table.insert("void", voidType);
+    table.insert(voidName, voidType);
     owner.push_back(voidType);
 
+    Symbol& boolName = symbols.getSymbol("bool");
     BooleanType *booleanType = new BooleanType;
-    table.insert("bool", booleanType);
+    table.insert(boolName, booleanType);
     owner.push_back(booleanType);
 
+    Symbol& f32Name = symbols.getSymbol("f32");
     FPType *f32Type = new FPType{FPType::Precision::Single};
-    table.insert("f32", f32Type);
-    table.insert("fp32", f32Type);
+    table.insert(f32Name, f32Type);
     owner.push_back(f32Type);
 
+    Symbol& f64Name = symbols.getSymbol("f64");
     FPType *f64Type = new FPType{FPType::Precision::Double};
-    table.insert("f64", f64Type);
-    table.insert("fp64", f64Type);
+    table.insert(f64Name, f64Type);
     owner.push_back(f64Type);
 
     // TODO: Add [ui]size, [ui]ptr
@@ -28,9 +30,9 @@ void setupNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
 
 #define INT_TYPE(bits) { \
     IntegerType *type = new IntegerType{bits, true}; \
-    table.insert("i" #bits, type); \
+    Symbol& name = symbols.getSymbol("i" #bits); \
+    table.insert(name, type); \
     if constexpr (bits == 32) { defaultIntegerType = type; } \
-    table.insert("int" #bits, type); \
     owner.push_back(type); }
     INT_TYPE(8);
     INT_TYPE(16);
@@ -40,8 +42,8 @@ void setupNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
 
 #define UINT_TYPE(bits) { \
     Type *type = new IntegerType{bits, false}; \
-    table.insert("u" #bits, type); \
-    table.insert("uint" #bits, type); \
+    Symbol& name = symbols.getSymbol("u" #bits); \
+    table.insert(name, type); \
     owner.push_back(type); }
     UINT_TYPE(8);
     UINT_TYPE(16);
@@ -57,9 +59,9 @@ void setupNumericTypes(StringMap<Type *>& table, std::vector<Type *>& owner)
     _builtins.defaultIntegerType = defaultIntegerType;
 }
 
-void setupBuiltins() 
+void setupBuiltins(SymbolTable& symbols) 
 {
-    setupNumericTypes(_builtins.types, _builtins.allTypes);
+    setupNumericTypes(symbols, _builtins.types, _builtins.allTypes);
 }
 
 const Builtins& builtins = _builtins;

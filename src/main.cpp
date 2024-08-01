@@ -12,14 +12,14 @@
 #include "codegen.h"
 #include "control.h"
 
-void initialize()
+void initialize(SymbolTable& symbols)
 {
-    setupBuiltins();
+    setupBuiltins(symbols);
 }
 
-ParsedFile parse(std::string&& string) {
+ParsedFile parse(SymbolTable& symbols, std::string&& string) {
     try {
-        auto parser = Parser{std::move(string)};
+        auto parser = Parser{symbols, std::move(string)};
         return parser.parse();
     } catch (ParserException exception) {
         Diagnostic::writer().error(exception);
@@ -62,7 +62,9 @@ int main(int argc, char **argv)
 {
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
-    initialize();
+    SymbolTable symbols;
+
+    initialize(symbols);
 
     std::string filename = options.files[0];
     std::ifstream file(filename, std::ios::in | std::ios::binary);
@@ -82,7 +84,7 @@ int main(int argc, char **argv)
     }
 
     std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    auto parsed = parse(std::move(contents));
+    auto parsed = parse(symbols, std::move(contents));
 
     std::visit([&](auto&& arg) {
         using T = std::decay_t<decltype(arg)>;

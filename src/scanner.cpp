@@ -442,8 +442,12 @@ Token Scanner::next() noexcept {
                 }
                 return makeToken(Greater);
             }
-            case '\0':
-                return makeToken(EndOfFile);
+            case '\0': {
+                // Produce EndOfFile as long as someone is asking.
+                auto token = makeToken(EndOfFile);
+                current = end;
+                return token;
+            }
             default: 
                 std::cout << c << "\n";
                 std::cout << int(c) << "\n";

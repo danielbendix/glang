@@ -14,17 +14,17 @@ using enum PassResultKind;
 
 class NamespaceBuilder {
     ModuleDef& names;
-    StringMap<AST::Declaration *> declarations;
+    SymbolMap<AST::Declaration *> declarations;
 public:
     NamespaceBuilder(ModuleDef& names) : names{names} {}
 
-    void diagnoseDuplicateDeclaration(const std::string& name, AST::Declaration& duplicate) {
+    void diagnoseDuplicateDeclaration(const Symbol& name, AST::Declaration& duplicate) {
         Diagnostic::error(duplicate, "Duplicate declaration.");
         auto& existing = *declarations[name];
         Diagnostic::note(existing, "Previously declared here.");
     }
 
-    Result addFunction(const std::string& name, AST::FunctionDeclaration& declaration) {
+    Result addFunction(const Symbol& name, AST::FunctionDeclaration& declaration) {
         if (!names.all.insert(name, &declaration)) {
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
@@ -33,7 +33,7 @@ public:
         return OK;
     }
 
-    Result addGlobal(const std::string& name, AST::VariableDeclaration& declaration) {
+    Result addGlobal(const Symbol& name, AST::VariableDeclaration& declaration) {
         if (!names.all.insert(name, &declaration)) {
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
@@ -42,7 +42,7 @@ public:
         return OK;
     }
 
-    Result addType(const std::string& name, Type& type, AST::Declaration& declaration) {
+    Result addType(const Symbol& name, Type& type, AST::Declaration& declaration) {
         if (!names.all.insert(name, &type)) {
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
@@ -52,7 +52,7 @@ public:
         return OK;
     }
 
-    Result addVariable(const std::string& name, unique_ptr_t<AST::VariableDeclaration>&& variable) {
+    Result addVariable(const Symbol& name, unique_ptr_t<AST::VariableDeclaration>&& variable) {
         Result result = OK;
         result |= addGlobal(name, *variable);
         // TODO: Create an ambiguous value
@@ -61,7 +61,7 @@ public:
         return result;
     }
 
-    Result addFunction(const std::string& name, unique_ptr_t<AST::FunctionDeclaration>&& function) {
+    Result addFunction(const Symbol& name, unique_ptr_t<AST::FunctionDeclaration>&& function) {
         Result result = OK;
         result |= addFunction(name, *function);
         // TODO: Create an ambiguous value
@@ -70,7 +70,7 @@ public:
         return result;
     }
 
-    Result addStructType(const std::string& name, unique_ptr_t<StructType>&& type, unique_ptr_t<AST::StructDeclaration>&& declaration) {
+    Result addStructType(const Symbol& name, unique_ptr_t<StructType>&& type, unique_ptr_t<AST::StructDeclaration>&& declaration) {
         Result result = OK;
         result |= addType(name, *type, *declaration);
         names.structs.push_back(std::move(type));
@@ -78,7 +78,7 @@ public:
         return result;
     }
 
-    Result addEnumType(const std::string& name, unique_ptr_t<EnumType>&& enumType, unique_ptr_t<AST::EnumDeclaration>&& declaration) {
+    Result addEnumType(const Symbol& name, unique_ptr_t<EnumType>&& enumType, unique_ptr_t<AST::EnumDeclaration>&& declaration) {
         Result result = addType(name, *enumType, *declaration);
         names.enums.push_back(std::move(enumType));
         names.saved.push_back(std::move(declaration));
@@ -150,7 +150,7 @@ std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AS
 class ScopeManager {
     
     struct Local {
-        const std::string& identifier;
+        const Symbol& identifier;
         const int scopeLevel;
         bool isParameter;
         union {
@@ -161,9 +161,9 @@ class ScopeManager {
             AST::IdentifierBinding *binding;
         } as;
 
-        Local(const std::string& identifier, int scopeLevel, AST::FunctionDeclaration& function, int index) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
+        Local(const Symbol& identifier, int scopeLevel, AST::FunctionDeclaration& function, int index) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
 
-        Local(const std::string& identifier, int scopeLevel, AST::IdentifierBinding& binding) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{false}, as{.binding = &binding} {}
+        Local(const Symbol& identifier, int scopeLevel, AST::IdentifierBinding& binding) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{false}, as{.binding = &binding} {}
     };
 
     int scopeLevel = -1;
@@ -201,18 +201,18 @@ public:
         scopeLevel--;
     }
 
-    bool pushParameter(const std::string& identifier, AST::FunctionDeclaration& function, int index) {
+    bool pushParameter(const Symbol& identifier, AST::FunctionDeclaration& function, int index) {
         locals.emplace_back(identifier, scopeLevel, function, index);
 
         return true;
     }
 
-    void pushBinding(const std::string& identifier, AST::IdentifierBinding& binding) {
+    void pushBinding(const Symbol& identifier, AST::IdentifierBinding& binding) {
         // FIXME: Push the bindings.
         locals.emplace_back(identifier, scopeLevel, binding);
     }
 
-    std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> getResolution(const std::string& identifier) {
+    std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> getResolution(const Symbol& identifier) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             Local& local = locals[i];
             if (local.identifier == identifier) {
