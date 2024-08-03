@@ -31,7 +31,7 @@ struct ModuleDef {
     std::vector<unique_ptr_t<AST::Declaration>> saved;
 };
 
-std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AST::Declaration>>& declarations);
+std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::Declaration *>& declarations);
 
 PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition);
 

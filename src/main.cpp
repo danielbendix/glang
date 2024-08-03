@@ -60,9 +60,11 @@ std::unique_ptr<llvm::Module> codegen(ModuleDef& moduleDef, bool verbose = false
 
 int main(int argc, char **argv)
 {
+    std::cout << sizeof(AST::string) << '\n';
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
     SymbolTable symbols;
+    ThreadContext threadContext{&symbols};
 
     initialize(symbols);
 

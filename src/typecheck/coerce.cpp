@@ -13,7 +13,7 @@ using enum AST::UnaryOperator;
 // There is an overarching problem here in that we're not using the "value transfer" node,
 // but the value node for diagnostics.
 
-std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenIntegerTypes(
+std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
     IntegerType& destination, 
     IntegerType& source,
     AST::Expression& expression
@@ -21,13 +21,13 @@ std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenIntegerTypes(
     if (destination.isSigned) {
         // This assumes that two signed types will never have the same bit width.
         if (source.bitWidth < destination.bitWidth) {
-            unique_ptr_t<AST::UnaryExpression> wrap;
+            AST::UnaryExpression *wrap;
             if (source.isSigned) {
-                wrap = AST::UnaryExpression::wrap(expression, SignExtend, destination);
+                wrap = AST::UnaryExpression::wrap(nodeAllocator(), expression, SignExtend, destination);
             } else {
-                wrap = AST::UnaryExpression::wrap(expression, ZeroExtend, destination);
+                wrap = AST::UnaryExpression::wrap(nodeAllocator(), expression, ZeroExtend, destination);
             }
-            return {OK, std::move(wrap)};
+            return {OK, wrap};
         } else {
             Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to [DESTINATION TYPE], as this could result in a loss of information.");
             return {ERROR, nullptr};
@@ -37,7 +37,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenIntegerTypes(
             Diagnostic::error(expression, "Cannot coerce signed value to unsigned destination. Use truncation or a conditional cast.");
             return {ERROR, nullptr};
         } else if (source.bitWidth < destination.bitWidth) {
-            return {OK, AST::UnaryExpression::wrap(expression, ZeroExtend, destination)};
+            return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, ZeroExtend, destination)};
         } else {
             Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to [DESTINATION TYPE], as this could result in a loss of information.");
             return {ERROR, nullptr};
@@ -45,48 +45,48 @@ std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenIntegerTypes(
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> coerceBetweenFPTypes(
+std::pair<Result, AST::Expression *> coerceBetweenFPTypes(
     FPType& destination, 
     FPType& source,
     AST::Expression& expression
 ) {
     if (destination.precision > source.precision) {
-        return {OK, AST::UnaryExpression::wrap(expression, FPExtend, destination)};
+        return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, FPExtend, destination)};
     } else {
         Diagnostic::error(expression, "Coercing [SOURCE TYPE] to [DESTINATION TYPE] could result in a loss of information.");
         return {ERROR, nullptr};
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> coerceIntegerToFP(
+std::pair<Result, AST::Expression *> coerceIntegerToFP(
     FPType& destination, 
     IntegerType& source,
     AST::Expression& expression
 ) {
     auto fractionBits = destination.fractionBits();
     if (fractionBits > source.bitWidth) {
-        return {OK, AST::UnaryExpression::wrap(expression, FPExtend, destination)};
+        return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, FPExtend, destination)};
     } else {
         Diagnostic::error(expression, "Coercing [SOURCE TYPE] to [DESTINATION TYPE] could result in a loss of information.");
         return {ERROR, nullptr};
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unwrappingOptionals(OptionalType& destination, Type& source, AST::Expression& expression) {
-    std::pair<Result, unique_ptr_t<AST::Expression>> result = {ERROR, nullptr};
+std::pair<Result, AST::Expression *> unwrappingOptionals(OptionalType& destination, Type& source, AST::Expression& expression) {
+    std::pair<Result, AST::Expression *> result = {ERROR, nullptr};
     if (auto optionalType = dyn_cast<OptionalType>(destination.getContained())) {
         result = unwrappingOptionals(*optionalType, source, expression);
     } else {
         result = coerceType(*destination.getContained(), source, expression);
     }
     if (result.second) {
-        return {result.first, AST::UnaryExpression::wrap(*result.second.release(), OptionalWrap, destination)};
+        return {result.first, AST::UnaryExpression::wrap(nodeAllocator(), *result.second, OptionalWrap, destination)};
     } else {
         return {result.first, nullptr};
     }
 }
 
-std::pair<Result, unique_ptr_t<AST::Expression>> coerceType(Type& destination, Type& source, AST::Expression& expression) noexcept {
+std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source, AST::Expression& expression) noexcept {
     if (&source == &destination) {
         return {OK, nullptr};
     }
@@ -136,7 +136,7 @@ std::pair<Result, unique_ptr_t<AST::Expression>> coerceType(Type& destination, T
             Diagnostic::error(expression, "Cannot cast between different optional types.");
             return {ERROR, nullptr};
         } else if (optionalDestination.getContained() == &source) {
-            auto wrap = AST::UnaryExpression::wrap(expression, AST::UnaryOperator::OptionalWrap, destination);
+            auto wrap = AST::UnaryExpression::wrap(nodeAllocator(), expression, AST::UnaryOperator::OptionalWrap, destination);
             return {OK, std::move(wrap)};
         } else if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return unwrappingOptionals(optionalDestination, source, expression);

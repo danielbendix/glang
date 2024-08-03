@@ -95,8 +95,8 @@ class DeclarationTableVisitor : public AST::DeclarationVisitorT<DeclarationTable
 public:
     DeclarationTableVisitor(ModuleDef& names) : names{names}, builder{names} {}
 
-    Result takeDeclaration(unique_ptr_t<AST::Declaration>&& declaration) {
-        return declaration.release()->acceptVisitor(*this);
+    Result takeDeclaration(AST::Declaration *declaration) {
+        return declaration->acceptVisitor(*this);
     }
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
@@ -134,14 +134,14 @@ public:
     }
 };
 
-std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::unique_ptr<AST::Declaration>>& declarations)
+std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::Declaration *>& declarations)
 {
     auto names = std::make_unique<ModuleDef>();
 
     DeclarationTableVisitor visitor{*names};
 
     for (auto&& declaration : declarations) {
-        visitor.takeDeclaration(std::move(declaration));
+        visitor.takeDeclaration(declaration);
     }
 
     return names;

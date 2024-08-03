@@ -6,6 +6,6 @@
 
 using Result = PassResult;
 
-std::pair<Result, unique_ptr_t<AST::Expression>> coerceType(Type& to, Type& from, AST::Expression& expression) noexcept;
+std::pair<Result, AST::Expression *> coerceType(Type& to, Type& from, AST::Expression& expression) noexcept;
 
 #endif // LANG_typecheck_expression_h

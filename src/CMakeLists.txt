@@ -16,6 +16,7 @@ add_executable(glang
     diagnostic.cpp
     builtins.cpp
     cli.cpp
+    context.cpp
 )
 
 add_subdirectory(namespace)

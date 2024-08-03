@@ -3,15 +3,16 @@
 
 #include "scanner.h"
 #include "AST.h"
+#include "context.h"
 
 #include "containers/symbol_table.h"
 
 struct ParsedFile {
     //std::string path;
 public:
-    std::vector<AST::unique_ptr<AST::Declaration>> declarations;
+    std::vector<AST::Declaration *> declarations;
 
-    ParsedFile(std::vector<AST::unique_ptr<AST::Declaration>>&& declarations) : declarations{std::move(declarations)} {}
+    ParsedFile(std::vector<AST::Declaration *> declarations) : declarations{std::move(declarations)} {}
 };
 
 struct ParserState {
@@ -76,11 +77,10 @@ public:
     ParserException(Token token, Cause cause) : cause{cause}, token{token}  {}
 };
 
-template <typename T>
-using unique_ptr = unique_ptr_t<T>;
-
 class Parser {
     SymbolTable& symbols;
+    ThreadContext& context = *ThreadContext::get();
+
     Scanner scanner;
     Token previous;
     Token current;
@@ -98,86 +98,88 @@ public:
 
     // Types
     [[nodiscard]]
-    unique_ptr<AST::TypeNode> type(bool hasIdentifier = false);
+    AST::TypeNode *type(bool hasIdentifier = false);
 
     // Bindings
     [[nodiscard]]
-    unique_ptr<AST::Binding> binding();
+    AST::Binding *binding();
 
     // Declarations
     [[nodiscard]]
-    unique_ptr<AST::Declaration> declaration();
+    AST::Declaration *declaration();
     [[nodiscard]]
-    unique_ptr<AST::FunctionDeclaration> functionDeclaration();
+    AST::FunctionDeclaration *functionDeclaration();
     [[nodiscard]]
-    unique_ptr<AST::StructDeclaration> structDeclaration();
+    AST::StructDeclaration *structDeclaration();
     [[nodiscard]]
-    unique_ptr<AST::FunctionDeclaration> initializerDeclaration();
+    AST::FunctionDeclaration *initializerDeclaration();
     [[nodiscard]]
-    unique_ptr<AST::EnumDeclaration> enumDeclaration();
+    AST::EnumDeclaration *enumDeclaration();
     [[nodiscard]]
     AST::EnumDeclaration::Case enumCase();
     [[nodiscard]]
     AST::EnumDeclaration::Case::Member enumCaseMember();
     [[nodiscard]]
-    unique_ptr<AST::VariableDeclaration> variableDeclaration();
+    AST::VariableDeclaration *variableDeclaration();
     [[nodiscard]]
-    unique_ptr<AST::StatementDeclaration> statementDeclaration();
+    AST::StatementDeclaration *statementDeclaration();
 
     // Statement
     [[nodiscard]]
-    unique_ptr<AST::Statement> statement();
+    AST::Statement *statement();
     [[nodiscard]]
-    unique_ptr<AST::IfStatement> ifStatement();
+    AST::IfStatement *ifStatement();
     [[nodiscard]]
-    unique_ptr<AST::ForStatement> forStatement();
+    AST::ForStatement *forStatement();
     [[nodiscard]]
-    unique_ptr<AST::GuardStatement> guardStatement();
+    AST::GuardStatement *guardStatement();
     [[nodiscard]]
-    unique_ptr<AST::ReturnStatement> returnStatement();
+    AST::ReturnStatement *returnStatement();
     [[nodiscard]]
-    unique_ptr<AST::WhileStatement> whileStatement();
+    AST::WhileStatement *whileStatement();
     [[nodiscard]]
-    unique_ptr<AST::BreakStatement> breakStatement();
+    AST::BreakStatement *breakStatement();
     [[nodiscard]]
-    unique_ptr<AST::ContinueStatement> continueStatement();
+    AST::ContinueStatement *continueStatement();
     [[nodiscard]]
-    unique_ptr<AST::Statement> assignmentOrExpression();
+    AST::Statement *assignmentOrExpression();
 
     // Expression
     [[nodiscard]]
-    unique_ptr<AST::Expression> expression(ExpressionRules rules);
+    AST::Expression *expression(ExpressionRules rules);
 
     // Expression helpers
-    unique_ptr<AST::Expression> parseExpression(Precedence precedence);
+    AST::Expression *parseExpression(Precedence precedence);
 
     [[nodiscard]]
-    unique_ptr<AST::Expression> call(unique_ptr<AST::Expression>&& left);
+    AST::Expression *call(AST::Expression *left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> subscript(unique_ptr<AST::Expression>&& left);
+    AST::Expression *subscript(AST::Expression *left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> member(unique_ptr<AST::Expression>&& left);
+    AST::Expression *member(AST::Expression *left);
     [[nodiscard]]
-    unique_ptr<AST::Expression> binary(unique_ptr<AST::Expression>&& left);
+    AST::Expression *binary(AST::Expression *left);
 
     [[nodiscard]]
-    unique_ptr<AST::Expression> literal();
+    AST::Expression *literal();
     [[nodiscard]]
-    unique_ptr<AST::Expression> identifier();
+    AST::Literal *createStringLiteral(const Token& token);
     [[nodiscard]]
-    unique_ptr<AST::Expression> self();
+    AST::Expression *identifier();
     [[nodiscard]]
-    unique_ptr<AST::Expression> grouping();
+    AST::Expression *self();
     [[nodiscard]]
-    unique_ptr<AST::Expression> inferredInitializer();
+    AST::Expression *grouping();
     [[nodiscard]]
-    unique_ptr<AST::Expression> inferredMember();
+    AST::Expression *inferredInitializer();
+    [[nodiscard]]
+    AST::Expression *inferredMember();
 
     [[nodiscard]]
-    unique_ptr<AST::Expression> initializer(unique_ptr<AST::Identifier>&& identifier);
+    AST::Expression *initializer(AST::Identifier *identifier);
 
     [[nodiscard]]
-    unique_ptr<AST::Expression> unary();
+    AST::Expression *unary();
 
     void advance() {
         previous = current;

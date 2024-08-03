@@ -293,8 +293,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
             auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.second);
         
             if (wrapped) {
-                std::ignore = pair.second.release();
-                pair.second = std::move(wrapped);
+                pair.second = wrapped;
             }
 
             result |= coerceResult;

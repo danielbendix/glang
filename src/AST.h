@@ -7,6 +7,7 @@
 #include "resolution/member.h"
 #include "unique_ref.h"
 #include "type.h"
+#include "memory.h"
 
 #include "containers/symbol_table.h"
 #include "containers/small_byte_array.h"
@@ -45,6 +46,22 @@ struct DeclarationAttributes {
 };
 
 namespace AST {
+    template <typename T>
+    using vector = std::vector<T, ArrayAllocator<T>>;
+
+    using string = std::basic_string<char, std::char_traits<char>, ArrayAllocator<char>>;
+
+    template <typename T, Allocator A>
+    void *NONNULL allocateSpace(A& allocator) {
+        return allocator.allocate(sizeof(T), alignof(T));
+    }
+
+    template <Allocator Allocator, typename F, typename T = std::remove_pointer_t<std::invoke_result_t<F, void *>>>
+    T *NONNULL allocate(Allocator& allocator, F f) {
+        void *space = allocateSpace<T>(allocator);
+        return f(space);
+    }
+
     class PrintContext;
 
     struct Location {
@@ -130,7 +147,7 @@ namespace AST {
 
     template <typename T>
     class iterator {
-        using internal = std::vector<unique_ptr<T>>::iterator;
+        using internal = std::vector<T *NONNULL>::iterator;
         internal it;
 
     public:
@@ -156,7 +173,7 @@ namespace AST {
 
     template <typename T>
     class const_iterator {
-        using internal = std::vector<unique_ptr<T>>::const_iterator;
+        using internal = std::vector<T *NONNULL>::const_iterator;
         internal it;
 
     public:
@@ -250,7 +267,7 @@ namespace AST {
         template <typename Subclass, typename ReturnType, typename... Args>
         ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() >= NK_Type_Literal && node->getKind() <= NK_Type_Modifier;;
         }
     };
@@ -267,15 +284,18 @@ namespace AST {
         virtual void print(PrintContext& pc) const;
 
     public:
-        static unique_ptr<TypeLiteral> create(Token token, Symbol& name) {
-            return unique_ptr<TypeLiteral>(new TypeLiteral(token, name));
+        template <Allocator A>
+        static TypeLiteral *create(A& allocator, Token token, Symbol& name) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) TypeLiteral{token, name};
+            });
         }
 
         const Symbol& getName() const {
             return name;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Type_Literal;
         }
     };
@@ -290,16 +310,19 @@ namespace AST {
             UnboundedArray,
         };
     protected:
-        unique_ptr<TypeNode> child;
+        TypeNode *NONNULL child;
         SmallByteArray<Modifier> modifiers;
 
         // FIXME Better location
-        TypeModifier(unique_ptr<TypeNode>&& child, std::span<Modifier> modifiers) : TypeNode{NK_Type_Modifier, Location{child->location}}, child{std::move(child)}, modifiers{modifiers} {}
+        TypeModifier(TypeNode *NONNULL child, std::span<Modifier> modifiers) : TypeNode{NK_Type_Modifier, Location{child->location}}, child{child}, modifiers{modifiers} {}
 
         virtual void print(PrintContext& pc) const;
     public:
-        static unique_ptr<TypeModifier> create(unique_ptr<TypeNode>&& child, std::span<Modifier> modifiers) {
-            return unique_ptr<TypeModifier>{new TypeModifier{std::move(child), modifiers}};
+        template <Allocator A>
+        static TypeModifier *create(A& allocator, TypeNode *NONNULL child, std::span<Modifier> modifiers) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) TypeModifier{child, std::move(modifiers)};
+            });
         }
 
         SmallByteArray<Modifier>::iterator begin() const {
@@ -314,7 +337,7 @@ namespace AST {
             return *child;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Type_Modifier;
         }
     };
@@ -324,16 +347,16 @@ namespace AST {
     class Declaration;
     class Block {
     protected:
-        std::vector<unique_ptr<Declaration>> declarations;
+        std::vector<Declaration *NONNULL> declarations;
 
         Block(const Block&) = delete;
         Block& operator=(const Block&) = delete;
     public:
-        Block(std::vector<unique_ptr<Declaration>>&& declarations) : declarations{std::move(declarations)} {}
+        Block(std::vector<Declaration *NONNULL>&& declarations) : declarations{std::move(declarations)} {}
         Block(Block&& other) = default;
         Block& operator=(Block&& other) = default;
 
-        static std::unique_ptr<Block> create(std::vector<unique_ptr<Declaration>>&& declarations) {
+        static std::unique_ptr<Block> create(std::vector<Declaration *NONNULL>&& declarations) {
             return std::unique_ptr<Block>(new Block(std::move(declarations)));
         }
 
@@ -344,7 +367,7 @@ namespace AST {
         }
 
         Declaration& operator[](size_t index) const {
-            return *declarations[index].get();
+            return *declarations[index];
         }
 
         void resize(size_t newSize) {
@@ -401,7 +424,7 @@ namespace AST {
 
         Type *type = nullptr;
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Inferred_Member_Access;
         }
     };
@@ -416,8 +439,11 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<Identifier> create(Token token, Symbol& name) {
-            return unique_ptr<Identifier>{new Identifier(token, name)};
+        template <Allocator Allocator>
+        static Identifier *create(Allocator& allocator, Token token, Symbol& name) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Identifier{token, name};
+            });
         }
 
         const Symbol& getName() const {
@@ -432,7 +458,7 @@ namespace AST {
             this->resolution = std::move(resolution);
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Identifier;
         }
     };
@@ -442,11 +468,14 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<Self> create(Token token) {
-            return unique_ptr<Self>{new Self(token)};
+        template <Allocator Allocator>
+        static Self *create(Allocator& allocator, Token token) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Self{token};
+            });
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Self;
         }
     };
@@ -486,24 +515,39 @@ namespace AST {
             this->integerType = integerType;
         }
 
-        static unique_ptr<Literal> create(Token token, bool value) {
-            return unique_ptr<Literal>{new Literal(token, value)};
+        template <Allocator Allocator>
+        static Literal *create(Allocator& allocator, Token token, bool value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Literal{token, value};
+            });
         }
 
-        static unique_ptr<Literal> create(Token token, double value) {
-            return unique_ptr<Literal>{new Literal(token, value)};
+        template <Allocator Allocator>
+        static Literal *create(Allocator& allocator, Token token, double value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Literal{token, value};
+            });
         }
 
-        static unique_ptr<Literal> create(Token token, APInt&& value, IntegerType integerType) {
-            return unique_ptr<Literal>{new Literal(token, std::move(value), integerType)};
+        template <Allocator Allocator>
+        static Literal *create(Allocator& allocator, Token token, APInt&& value, IntegerType integerType) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Literal{token, std::move(value), integerType};
+            });
         }
 
-        static unique_ptr<Literal> create(Token token, std::string&& value) {
-            return unique_ptr<Literal>{new Literal(token, value)};
+        template <Allocator Allocator>
+        static Literal *create(Allocator& allocator, Token token, std::string&& value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Literal{token, std::move(value)};
+            });
         }
 
-        static unique_ptr<Literal> createNil(Token token) {
-            return unique_ptr<Literal>{new Literal(token, std::monostate{})};
+        template <Allocator Allocator>
+        static Literal *createNil(Allocator& allocator, Token token) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) Literal{token, std::monostate{}};
+            });
         }
 
         Literal::Type getLiteralType() const {
@@ -526,27 +570,30 @@ namespace AST {
             return std::get<std::string>(internal);
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Literal;
         }
     };
 
     class CallExpression : public Expression {
-        unique_ptr<Expression> target;
-        std::vector<unique_ptr<Expression>> arguments;
+        Expression *NONNULL target;
+        std::vector<Expression *NONNULL> arguments;
 
     protected:
-        CallExpression(Token token, unique_ptr<Expression>&& target, std::vector<unique_ptr<Expression>>&& arguments) 
+        CallExpression(Token token, Expression *NONNULL target, std::vector<Expression *NONNULL>&& arguments) 
             : Expression{NK_Expr_Call, Location{token}}
-            , target{std::move(target)}
+            , target{target}
             , arguments{std::move(arguments)} {}
 
         virtual void print(PrintContext& pc) const override;
         CallExpression(const CallExpression&) = delete;
         CallExpression& operator=(const CallExpression&) = delete;
     public:
-        static unique_ptr<CallExpression> create(Token token, unique_ptr<Expression>&& target, std::vector<unique_ptr<Expression>>&& arguments) {
-            return unique_ptr<CallExpression>{new CallExpression(token, std::move(target), std::move(arguments))};
+        template <Allocator Allocator>
+        static CallExpression *create(Allocator& allocator, Token token, Expression *NONNULL target, std::vector<Expression *NONNULL>&& arguments) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) CallExpression{token, target, std::move(arguments)};
+            });
         }
 
         Expression& getTarget() const {
@@ -561,30 +608,32 @@ namespace AST {
             return *arguments[i];
         }
 
-        void setWrappedArgument(size_t i, unique_ptr<Expression>&& wrapped) {
+        void setWrappedArgument(size_t i, Expression *NONNULL wrapped) {
             assert(wrapped);
-            std::ignore = arguments[i].release();
-            arguments[i] = std::move(wrapped);
+            arguments[i] = wrapped;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Call;
         }
     };
 
     class SubscriptExpression : public Expression {
-        unique_ptr<Expression> target;
-        unique_ptr<Expression> index;
+        Expression *NONNULL target;
+        Expression *NONNULL index;
     protected:
-        SubscriptExpression(Token token, unique_ptr<Expression>&& target, unique_ptr<Expression>&& index)
+        SubscriptExpression(Token token, Expression *NONNULL target, Expression *NONNULL index)
             : Expression{NK_Expr_Subscript, token}
-            , target{std::move(target)}
-            , index{std::move(index)} {}
+            , target{target}
+            , index{index} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<SubscriptExpression> create(Token token, unique_ptr<Expression>&& target, unique_ptr<Expression>&& index) {
-            return unique_ptr<SubscriptExpression>{new SubscriptExpression(token, std::move(target), std::move(index))};
+        template <Allocator Allocator>
+        static SubscriptExpression *create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL index) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) SubscriptExpression(token, target, index);
+            });
         }
 
         Expression& getTarget() const {
@@ -595,25 +644,28 @@ namespace AST {
             return *index;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL NONNULL node) {
             return node->getKind() == NK_Expr_Subscript;
         }
     };
 
     class MemberAccessExpression : public Expression {
-        unique_ptr<Expression> target;
+        Expression *NONNULL target;
         Symbol& memberName;
         unique_ptr_t<MemberResolution> resolution = nullptr;
 
         virtual void print(PrintContext& pc) const override;
     protected:
-        MemberAccessExpression(Token token, unique_ptr<Expression>&& target, Symbol& member) 
+        MemberAccessExpression(Token token, Expression *NONNULL target, Symbol& member) 
             : Expression{NK_Expr_Member_Access, token}
-            , target{std::move(target)}
+            , target{target}
             , memberName{member} {}
     public:
-        static unique_ptr<MemberAccessExpression> create(Token token, unique_ptr<Expression>&& target, Symbol& member) {
-            return unique_ptr<MemberAccessExpression>{new MemberAccessExpression(token, std::move(target), member)};
+        template <Allocator Allocator>
+        static MemberAccessExpression *create(Allocator& allocator, Token token, Expression *NONNULL target, Symbol& member) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) MemberAccessExpression{token, target, member};
+            });
         }
 
         Expression& getTarget() const {
@@ -632,7 +684,7 @@ namespace AST {
             this->resolution = std::move(resolution);
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Member_Access;
         }
     };
@@ -648,8 +700,11 @@ namespace AST {
             : Expression{NK_Expr_Inferred_Member_Access, token}
             , memberName{memberName} {}
     public:
-        static unique_ptr<InferredMemberAccessExpression> create(Token token, Symbol& memberName) {
-            return unique_ptr<InferredMemberAccessExpression>{new InferredMemberAccessExpression(token, memberName)};
+        template <Allocator Allocator>
+        static InferredMemberAccessExpression *create(Allocator& allocator, Token token, Symbol& memberName) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) InferredMemberAccessExpression{token, memberName};
+            });
         }
 
         const Symbol& getMemberName() const {
@@ -664,34 +719,37 @@ namespace AST {
             this->resolution = std::move(resolution);
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Inferred_Member_Access;
         }
     };
 
     class InitializerExpression : public Expression {
     public:
-        using Pair = std::pair<unique_ptr<InferredMemberAccessExpression>, unique_ptr<Expression>>;
+        using Pair = std::pair<InferredMemberAccessExpression *NONNULL, Expression *NONNULL>;
     private:       
         // This is a typename. Could contain a type parameter in the future. We should find a better type.
-        unique_ptr<Identifier> identifier;
+        Identifier *NULLABLE identifier;
         std::vector<Pair> pairs;
     protected:
-        InitializerExpression(Token token, unique_ptr<Identifier>&& identifier, std::vector<Pair>&& pairs) 
+        InitializerExpression(Token token, Identifier *NULLABLE identifier, std::vector<Pair>&& pairs) 
             : Expression{NK_Expr_Initializer, token}
-            , identifier{std::move(identifier)}
+            , identifier{identifier}
             , pairs{std::move(pairs)}
             {}
 
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<InitializerExpression> create(Token token, unique_ptr<Identifier>&& identifier, std::vector<Pair>&& pairs) {
-            return unique_ptr<InitializerExpression>{new InitializerExpression(token, std::move(identifier), std::move(pairs))};
+        template <Allocator Allocator>
+        static InitializerExpression *create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, std::vector<Pair>&& pairs) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) InitializerExpression{token, identifier, std::move(pairs)};
+            });
         }
 
         Identifier *getIdentifier() {
-            return identifier.get();
+            return identifier;
         }
 
         size_t getNumberOfPairs() {
@@ -720,26 +778,30 @@ namespace AST {
     class UnaryExpression : public Expression {
     protected:
         UnaryOperator op;
-        unique_ptr<Expression> target;
+        Expression *NONNULL target;
 
-        UnaryExpression(Token token, UnaryOperator op, unique_ptr<Expression>&& target) 
-            : Expression{NK_Expr_Unary, token}, op{op}, target{std::move(target)}
+        UnaryExpression(Token token, UnaryOperator op, Expression *NONNULL target) 
+            : Expression{NK_Expr_Unary, token}, op{op}, target{target}
         {}
 
-        UnaryExpression(Location location, UnaryOperator op, unique_ptr<Expression>&& target) 
-            : Expression{NK_Expr_Unary, location}, op{op}, target{std::move(target)}
+        UnaryExpression(Location location, UnaryOperator op, Expression *NONNULL target) 
+            : Expression{NK_Expr_Unary, location}, op{op}, target{target}
         {}
 
         void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<UnaryExpression> create(Token token, UnaryOperator op, unique_ptr<Expression>&& target) {
-            return unique_ptr<UnaryExpression>{new UnaryExpression(token, op, std::move(target))};
+        template <Allocator Allocator>
+        static UnaryExpression *create(Allocator& allocator, Token token, UnaryOperator op, Expression *NONNULL target) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) UnaryExpression{token, op, target};
+            });
         }
 
-        static unique_ptr<UnaryExpression> wrap(Expression& target, UnaryOperator op, Type& type) {
-            auto result = unique_ptr<UnaryExpression>{
-                new UnaryExpression(target.location, op, unique_ptr<Expression>(&target))
-            };
+        template <Allocator Allocator>
+        static UnaryExpression *wrap(Allocator& allocator, Expression& target, UnaryOperator op, Type& type) {
+            auto result = allocate(allocator, [&](auto space) {
+                return new(space) UnaryExpression(target.location, op, &target);
+            });
             result->setType(&type);
             return result;
         }
@@ -752,7 +814,7 @@ namespace AST {
             return *target;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Unary;
         }
     };
@@ -788,19 +850,22 @@ namespace AST {
     class BinaryExpression : public Expression {
     protected:
         BinaryOperator op;
-        unique_ptr<Expression> left;
-        unique_ptr<Expression> right;
-        BinaryExpression(Token token, BinaryOperator op, unique_ptr<Expression> left, unique_ptr<Expression> right) 
+        Expression *NONNULL left;
+        Expression *NONNULL right;
+        BinaryExpression(Token token, BinaryOperator op, Expression *NONNULL left, Expression *NONNULL right) 
             : Expression{NK_Expr_Binary, Location{token}}
             , op{op}
-            , left{std::move(left)}
-            , right{std::move(right)} 
+            , left{left}
+            , right{right} 
         {}
 
         void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<BinaryExpression> create(Token token, BinaryOperator op, unique_ptr<Expression>&& left, unique_ptr<Expression>&& right) {
-            return unique_ptr<BinaryExpression>{new BinaryExpression(token, op, std::move(left), std::move(right))};
+        template <Allocator Allocator>
+        static BinaryExpression *create(Allocator& allocator, Token token, BinaryOperator op, Expression *NONNULL left, Expression *NONNULL right) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) BinaryExpression{token, op, left, right};
+            });
         }
 
         BinaryOperator getOp() const {
@@ -811,17 +876,17 @@ namespace AST {
             return *left;
         }
         void setLeft(Expression& left) {
-            this->left.reset(&left);
+            this->left = &left;
         }
 
         Expression& getRight() const {
             return *right;
         }
         void setRight(Expression& right) {
-            this->right.reset(&right);
+            this->right = &right;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Binary;
         }
     };
@@ -843,7 +908,7 @@ namespace AST {
             return type;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() >= NK_Binding_Identifier && node->getKind() <= NK_Binding_Identifier;
         }
     };
@@ -860,8 +925,11 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<IdentifierBinding> create(Token token, Symbol& identifier) {
-            return unique_ptr<IdentifierBinding>{new IdentifierBinding(token, identifier)};
+        template <Allocator A>
+        static IdentifierBinding *create(A& allocator, Token token, Symbol& identifier) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) IdentifierBinding(token, identifier);
+            });
         }
 
         const Symbol& getIdentifier() const {
@@ -876,7 +944,7 @@ namespace AST {
             this->isMutable = isMutable;
         }
     
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Binding_Identifier;
         }
     };
@@ -896,19 +964,22 @@ namespace AST {
 
     class AssignmentStatement : public Statement {
     protected:
-        unique_ptr<Expression> target;
-        unique_ptr<Expression> value;
+        Expression *NONNULL target;
+        Expression *NONNULL value;
 
-        AssignmentStatement(Token token, unique_ptr<Expression> target, unique_ptr<Expression> value)
+        AssignmentStatement(Token token, Expression *NONNULL target, Expression *NONNULL value)
             : Statement{NK_Stmt_Assignment, Location{token}}
-            , target{std::move(target)}
-            , value{std::move(value)} 
+            , target{target}
+            , value{value} 
         {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<AssignmentStatement> create(Token token, unique_ptr<Expression> target, unique_ptr<Expression> value) {
-            return unique_ptr<AssignmentStatement>{new AssignmentStatement(token, std::move(target), std::move(value))};
+        template <Allocator Allocator>
+        static AssignmentStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) AssignmentStatement{token, target, value};
+            });
         }
 
         Expression& getTarget() const {
@@ -919,30 +990,32 @@ namespace AST {
             return *value;
         }
 
-        void setWrappedValue(unique_ptr<Expression>&& wrapped) {
+        void setWrappedValue(Expression *NONNULL wrapped) {
             assert(wrapped);
-            std::ignore = value.release();
-            value = std::move(wrapped);
+            value = wrapped;
         }
     };
 
     class CompoundAssignmentStatement : public Statement {
     protected:
         BinaryOperator op;
-        unique_ptr<Expression> target;
-        unique_ptr<Expression> operand;
+        Expression *NONNULL target;
+        Expression *NONNULL operand;
 
-        CompoundAssignmentStatement(Token token, BinaryOperator op, unique_ptr<Expression> target, unique_ptr<Expression> operand)
+        CompoundAssignmentStatement(Token token, BinaryOperator op, Expression *NONNULL target, Expression *NONNULL operand)
             : Statement{NK_Stmt_Compound_Assignment, Location{token}}
             , op{op}
-            , target{std::move(target)}
-            , operand{std::move(operand)} 
+            , target{target}
+            , operand{operand} 
         {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<CompoundAssignmentStatement> create(Token token, BinaryOperator op, unique_ptr<Expression> target, unique_ptr<Expression> value) {
-            return unique_ptr<CompoundAssignmentStatement>{new CompoundAssignmentStatement(token, op, std::move(target), std::move(value))};
+        template <Allocator Allocator>
+        static CompoundAssignmentStatement *NONNULL create(Allocator& allocator, Token token, BinaryOperator op, Expression *NONNULL target, Expression *NONNULL operand) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) CompoundAssignmentStatement{token, op, target, operand};
+            });
         }
 
         const BinaryOperator getOp() const {
@@ -961,11 +1034,11 @@ namespace AST {
     class IfStatement : public Statement {
     public:
         class Branch {
-            unique_ptr<Expression> condition;
+            Expression *NONNULL condition;
             Block block;
 
         public:
-            Branch(unique_ptr<Expression>&& condition, Block&& block) : condition{std::move(condition)}, block{std::move(block)} {}
+            Branch(Expression *NONNULL condition, Block&& block) : condition{condition}, block{std::move(block)} {}
 
             Expression& getCondition() const {
                 return *condition;
@@ -997,8 +1070,11 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<IfStatement> create(Token token, std::vector<Branch>&& conditionals, std::optional<Block>&& fallback) {
-            return unique_ptr<IfStatement>{new IfStatement(token, std::move(conditionals), std::move(fallback))};
+        template <Allocator Allocator>
+        static IfStatement *NONNULL create(Allocator& allocator, Token token, std::vector<Branch>&& conditionals, std::optional<Block>&& fallback) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) IfStatement{token, std::move(conditionals), std::move(fallback)};
+            });
         }
 
         size_t getConditionCount() const {
@@ -1040,21 +1116,24 @@ namespace AST {
             }
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_If;
         }
     };
 
     class GuardStatement : public Statement {
-        unique_ptr<Expression> condition;
+        Expression *NONNULL condition;
         Block block;
     protected:
-        GuardStatement(Token token, unique_ptr<Expression>&& condition, Block&& block) : Statement{NK_Stmt_Guard, token}, condition{std::move(condition)}, block{std::move(block)} {}
+        GuardStatement(Token token, Expression *NONNULL condition, Block&& block) : Statement{NK_Stmt_Guard, token}, condition{condition}, block{std::move(block)} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<GuardStatement> create(Token token, unique_ptr<Expression>&& condition, Block&& block) {
-            return unique_ptr<GuardStatement>{new GuardStatement(token, std::move(condition), std::move(block))};
+        template <Allocator Allocator>
+        static GuardStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL condition, Block&& block) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) GuardStatement{token, condition, std::move(block)};
+            });
         }
 
         Expression& getCondition() {
@@ -1076,46 +1155,53 @@ namespace AST {
 
     class ReturnStatement : public Statement {
     protected:
-        unique_ptr<Expression> value;
+        Expression *NONNULL value;
 
-        ReturnStatement(Token token, unique_ptr<Expression>&& value) : Statement{NK_Stmt_Return, token}, value{std::move(value)} {}
+        ReturnStatement(Token token, Expression *NONNULL value) : Statement{NK_Stmt_Return, token}, value{value} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<ReturnStatement> create(Token token, unique_ptr<Expression> expression) {
-            return unique_ptr<ReturnStatement>{new ReturnStatement(token, std::move(expression))};
+        template <Allocator Allocator>
+        static ReturnStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL expression) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) ReturnStatement{token, expression};
+
+            });
         }
 
-        Expression *getValue() const {
-            return value.get();
+        Expression *NONNULL getValue() const {
+            return value;
         }
 
-        void setWrappedValue(unique_ptr<Expression>&& wrapped) {
+        void setWrappedValue(Expression *NONNULL wrapped) {
             assert(wrapped);
-            std::ignore = value.release();
-            value = std::move(wrapped);
+            value = wrapped;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_Return;
         }
     };
 
     class WhileStatement : public Statement {
     protected:
-        unique_ptr<Expression> condition;
+        Expression *NONNULL condition;
         Block code;
 
-        WhileStatement(Token token, unique_ptr<Expression>&& condition, Block&& code) 
+        WhileStatement(Token token, Expression *NONNULL condition, Block&& code) 
             : Statement{NK_Stmt_While, token}
-            , condition{std::move(condition)}
+            , condition{condition}
             , code{std::move(code)} 
         {}
     
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<WhileStatement> create(Token token, unique_ptr<Expression>&& condition, Block&& code) {
-            return unique_ptr<WhileStatement>{new WhileStatement(token, std::move(condition), std::move(code))};
+        template <Allocator Allocator>
+        static WhileStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL condition, Block&& code) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) WhileStatement{token, condition, std::move(code)};
+
+            });
         }
 
         Expression& getCondition() const {
@@ -1130,29 +1216,32 @@ namespace AST {
             return code;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_While;
         }
     };
 
     class ForStatement : public Statement {
     protected:
-        unique_ptr<Binding> binding;
-        unique_ptr<Expression> iterable;
+        Binding *NONNULL binding;
+        Expression *NONNULL iterable;
         Block code;
 
-        ForStatement(Token token, unique_ptr<Binding>&& binding, unique_ptr<Expression>&& iterable, Block&& code)
+        ForStatement(Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block&& code)
             : Statement{NK_Stmt_For, token}
-            , binding{std::move(binding)}
-            , iterable{std::move(iterable)}
+            , binding{binding}
+            , iterable{iterable}
             , code{std::move(code)}
         {}
 
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<ForStatement> create(Token token, unique_ptr<Binding>&& binding, unique_ptr<Expression>&& iterable, Block&& code) {
-            return unique_ptr<ForStatement>{new ForStatement(token, std::move(binding), std::move(iterable), std::move(code))};
+        template <Allocator Allocator>
+        static ForStatement *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block&& code) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) ForStatement{token, binding, iterable, std::move(code)};
+            });
         }
 
         Binding& getBinding() {
@@ -1187,11 +1276,14 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<BreakStatement> create(Token token) {
-            return unique_ptr<BreakStatement>{new BreakStatement(token)};
+        template <Allocator Allocator>
+        static BreakStatement *NONNULL create(Allocator& allocator, Token token) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) BreakStatement{token};
+            });
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_Break;
         }
     };
@@ -1203,25 +1295,31 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<ContinueStatement> create(Token token) {
-            return unique_ptr<ContinueStatement>{new ContinueStatement(token)};
+        template <Allocator Allocator>
+        static ContinueStatement *NONNULL create(Allocator& allocator, Token token) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) ContinueStatement{token};
+            });
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_Continue;
         }
     };
 
     class ExpressionStatement : public Statement {
     protected:
-        unique_ptr<Expression> expression;
+        Expression *NONNULL expression;
 
-        ExpressionStatement(unique_ptr<Expression>&& expression) : Statement{NK_Stmt_Expression, expression->getLocation()}, expression{std::move(expression)} {}
+        ExpressionStatement(Expression *NONNULL expression) : Statement{NK_Stmt_Expression, expression->getLocation()}, expression{expression} {}
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<ExpressionStatement> create(unique_ptr<Expression>&& expression) {
-            return unique_ptr<ExpressionStatement>{new ExpressionStatement{std::move(expression)}};
+        template <Allocator Allocator>
+        static ExpressionStatement *NONNULL create(Allocator& allocator, Expression *NONNULL expression) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) ExpressionStatement{expression};
+            });
         }
 
         Expression& getExpression() {
@@ -1232,7 +1330,7 @@ namespace AST {
             return *expression;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Stmt_Expression;
         }
     };
@@ -1249,7 +1347,7 @@ namespace AST {
     protected:
         using Node::Node;
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             // TODO: Ensure starting kind is correct
             return node->getKind() >= NK_Decl_Variable && node->getKind() <= NK_Decl_Statement;
         }
@@ -1257,41 +1355,39 @@ namespace AST {
 
     class VariableDeclaration : public Declaration {
     protected:
-        unique_ptr<Binding> binding;
-        Type* type = nullptr;
-        unique_ptr<TypeNode> typeDeclaration;
-        unique_ptr<Expression> initial;
+        Binding *NONNULL binding;
+        TypeNode *NULLABLE typeDeclaration;
+        Expression *NULLABLE initial;
+        Type *NULLABLE type = nullptr;
         bool isMutable;
 
         VariableDeclaration(
             Token token, 
             bool isMutable,
-            unique_ptr<Binding>&& binding,
-            unique_ptr<TypeNode>&& type, 
-            unique_ptr<Expression>&& initial
+            Binding *NONNULL binding,
+            TypeNode *NULLABLE type, 
+            Expression *NULLABLE initial
         ) : Declaration{NK_Decl_Variable, token}
           , isMutable{isMutable}
-          , binding{std::move(binding)}
-          , typeDeclaration{std::move(type)}
-          , initial{std::move(initial)} {}
+          , binding{binding}
+          , typeDeclaration{type}
+          , initial{initial} {}
         
         virtual void print(PrintContext& pc) const override;
 
     public:
-        static unique_ptr<VariableDeclaration> create(
+        template<Allocator Allocator>
+        static VariableDeclaration *create(
+            Allocator& allocator,
             Token token, 
             bool isMutable,
-            unique_ptr<Binding>&& binding,
-            unique_ptr<TypeNode>&& type, 
-            unique_ptr<Expression>&& initial
+            Binding *NONNULL binding,
+            TypeNode *NULLABLE type, 
+            Expression *NULLABLE initial
         ) {
-            return unique_ptr<VariableDeclaration>{new VariableDeclaration{
-                token, 
-                isMutable, 
-                std::move(binding),
-                std::move(type), 
-                std::move(initial)
-            }};
+            return allocate(allocator, [&](void *space) {
+                return new(space) VariableDeclaration{token, isMutable, binding, type, initial};
+            });
         }
 
         const bool getIsMutable() const {
@@ -1306,18 +1402,17 @@ namespace AST {
             return *binding;
         }
 
-        Expression *getInitialValue() const {
-            return initial.get();
+        Expression *NULLABLE getInitialValue() const {
+            return initial;
         }
 
-        void setWrappedInitialValue(unique_ptr<Expression>&& wrapped) {
+        void setWrappedInitialValue(Expression *NONNULL wrapped) {
             assert(wrapped);
-            std::ignore = initial.release();
-            initial = std::move(wrapped);
+            initial = wrapped;
         }
 
-        TypeNode *getTypeDeclaration() const {
-            return typeDeclaration.get();
+        TypeNode *NULLABLE getTypeDeclaration() const {
+            return typeDeclaration;
         }
 
         Type *getType() const {
@@ -1328,7 +1423,7 @@ namespace AST {
             this->type = &type;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Variable;
         }
     };
@@ -1336,10 +1431,10 @@ namespace AST {
     class FunctionParameter {
     public:
         Symbol& name;
-        unique_ptr<TypeNode> typeDeclaration;
-        Type *type = nullptr;
+        TypeNode *typeDeclaration;
+        Type *NULLABLE type = nullptr;
         
-        FunctionParameter(Symbol& name, unique_ptr<TypeNode>&& type) : name{name}, typeDeclaration{std::move(type)} {}
+        FunctionParameter(Symbol& name, TypeNode *type) : name{name}, typeDeclaration{type} {}
         //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
         //Parameter& operator=(Parameter&& parameter) = default;
     };
@@ -1368,12 +1463,12 @@ namespace AST {
         Symbol& name;
         std::vector<FunctionParameter> parameters;
         int arity;
-        unique_ptr<TypeNode> returnTypeDeclaration;
-        FunctionType *type;
-        Type *returnType;
+        TypeNode *returnTypeDeclaration;
+        FunctionType *NULLABLE type;
+        Type *NULLABLE returnType;
         Block code;
 
-        FunctionDeclaration(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) 
+        FunctionDeclaration(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
             , name{name}
             , parameters{std::move(parameters)}
@@ -1383,8 +1478,12 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<FunctionDeclaration> create(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, unique_ptr<TypeNode>&& returnType, Block&& code) {
-            return unique_ptr<FunctionDeclaration>{new FunctionDeclaration(token, name, std::move(parameters), std::move(returnType), std::move(code))};
+        template <Allocator A>
+        static FunctionDeclaration *create(A& allocator, Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) FunctionDeclaration(token, name, std::move(parameters), returnType, std::move(code));
+
+            });
         }
 
         const Symbol& getName() const {
@@ -1392,7 +1491,7 @@ namespace AST {
         }
 
         TypeNode *getReturnTypeDeclaration() const {
-            return returnTypeDeclaration.get();
+            return returnTypeDeclaration;
         }
 
         Type *getReturnType() const {
@@ -1427,7 +1526,7 @@ namespace AST {
             return code;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Function;
         }
     };
@@ -1435,15 +1534,18 @@ namespace AST {
     class StructDeclaration : public Declaration {
     protected:
         Symbol& name;
-        std::vector<unique_ptr<Declaration>> declarations;
+        std::vector<Declaration *NONNULL> declarations;
 
-        StructDeclaration(Token token, Symbol& name, std::vector<unique_ptr<Declaration>>&& declarations)
+        StructDeclaration(Token token, Symbol& name, std::vector<Declaration *NONNULL>&& declarations)
             : Declaration{NK_Decl_Struct, Location{token}}
             , name{name}
             , declarations{std::move(declarations)} {}
     public:
-        static unique_ptr<StructDeclaration> create(Token token, Symbol& name, std::vector<unique_ptr<Declaration>>&& declarations) {
-            return unique_ptr<StructDeclaration>{new StructDeclaration(token, name, std::move(declarations))};
+        template <Allocator Allocator>
+        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Symbol& name, std::vector<Declaration *NONNULL>&& declarations) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) StructDeclaration{token, name, std::move(declarations)};
+            });
         }
 
         virtual void print(PrintContext& pc) const override;
@@ -1452,7 +1554,7 @@ namespace AST {
             return name;
         }
 
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Struct;
         }
 
@@ -1478,11 +1580,11 @@ namespace AST {
         class Case {
         public:
             class Member {
-                Symbol *name;
-                unique_ptr<TypeNode> type;
+                Symbol *NULLABLE name;
+                TypeNode *type;
             public:
-                Member(unique_ptr<TypeNode>&& type) : name{nullptr}, type{std::move(type)} {}
-                Member(Symbol *name, unique_ptr<TypeNode>&& type) : name{name}, type{std::move(type)} {}
+                Member(TypeNode *type) : name{nullptr}, type{type} {}
+                Member(Symbol *name, TypeNode *type) : name{name}, type{type} {}
 
                 const Symbol *getName() {
                     return name;
@@ -1533,11 +1635,11 @@ namespace AST {
         };
     protected:
         Symbol& name;
-        unique_ptr<TypeNode> rawType;
+        TypeNode *NULLABLE rawType;
         std::vector<Case> cases;
-        std::vector<unique_ptr<Declaration>> declarations;
+        std::vector<Declaration *NONNULL> declarations;
 
-        EnumDeclaration(Token token, Symbol& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) 
+        EnumDeclaration(Token token, Symbol& name, TypeNode *NULLABLE rawType, std::vector<Case>&& cases, std::vector<Declaration *NONNULL>&& declarations) 
             : Declaration{NK_Decl_Enum, token}
             , name{name}
             , cases{std::move(cases)}
@@ -1546,8 +1648,11 @@ namespace AST {
 
         virtual void print(PrintContext& pc) const override;
     public:
-        static unique_ptr<EnumDeclaration> create(Token token, Symbol& name, unique_ptr<TypeNode> rawType, std::vector<Case>&& cases, std::vector<unique_ptr<Declaration>>&& declarations) {
-            return unique_ptr<EnumDeclaration>{new EnumDeclaration{token, name, std::move(rawType), std::move(cases), std::move(declarations)}};
+        template <Allocator A>
+        static EnumDeclaration *NONNULL create(A& allocator, Token token, Symbol& name, TypeNode *NULLABLE rawType, std::vector<Case>&& cases, std::vector<Declaration *NONNULL>&& declarations) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) EnumDeclaration{token, name, rawType, std::move(cases), std::move(declarations)};
+            });
         }
 
         size_t getNumberOfCases() const {
@@ -1577,21 +1682,24 @@ namespace AST {
     
     class StatementDeclaration : public Declaration {
     protected:
-        unique_ptr<Statement> statement;
+        Statement *NONNULL statement;
 
-        StatementDeclaration(unique_ptr<Statement>&& statement) : Declaration{NK_Decl_Statement, statement.get()->getLocation()}, statement{std::move(statement)} {}
+        StatementDeclaration(Statement *NONNULL statement) : Declaration{NK_Decl_Statement, statement->getLocation()}, statement{statement} {}
 
         virtual void print(PrintContext& pc) const override; 
     public:
-        static unique_ptr<StatementDeclaration> create(unique_ptr<Statement>&& statement) {
-            return unique_ptr<StatementDeclaration>(new StatementDeclaration(std::move(statement)));
+        template <Allocator Allocator>
+        static StatementDeclaration *create(Allocator& allocator, Statement *NONNULL statement) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) StatementDeclaration{statement};
+            });
         }
 
         Statement& getStatement() const {
             return *statement;
         }
         
-        static bool classof(const Node *node) {
+        static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Statement;
         }
     };

@@ -4,6 +4,13 @@
 #include "templates.h"
 #include <vector>
 
+#ifdef __clang__
+    #define NULLABLE _Nullable
+    #define NONNULL _Nonnull
+#else
+    #define NULLABLE
+    #define NONNULL
+#endif
 
 enum class PassResultKind {
     OK = 0,
