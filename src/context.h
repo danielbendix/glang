@@ -30,7 +30,7 @@ struct ThreadContext {
 
     template <typename T>
     ArrayAllocator<T> allocator() {
-        return ArrayAllocator<T>{heap};
+        return heap.allocator<T>();
     }
 };
 

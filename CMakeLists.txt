@@ -10,6 +10,8 @@ set(CMAKE_CXX_EXTENSIONS Off)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
+add_definitions(-w)
+
 find_package(LLVM REQUIRED CONFIG)
 
 find_package(mimalloc REQUIRED)

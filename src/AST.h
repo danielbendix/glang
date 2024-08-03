@@ -8,6 +8,7 @@
 #include "unique_ref.h"
 #include "type.h"
 #include "memory.h"
+#include "context.h"
 
 #include "containers/symbol_table.h"
 #include "containers/small_byte_array.h"
@@ -147,7 +148,7 @@ namespace AST {
 
     template <typename T>
     class iterator {
-        using internal = std::vector<T *NONNULL>::iterator;
+        using internal = vector<T *NONNULL>::iterator;
         internal it;
 
     public:
@@ -173,7 +174,7 @@ namespace AST {
 
     template <typename T>
     class const_iterator {
-        using internal = std::vector<T *NONNULL>::const_iterator;
+        using internal = vector<T *NONNULL>::const_iterator;
         internal it;
 
     public:
@@ -199,7 +200,7 @@ namespace AST {
 
     template <typename T>
     class value_iterator {
-        using internal = std::vector<T>::iterator;
+        using internal = vector<T>::iterator;
         internal it;
 
     public:
@@ -225,7 +226,7 @@ namespace AST {
 
     template <typename T>
     class const_value_iterator {
-        using internal = std::vector<T>::const_iterator;
+        using internal = vector<T>::const_iterator;
         internal it;
 
     public:
@@ -347,16 +348,16 @@ namespace AST {
     class Declaration;
     class Block {
     protected:
-        std::vector<Declaration *NONNULL> declarations;
+        vector<Declaration *NONNULL> declarations;
 
         Block(const Block&) = delete;
         Block& operator=(const Block&) = delete;
     public:
-        Block(std::vector<Declaration *NONNULL>&& declarations) : declarations{std::move(declarations)} {}
+        Block(vector<Declaration *NONNULL>&& declarations) : declarations{std::move(declarations)} {}
         Block(Block&& other) = default;
         Block& operator=(Block&& other) = default;
 
-        static std::unique_ptr<Block> create(std::vector<Declaration *NONNULL>&& declarations) {
+        static std::unique_ptr<Block> create(vector<Declaration *NONNULL>&& declarations) {
             return std::unique_ptr<Block>(new Block(std::move(declarations)));
         }
 
@@ -501,7 +502,7 @@ namespace AST {
             bool,
             APInt,
             double,
-            std::string,
+            string,
             std::monostate
         >;
         Internal internal;
@@ -537,7 +538,7 @@ namespace AST {
         }
 
         template <Allocator Allocator>
-        static Literal *create(Allocator& allocator, Token token, std::string&& value) {
+        static Literal *create(Allocator& allocator, Token token, string&& value) {
             return allocate(allocator, [&](auto space) {
                 return new(space) Literal{token, std::move(value)};
             });
@@ -566,8 +567,8 @@ namespace AST {
             return std::get<double>(internal);
         }
 
-        const std::string& getString() const {
-            return std::get<std::string>(internal);
+        const string& getString() const {
+            return std::get<string>(internal);
         }
 
         static bool classof(const Node *NONNULL node) {
@@ -577,10 +578,10 @@ namespace AST {
 
     class CallExpression : public Expression {
         Expression *NONNULL target;
-        std::vector<Expression *NONNULL> arguments;
+        vector<Expression *NONNULL> arguments;
 
     protected:
-        CallExpression(Token token, Expression *NONNULL target, std::vector<Expression *NONNULL>&& arguments) 
+        CallExpression(Token token, Expression *NONNULL target, vector<Expression *NONNULL>&& arguments) 
             : Expression{NK_Expr_Call, Location{token}}
             , target{target}
             , arguments{std::move(arguments)} {}
@@ -590,7 +591,7 @@ namespace AST {
         CallExpression& operator=(const CallExpression&) = delete;
     public:
         template <Allocator Allocator>
-        static CallExpression *create(Allocator& allocator, Token token, Expression *NONNULL target, std::vector<Expression *NONNULL>&& arguments) {
+        static CallExpression *create(Allocator& allocator, Token token, Expression *NONNULL target, vector<Expression *NONNULL>&& arguments) {
             return allocate(allocator, [&](auto space) {
                 return new(space) CallExpression{token, target, std::move(arguments)};
             });
@@ -730,9 +731,9 @@ namespace AST {
     private:       
         // This is a typename. Could contain a type parameter in the future. We should find a better type.
         Identifier *NULLABLE identifier;
-        std::vector<Pair> pairs;
+        vector<Pair> pairs;
     protected:
-        InitializerExpression(Token token, Identifier *NULLABLE identifier, std::vector<Pair>&& pairs) 
+        InitializerExpression(Token token, Identifier *NULLABLE identifier, vector<Pair>&& pairs) 
             : Expression{NK_Expr_Initializer, token}
             , identifier{identifier}
             , pairs{std::move(pairs)}
@@ -742,7 +743,7 @@ namespace AST {
 
     public:
         template <Allocator Allocator>
-        static InitializerExpression *create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, std::vector<Pair>&& pairs) {
+        static InitializerExpression *create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, vector<Pair>&& pairs) {
             return allocate(allocator, [&](auto space) {
                 return new(space) InitializerExpression{token, identifier, std::move(pairs)};
             });
@@ -1056,11 +1057,11 @@ namespace AST {
         };
     protected:
         // TODO: Rename to branches
-        std::vector<Branch> conditionals;
+        vector<Branch> conditionals;
         std::optional<Block> fallback;
 
         // NOTE: this would be safer if it took a conditional, and a vector of subsequent ones, but initialization becomes more troublesome that way.
-        IfStatement(Token token, std::vector<Branch>&& conditionals, std::optional<Block>&& fallback) 
+        IfStatement(Token token, vector<Branch>&& conditionals, std::optional<Block>&& fallback) 
             : Statement{NK_Stmt_If, token}
             , conditionals{std::move(conditionals)}
             , fallback{std::move(fallback)}
@@ -1071,7 +1072,7 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
     public:
         template <Allocator Allocator>
-        static IfStatement *NONNULL create(Allocator& allocator, Token token, std::vector<Branch>&& conditionals, std::optional<Block>&& fallback) {
+        static IfStatement *NONNULL create(Allocator& allocator, Token token, vector<Branch>&& conditionals, std::optional<Block>&& fallback) {
             return allocate(allocator, [&](auto space) {
                 return new(space) IfStatement{token, std::move(conditionals), std::move(fallback)};
             });
@@ -1448,11 +1449,11 @@ namespace AST {
         const char *base;
         uint32_t length;
         uint32_t root;
-        std::vector<Label> labels;
+        vector<Label> labels;
     };
 
     class InitializerDeclaration : public Declaration {
-        std::vector<FunctionParameter> parameters;
+        vector<FunctionParameter> parameters;
         Block code;
 
 
@@ -1461,14 +1462,14 @@ namespace AST {
     class FunctionDeclaration : public Declaration {
     protected:
         Symbol& name;
-        std::vector<FunctionParameter> parameters;
+        vector<FunctionParameter> parameters;
         int arity;
         TypeNode *returnTypeDeclaration;
         FunctionType *NULLABLE type;
         Type *NULLABLE returnType;
         Block code;
 
-        FunctionDeclaration(Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) 
+        FunctionDeclaration(Token token, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
             , name{name}
             , parameters{std::move(parameters)}
@@ -1479,7 +1480,7 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
     public:
         template <Allocator A>
-        static FunctionDeclaration *create(A& allocator, Token token, Symbol& name, std::vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) {
+        static FunctionDeclaration *create(A& allocator, Token token, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *returnType, Block&& code) {
             return allocate(allocator, [&](auto space) {
                 return new(space) FunctionDeclaration(token, name, std::move(parameters), returnType, std::move(code));
 
@@ -1534,15 +1535,15 @@ namespace AST {
     class StructDeclaration : public Declaration {
     protected:
         Symbol& name;
-        std::vector<Declaration *NONNULL> declarations;
+        vector<Declaration *NONNULL> declarations;
 
-        StructDeclaration(Token token, Symbol& name, std::vector<Declaration *NONNULL>&& declarations)
+        StructDeclaration(Token token, Symbol& name, vector<Declaration *NONNULL>&& declarations)
             : Declaration{NK_Decl_Struct, Location{token}}
             , name{name}
             , declarations{std::move(declarations)} {}
     public:
         template <Allocator Allocator>
-        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Symbol& name, std::vector<Declaration *NONNULL>&& declarations) {
+        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Symbol& name, vector<Declaration *NONNULL>&& declarations) {
             return allocate(allocator, [&](auto space) {
                 return new(space) StructDeclaration{token, name, std::move(declarations)};
             });
@@ -1596,10 +1597,10 @@ namespace AST {
             };
         private:
             Symbol& name;
-            std::vector<Member> members;
+            vector<Member> members;
         public:
-            Case(Token token, Symbol& name) : name{name}, members{} {}
-            Case(Token token, Symbol& name, std::vector<Member>&& members) : name{name}, members{std::move(members)} {}
+            Case(Token token, Symbol& name) : name{name}, members{allocator<Member>()} {}
+            Case(Token token, Symbol& name, vector<Member>&& members) : name{name}, members{std::move(members)} {}
             Case(Case&) = delete;
             Case& operator=(Case&) = delete;
             Case(Case&&) = default;
@@ -1636,10 +1637,10 @@ namespace AST {
     protected:
         Symbol& name;
         TypeNode *NULLABLE rawType;
-        std::vector<Case> cases;
-        std::vector<Declaration *NONNULL> declarations;
+        vector<Case> cases;
+        vector<Declaration *NONNULL> declarations;
 
-        EnumDeclaration(Token token, Symbol& name, TypeNode *NULLABLE rawType, std::vector<Case>&& cases, std::vector<Declaration *NONNULL>&& declarations) 
+        EnumDeclaration(Token token, Symbol& name, TypeNode *NULLABLE rawType, vector<Case>&& cases, vector<Declaration *NONNULL>&& declarations) 
             : Declaration{NK_Decl_Enum, token}
             , name{name}
             , cases{std::move(cases)}
@@ -1649,7 +1650,7 @@ namespace AST {
         virtual void print(PrintContext& pc) const override;
     public:
         template <Allocator A>
-        static EnumDeclaration *NONNULL create(A& allocator, Token token, Symbol& name, TypeNode *NULLABLE rawType, std::vector<Case>&& cases, std::vector<Declaration *NONNULL>&& declarations) {
+        static EnumDeclaration *NONNULL create(A& allocator, Token token, Symbol& name, TypeNode *NULLABLE rawType, vector<Case>&& cases, vector<Declaration *NONNULL>&& declarations) {
             return allocate(allocator, [&](auto space) {
                 return new(space) EnumDeclaration{token, name, rawType, std::move(cases), std::move(declarations)};
             });
@@ -1742,7 +1743,7 @@ namespace AST {
 
         PrintContext& operator<<(const Node& value);
 
-        PrintContext& operator<<(const std::string& str) {
+        PrintContext& operator<<(const string& str) {
             os << str;
             return *this;
         }

@@ -10,13 +10,16 @@
 template <typename T>
 struct ArrayAllocator {
     using value_type = T;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
+    using propagate_on_container_move_assignment = std::true_type;
 
     ArrayAllocator(mi_heap_t *heap) : heap{heap} {
         assert(heap);
     }
 
     constexpr T *allocate(std::size_t n) {
-        return mi_heap_malloc_aligned(heap, n * sizeof(T), alignof(T));
+        return static_cast<T*>(mi_heap_malloc_aligned(heap, n * sizeof(T), alignof(T)));
     }
 
     constexpr void deallocate(T *ptr, std::size_t n) {

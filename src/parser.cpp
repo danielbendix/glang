@@ -25,7 +25,7 @@ AST::Block Parser::block()
 {
     consume(TokenType::LeftBracket);
 
-    std::vector<AST::Declaration *NONNULL> declarations;
+    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
 
     while (!match(TokenType::RightBracket)) {
         declarations.emplace_back(declaration());
@@ -41,7 +41,7 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
     Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
     Symbol& name = symbols.getSymbol(nameToken.chars);
 
-    std::vector<AST::TypeModifier::Modifier> modifiers;
+    AST::vector<AST::TypeModifier::Modifier> modifiers{allocator<AST::TypeModifier::Modifier>()};
 
     using enum AST::TypeModifier::Modifier;
 
@@ -125,7 +125,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration()
 
     consume(TokenType::LeftParenthesis);
 
-    std::vector<AST::FunctionParameter> parameters;
+    AST::vector<AST::FunctionParameter> parameters{allocator<AST::FunctionParameter>()};
     if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
@@ -152,7 +152,7 @@ AST::FunctionDeclaration *Parser::initializerDeclaration()
 
     consume(TokenType::LeftParenthesis);
 
-    std::vector<AST::FunctionParameter> parameters;
+    AST::vector<AST::FunctionParameter> parameters{allocator<AST::FunctionParameter>()};
     if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
@@ -179,7 +179,7 @@ AST::StructDeclaration *Parser::structDeclaration()
     auto& name = symbols.getSymbol(nameToken.chars);
 
     consume(TokenType::LeftBracket);
-    std::vector<AST::Declaration *NONNULL> declarations;
+    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
     while (!match(TokenType::RightBracket)) {
         declarations.push_back(declaration());
     }
@@ -199,8 +199,8 @@ AST::EnumDeclaration *Parser::enumDeclaration()
     if (match(TokenType::Colon)) {
         rawType = type();
     }
-    std::vector<AST::EnumDeclaration::Case> cases;
-    std::vector<AST::Declaration *NONNULL> declarations;
+    AST::vector<AST::EnumDeclaration::Case> cases{allocator<AST::EnumDeclaration::Case>()};
+    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
 
     while (!match(TokenType::RightBracket)) {
         if (match(TokenType::Case)) {
@@ -221,7 +221,7 @@ AST::EnumDeclaration::Case Parser::enumCase()
     auto& name = symbols.getSymbol(nameToken.chars);
 
     if (match(TokenType::LeftParenthesis)) {
-        std::vector<AST::EnumDeclaration::Case::Member> members;
+        AST::vector<AST::EnumDeclaration::Case::Member> members{allocator<AST::EnumDeclaration::Case::Member>()};
         do {
             members.push_back(enumCaseMember());
         } while (match(TokenType::Comma));
@@ -311,7 +311,7 @@ AST::Statement *Parser::statement()
 AST::IfStatement *Parser::ifStatement()
 {
     auto token = previous;
-    std::vector<AST::IfStatement::Branch> conditionals;
+    AST::vector<AST::IfStatement::Branch> conditionals{allocator<AST::IfStatement::Branch>()};
     std::optional<AST::Block> fallback;
     while (true) {
         auto condition = expression({.allowInitializer = false});
@@ -517,11 +517,11 @@ AST::Expression *Parser::call(AST::Expression *left)
 {
     auto token = previous;
 
-    if (match(TokenType::RightParenthesis)) {
-        return AST::CallExpression::create(context.nodeAllocator, token, std::move(left), {});
-    }
+    AST::vector<AST::Expression *NONNULL> arguments{allocator<AST::Expression *>()};
 
-    std::vector<AST::Expression *NONNULL> arguments;
+    if (match(TokenType::RightParenthesis)) {
+        return AST::CallExpression::create(context.nodeAllocator, token, std::move(left), std::move(arguments));
+    }
 
     do {
         arguments.emplace_back(expression({}));
@@ -651,7 +651,7 @@ std::optional<char> escapeCharacter(char c)
 
 AST::Literal *Parser::createStringLiteral(const Token& token)
 {
-    std::string string;
+    AST::string string{allocator<char>()};
     string.reserve(token.chars.length() - 2); // Don't reserve for quotes
     
     // NOTE: This currently only supports double quotes as separators
@@ -759,7 +759,7 @@ AST::Expression *Parser::inferredInitializer()
 AST::Expression *Parser::initializer(AST::Identifier *identifier)
 {
     Token token = previous;
-    std::vector<AST::InitializerExpression::Pair> pairs;
+    AST::vector<AST::InitializerExpression::Pair> pairs{allocator<AST::InitializerExpression::Pair>()};
     while (!match(TokenType::RightBracket)) {
         auto nameToken = consume(TokenType::Identifier);
         auto& name = symbols.getSymbol(nameToken.chars);

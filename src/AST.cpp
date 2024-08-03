@@ -344,7 +344,7 @@ namespace AST {
                 pc.printInteger(arg, 10);
             } else if constexpr (std::is_same_v<T, double>) {
                 pc << arg;
-            } else if constexpr (std::is_same_v<T, std::string>) {
+            } else if constexpr (std::is_same_v<T, string>) {
                 pc << arg;
             } else if constexpr (std::is_same_v<T, std::monostate>) {
                 pc << "nil";
