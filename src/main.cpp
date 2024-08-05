@@ -60,7 +60,6 @@ std::unique_ptr<llvm::Module> codegen(ModuleDef& moduleDef, bool verbose = false
 
 int main(int argc, char **argv)
 {
-    std::cout << sizeof(AST::string) << '\n';
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
     SymbolTable symbols;
@@ -85,7 +84,14 @@ int main(int argc, char **argv)
         Diagnostic::setWriter(ioWriter);
     }
 
-    std::string contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.seekg(0, file.end);
+    size_t file_size = file.tellg();
+    file.seekg(0, file.beg);
+
+    std::string contents(file_size, '\0');
+
+    file.read(contents.data(), file_size);
+
     auto parsed = parse(symbols, std::move(contents));
 
     std::visit([&](auto&& arg) {

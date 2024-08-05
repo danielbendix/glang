@@ -167,6 +167,12 @@ namespace AST {
                 case Modifier::Optional:
                     pc << '?';
                     break;
+                case Modifier::Array:
+                    pc << "[]";
+                case Modifier::UnboundedArray:
+                    pc << "[!]";
+                case Modifier::Location:
+                    pc << '&';
             }
         }
     }

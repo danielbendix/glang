@@ -7,7 +7,7 @@
 struct ThreadContext {
     static thread_local ThreadContext *NULLABLE instance;
 
-    ThreadContext(SymbolTable *symbols) : symbols{symbols} {
+    ThreadContext(SymbolTable *NONNULL symbols) : symbols{symbols} {
         assert(this);
         instance = this;
     }
@@ -19,7 +19,7 @@ struct ThreadContext {
         instance = nullptr;
     }
 
-    static ThreadContext *get() {
+    static ThreadContext *NONNULL get() {
         assert(instance);
         return instance;
     }
