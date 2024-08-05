@@ -2,15 +2,18 @@ cmake_minimum_required(VERSION 3.20.0)
 
 project(glang)
 
-set(CMAKE_BUILD_TYPE Debug)
+option(ENABLE_UBSAN "Enable UB Sanitizer" OFF)
+if(ENABLE_UBSAN)
+    message("Enabling UB Sanitizer")
+    set(CMAKE_C_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return)
+    set(CMAKE_CXX_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return)
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED On)
 set(CMAKE_CXX_EXTENSIONS Off)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
-
-add_definitions(-w)
 
 find_package(LLVM REQUIRED CONFIG)
 
