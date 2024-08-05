@@ -1,4 +1,5 @@
 #include "AST.h"
+#include "AST_Visitor.h"
 #include "templates.h"
 
 
@@ -85,11 +86,13 @@ namespace AST {
 
     void Node::print(std::ostream& os) const {
         PrintContext pc{os};
-        this->print(pc);
+        pc << *this;
     }
 
-    PrintContext& PrintContext::operator<<(const Node& value) {
-        value.print(*this);
+    PrintContext& PrintContext::operator<<(const Node& node) {
+        visit(node, [this](auto& node) {
+            node.print(*this);
+        });
         return *this;
     }
 
@@ -327,21 +330,21 @@ namespace AST {
             using T = std::decay_t<decltype(arg)>;
             if constexpr (std::is_same_v<T, bool>) {
                 pc << (arg ? "true" : "false");
-            } else if constexpr (std::is_same_v<T, llvm::APInt>) {
-                switch (integerType) {
+            } else if constexpr (std::is_same_v<T, Integer>) {
+                switch (arg.type) {
                 case IntegerType::Binary:
                     pc << "0b";
-                    return pc.printInteger(arg, 2);
+                    return pc.printInteger(arg.integer, 2);
                 case IntegerType::Octal:
                     pc << "0o";
-                    return pc.printInteger(arg, 8);
+                    return pc.printInteger(arg.integer, 8);
                 case IntegerType::Decimal:
-                    return pc.printInteger(arg, 10);
+                    return pc.printInteger(arg.integer, 10);
                 case IntegerType::Hexadecimal:
                     pc << "0o";
-                    return pc.printInteger(arg, 16);
+                    return pc.printInteger(arg.integer, 16);
                 }
-                pc.printInteger(arg, 10);
+                pc.printInteger(arg.integer, 10);
             } else if constexpr (std::is_same_v<T, double>) {
                 pc << arg;
             } else if constexpr (std::is_same_v<T, string>) {

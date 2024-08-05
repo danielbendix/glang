@@ -4,6 +4,138 @@
 #include "AST.h"
 
 namespace AST {
+    template <typename Func>
+    auto visit(Node& node, Func&& visitor) {
+        using enum Node::Kind;
+        switch (node.getKind()) {
+            case NK_Decl_Variable:
+                return std::invoke(visitor, *static_cast<VariableDeclaration *>(&node));
+            case NK_Decl_Function:
+                return std::invoke(visitor, *static_cast<FunctionDeclaration *>(&node));
+            case NK_Decl_Struct:
+                return std::invoke(visitor, *static_cast<StructDeclaration *>(&node));
+            case NK_Decl_Enum:
+                return std::invoke(visitor, *static_cast<EnumDeclaration *>(&node));
+            case NK_Decl_Protocol:
+                return std::invoke(visitor, *static_cast<ProtocolDeclaration *>(&node));
+            case NK_Decl_Statement:
+                return std::invoke(visitor, *static_cast<StatementDeclaration *>(&node));
+            case NK_Stmt_Assignment:
+                return std::invoke(visitor, *static_cast<AssignmentStatement *>(&node));
+            case NK_Stmt_Compound_Assignment:
+                return std::invoke(visitor, *static_cast<CompoundAssignmentStatement *>(&node));
+            case NK_Stmt_If:
+                return std::invoke(visitor, *static_cast<IfStatement *>(&node));
+            case NK_Stmt_Guard:
+                return std::invoke(visitor, *static_cast<GuardStatement *>(&node));
+            case NK_Stmt_Return:
+                return std::invoke(visitor, *static_cast<ReturnStatement *>(&node));
+            case NK_Stmt_While:
+                return std::invoke(visitor, *static_cast<WhileStatement *>(&node));
+            case NK_Stmt_For:
+                return std::invoke(visitor, *static_cast<ForStatement *>(&node));
+            case NK_Stmt_Break:
+                return std::invoke(visitor, *static_cast<BreakStatement *>(&node));
+            case NK_Stmt_Continue:
+                return std::invoke(visitor, *static_cast<ContinueStatement *>(&node));
+            case NK_Stmt_Expression:
+                return std::invoke(visitor, *static_cast<ExpressionStatement *>(&node));
+            case NK_Expr_Identifier:
+                return std::invoke(visitor, *static_cast<Identifier *>(&node));
+            case NK_Expr_Self:
+                return std::invoke(visitor, *static_cast<Self *>(&node));
+            case NK_Expr_Literal:
+                return std::invoke(visitor, *static_cast<Literal *>(&node));
+            case NK_Expr_Unary:
+                return std::invoke(visitor, *static_cast<UnaryExpression *>(&node));
+            case NK_Expr_Binary:
+                return std::invoke(visitor, *static_cast<BinaryExpression *>(&node));
+            case NK_Expr_Call:
+                return std::invoke(visitor, *static_cast<CallExpression *>(&node));
+            case NK_Expr_Subscript:
+                return std::invoke(visitor, *static_cast<SubscriptExpression *>(&node));
+            case NK_Expr_Initializer:
+                return std::invoke(visitor, *static_cast<InitializerExpression *>(&node));
+            case NK_Expr_Member_Access:
+                return std::invoke(visitor, *static_cast<MemberAccessExpression *>(&node));
+            case NK_Expr_Inferred_Member_Access:
+                return std::invoke(visitor, *static_cast<InferredMemberAccessExpression *>(&node));
+            case NK_Type_Literal:
+                return std::invoke(visitor, *static_cast<TypeLiteral *>(&node));
+            case NK_Type_Modifier:
+                return std::invoke(visitor, *static_cast<TypeModifier *>(&node));
+            case NK_Binding_Identifier:
+                return std::invoke(visitor, *static_cast<IdentifierBinding *>(&node));
+        }
+    }
+
+    template <typename Func>
+    auto visit(const Node& node, Func&& visitor) {
+        using enum Node::Kind;
+        switch (node.getKind()) {
+            case NK_Decl_Variable:
+                return std::invoke(visitor, *static_cast<const VariableDeclaration *>(&node));
+            case NK_Decl_Function:
+                return std::invoke(visitor, *static_cast<const FunctionDeclaration *>(&node));
+            case NK_Decl_Struct:
+                return std::invoke(visitor, *static_cast<const StructDeclaration *>(&node));
+            case NK_Decl_Enum:
+                return std::invoke(visitor, *static_cast<const EnumDeclaration *>(&node));
+            case NK_Decl_Protocol:
+                return std::invoke(visitor, *static_cast<const ProtocolDeclaration *>(&node));
+            case NK_Decl_Statement:
+                return std::invoke(visitor, *static_cast<const StatementDeclaration *>(&node));
+            case NK_Stmt_Assignment:
+                return std::invoke(visitor, *static_cast<const AssignmentStatement *>(&node));
+            case NK_Stmt_Compound_Assignment:
+                return std::invoke(visitor, *static_cast<const CompoundAssignmentStatement *>(&node));
+            case NK_Stmt_If:
+                return std::invoke(visitor, *static_cast<const IfStatement *>(&node));
+            case NK_Stmt_Guard:
+                return std::invoke(visitor, *static_cast<const GuardStatement *>(&node));
+            case NK_Stmt_Return:
+                return std::invoke(visitor, *static_cast<const ReturnStatement *>(&node));
+            case NK_Stmt_While:
+                return std::invoke(visitor, *static_cast<const WhileStatement *>(&node));
+            case NK_Stmt_For:
+                return std::invoke(visitor, *static_cast<const ForStatement *>(&node));
+            case NK_Stmt_Break:
+                return std::invoke(visitor, *static_cast<const BreakStatement *>(&node));
+            case NK_Stmt_Continue:
+                return std::invoke(visitor, *static_cast<const ContinueStatement *>(&node));
+            case NK_Stmt_Expression:
+                return std::invoke(visitor, *static_cast<const ExpressionStatement *>(&node));
+            case NK_Expr_Identifier:
+                return std::invoke(visitor, *static_cast<const Identifier *>(&node));
+            case NK_Expr_Self:
+                return std::invoke(visitor, *static_cast<const Self *>(&node));
+            case NK_Expr_Literal:
+                return std::invoke(visitor, *static_cast<const Literal *>(&node));
+            case NK_Expr_Unary:
+                return std::invoke(visitor, *static_cast<const UnaryExpression *>(&node));
+            case NK_Expr_Binary:
+                return std::invoke(visitor, *static_cast<const BinaryExpression *>(&node));
+            case NK_Expr_Call:
+                return std::invoke(visitor, *static_cast<const CallExpression *>(&node));
+            case NK_Expr_Subscript:
+                return std::invoke(visitor, *static_cast<const SubscriptExpression *>(&node));
+            case NK_Expr_Initializer:
+                return std::invoke(visitor, *static_cast<const InitializerExpression *>(&node));
+            case NK_Expr_Member_Access:
+                return std::invoke(visitor, *static_cast<const MemberAccessExpression *>(&node));
+            case NK_Expr_Inferred_Member_Access:
+                return std::invoke(visitor, *static_cast<const InferredMemberAccessExpression *>(&node));
+            case NK_Type_Literal:
+                return std::invoke(visitor, *static_cast<const TypeLiteral *>(&node));
+            case NK_Type_Modifier:
+                return std::invoke(visitor, *static_cast<const TypeModifier *>(&node));
+            case NK_Binding_Identifier:
+                return std::invoke(visitor, *static_cast<const IdentifierBinding *>(&node));
+        }
+    }
+}
+
+namespace AST {
 
     template <typename Subclass, typename ReturnType, typename... Args>
     ReturnType Declaration::acceptVisitor(DeclarationVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args) {
