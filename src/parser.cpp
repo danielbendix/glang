@@ -452,8 +452,14 @@ enum class Precedence {
     BitwiseOr,      // |
     Unary,          // ! -
     Call,           // . () []
-    Primary
+    Stop,
 };
+
+Precedence operator++(Precedence& precedence) {
+    precedence = Precedence{static_cast<int>(precedence) + 1};
+    assert(precedence <= Precedence::Stop);
+    return precedence;
+}
 
 bool operator<=(Precedence l, Precedence r)
 {
@@ -600,6 +606,7 @@ AST::Expression *Parser::binary(AST::Expression *left)
     // Previous is operator.
     auto token = previous;
     auto [op, newPrecedence] = operatorFromToken(previous);
+    ++newPrecedence;
     auto right = parseExpression(newPrecedence);
 
     return AST::BinaryExpression::create(context.nodeAllocator, token, op, std::move(left), std::move(right));
