@@ -592,8 +592,6 @@ namespace AST {
             , target{target}
             , arguments{std::move(arguments)} {}
 
-        CallExpression(const CallExpression&) = delete;
-        CallExpression& operator=(const CallExpression&) = delete;
     public:
         void print(PrintContext& pc) const;
 
@@ -1622,7 +1620,7 @@ namespace AST {
         public:
             Case(Token token, Symbol& name) : name{name}, members{allocator<Member>()} {}
             Case(Token token, Symbol& name, vector<Member>&& members) : name{name}, members{std::move(members)} {}
-            Case(Case&) = delete;
+            Case(Case&) = default;
             Case& operator=(Case&) = delete;
             Case(Case&&) = default;
             Case& operator=(Case&&) = delete;
@@ -1751,6 +1749,8 @@ namespace AST {
 
         PrintContext(const PrintContext&) = delete;
         PrintContext& operator=(const PrintContext&) = delete;
+        PrintContext(PrintContext&&) = delete;
+        PrintContext& operator=(PrintContext&&) = delete;
     public:
         void indent() {
             ++indentLevel;
