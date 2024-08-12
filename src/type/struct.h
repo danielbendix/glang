@@ -43,6 +43,10 @@ public:
         return unique_ptr_t<StructType>{new StructType(name, wellFormed, std::move(properties), std::move(fields), std::move(methods))};
     }
 
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
+
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const Symbol& name);
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const Symbol& name);
 

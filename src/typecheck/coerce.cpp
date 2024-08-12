@@ -29,7 +29,7 @@ std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
             }
             return {OK, wrap};
         } else {
-            Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to [DESTINATION TYPE], as this could result in a loss of information.");
+            Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ", as this could result in a loss of information.");
             return {ERROR, nullptr};
         }
     } else {
@@ -39,7 +39,7 @@ std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
         } else if (source.bitWidth < destination.bitWidth) {
             return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, ZeroExtend, destination)};
         } else {
-            Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to [DESTINATION TYPE], as this could result in a loss of information.");
+            Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ", as this could result in a loss of information.");
             return {ERROR, nullptr};
         }
     }
@@ -53,7 +53,7 @@ std::pair<Result, AST::Expression *> coerceBetweenFPTypes(
     if (destination.precision > source.precision) {
         return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, FPExtend, destination)};
     } else {
-        Diagnostic::error(expression, "Coercing [SOURCE TYPE] to [DESTINATION TYPE] could result in a loss of information.");
+        Diagnostic::error(expression, "Coercing " + source.makeName() + " to " + destination.makeName() + " could result in a loss of information.");
         return {ERROR, nullptr};
     }
 }
@@ -67,7 +67,7 @@ std::pair<Result, AST::Expression *> coerceIntegerToFP(
     if (fractionBits > source.bitWidth) {
         return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, FPExtend, destination)};
     } else {
-        Diagnostic::error(expression, "Coercing [SOURCE TYPE] to [DESTINATION TYPE] could result in a loss of information.");
+        Diagnostic::error(expression, "Coercing " + source.makeName() + " to " + destination.makeName() + " could result in a loss of information.");
         return {ERROR, nullptr};
     }
 }
@@ -103,7 +103,8 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
         if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return coerceBetweenIntegerTypes(integerDestination, *integerSource, expression);
         } else if (auto floatingSource = dyn_cast<FPType>(&source)) {
-
+            Diagnostic::error(expression, "Cannot coerce floating-point type " + source.makeName() + " to integer type " + destination.makeName() + ", as this would discard the fractional component. TODO: Add note about intrinsics to use.");
+            return {ERROR, nullptr};
         }
 
         // TODO: Check if we can widen the types.
@@ -116,7 +117,7 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
         } else if (auto integerSource = dyn_cast<IntegerType>(&source)) {
             return coerceIntegerToFP(fpDestination, *integerSource, expression);
         }
-        Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to floating point type.");
+        Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to floating point type.");
         return {ERROR, nullptr};
         // Allow:
         // f64 <- u/i32 & smaller
@@ -126,7 +127,7 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
     case TK_String:
         assert(false);
     case TK_Pointer:
-        Diagnostic::error(expression, "Cannot coerce [SOURCE TYPE] to pointer type.");
+        Diagnostic::error(expression, "Cannot coerce " + source.makeName() +  " to " + destination.makeName() + ".");
         // TODO: We need type names.
         return {ERROR, nullptr}; 
     case TK_Optional: {

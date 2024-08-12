@@ -2,6 +2,8 @@
 #include "type/struct.h"
 #include "type/enum.h"
 
+#include "type/visitor.h"
+
 #include "containers/string_map.h"
 
 using llvm::dyn_cast;
@@ -217,4 +219,68 @@ llvm::Type *OptionalType::_getLLVMType(llvm::LLVMContext& context) const {
         auto flag = llvm::IntegerType::get(context, 1);
         return llvm::StructType::get(flag, child);
     }
+}
+
+void getNameOfType(const Type& type, std::string& result) {
+    return visit(type, [&result](auto& type) {
+        type.getName(result);
+    });
+}
+
+std::string Type::makeName() const {
+    std::string result;
+    getNameOfType(*this, result);
+    return result;
+}
+
+void PointerType::getName(std::string& result) const {
+    getNameOfType(pointeeType, result);
+    result.push_back('*');
+}
+
+void OptionalType::getName(std::string& result) const {
+    getNameOfType(contained, result);
+    result += '?';
+}
+
+void ArrayType::getName(std::string& result) const {
+    getNameOfType(contained, result);
+    if (isBounded) {
+        result += "[]";
+    } else {
+        result += "[!]";
+    }
+}
+
+void RangeType::getName(std::string& result) const {
+    if (isClosed) {
+        result += "_closed_range<";
+    } else {
+        result += "_range<";
+    }
+    integerType.getName(result);
+    result += '>';
+}
+
+void FunctionType::getName(std::string& result) const {
+    result += "fn (";
+
+    bool needsSeparator = false;
+    for (auto parameter : parameters) {
+        if (needsSeparator) {
+            result += ", ";
+        } else {
+            needsSeparator = true;
+        }
+
+        getNameOfType(*parameter, result);
+    }
+
+    result += ") -> ";
+
+    getNameOfType(*returnType, result);
+}
+
+void StringType::getName(std::string& result) const {
+    llvm_unreachable("String type not supported.");
 }

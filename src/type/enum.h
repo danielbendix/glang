@@ -50,6 +50,10 @@ public:
 public:
     EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
 
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
+
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const Symbol& name);
     std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const Symbol& name);
 

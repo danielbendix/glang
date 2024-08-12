@@ -2,7 +2,7 @@
 #define LANG_type_h
 
 #include "common.h"
-#include "containers/string_map.h"
+#include "containers/symbol_table.h"
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/IR/Type.h"
@@ -16,13 +16,13 @@ enum TypeKind {
     TK_Num_FP,
     TK_String,
 
-    TK_Pointer,
-    TK_Optional,
-
     TK_Function,
     TK_Struct,
     TK_Enum,
     TK_Protocol,
+
+    TK_Pointer,
+    TK_Optional,
 
     TK_Array,
     TK_Range,
@@ -58,6 +58,8 @@ protected:
     Type(TypeKind kind) : kind{kind} {}
     Type(const Type&) = delete;
     Type& operator=(const Type&) = delete;
+    Type(Type&&) = delete;
+    Type& operator=(Type&&) = delete;
 
 public:
     llvm::Type *getLLVMType(llvm::LLVMContext& context) const {
@@ -66,6 +68,12 @@ public:
         } else {
             return (llvmType = _getLLVMType(context));
         }
+    }
+
+    std::string makeName() const;
+
+    operator std::string() const {
+        return makeName();
     }
 
     PointerType *getPointerType() {
@@ -102,13 +110,27 @@ public:
 
 class VoidType : public Type {
 public:
-    VoidType() : Type{TK_Void} {}
+    const Symbol& name;
+    VoidType(Symbol& name) : Type{TK_Void}, name{name} {}
+
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Void;
+    }
 };
 
 class BooleanType : public Type {
+    Symbol& name;
     mutable llvm::IntegerType *type;
 public:
-    BooleanType(llvm::IntegerType *type = nullptr) : Type{TK_Boolean}, type{type} {}
+    BooleanType(Symbol& name, llvm::IntegerType *type = nullptr) : Type{TK_Boolean}, name{name}, type{type} {}
+
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
 
     llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) const {
         if (!type) {
@@ -135,17 +157,23 @@ public:
 
 class IntegerType : public NumericType {
 public:
+    const Symbol& name;
     const bool isSigned;
     const uint32_t bitWidth;
 private:
     mutable llvm::IntegerType *type;
 
 public:
-    IntegerType(unsigned bitWidth, bool isSigned, llvm::IntegerType *type = nullptr) 
+    IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, llvm::IntegerType *type = nullptr) 
         : NumericType{TK_Num_Integer}
+        , name{name}
         , bitWidth{bitWidth}
         , isSigned{isSigned}
         , type{type} {}
+
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
 
     // FIXME: Currently this only supports positive values.
     // Signed integer types have an "extra" value in the negative because of two's complement.
@@ -183,9 +211,9 @@ class PointerType : public Type {
     Type& pointeeType;
 
 public:
-    PointerType(Type *pointeeType) : Type{TK_Pointer}, pointeeType{*pointeeType} {
-        // TODO: Set pointerType type on pointeeType
-    }
+    PointerType(Type *pointeeType) : Type{TK_Pointer}, pointeeType{*pointeeType} {}
+
+    void getName(std::string& result) const;
 
     Type *getPointeeType() const {
         return &pointeeType;
@@ -201,6 +229,8 @@ class OptionalType : public Type {
 
 public:
     OptionalType(Type *contained) : Type{TK_Optional}, contained{*contained} {}
+
+    void getName(std::string& result) const;
 
     Type *getContained() const {
         return &contained;
@@ -218,6 +248,8 @@ class FunctionType : public Type {
     std::vector<Type *> parameters;
 public:
     FunctionType(Type *returnType, std::vector<Type *>&& parameters) : Type{TK_Function}, returnType{returnType}, parameters{std::move(parameters)} {}
+
+    void getName(std::string& result) const;
 
     Type *getReturnType() const {
         return returnType;
@@ -256,11 +288,17 @@ public:
         Single = 0,
         Double = 1,
     };
+    const Symbol& name;
     const Precision precision;
 
-    FPType(Precision precision) 
+    FPType(Symbol& name, Precision precision) 
         : NumericType{TK_Num_FP}
+        , name{name}
         , precision{precision} {}
+
+    void getName(std::string& result) const {
+        result.append(name.string_view());
+    }
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
 
@@ -288,7 +326,10 @@ public:
 };
 
 class StringType : public Type {
+public:
     StringType() : Type{TK_String} {}
+
+    void getName(std::string& result) const;
 };
 
 class ArrayType : public Type {
@@ -300,6 +341,8 @@ public:
     const bool isBounded;
 
     ArrayType(Type& contained, bool isBounded) : Type{TK_Array}, contained{contained}, isBounded{isBounded} {}
+
+    void getName(std::string& result) const;
 
     Type *getContained() const {
         return &contained;
@@ -320,6 +363,8 @@ public:
     bool isClosed;
 
     RangeType(IntegerType& integerType, bool isClosed) : Type{TK_Range}, integerType{integerType}, isClosed{isClosed} {}
+
+    void getName(std::string& result) const;
 
     IntegerType *getBoundType() const {
         return &integerType;
