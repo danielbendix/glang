@@ -94,27 +94,42 @@ Type *ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary, Typ
     }
 }
 
+bool checkEquatability(Type *type) {
+    return TypeSwitch<Type *, bool>(type)
+        .Case([](IntegerType *_) {
+            return true;
+        })
+        .Case([](FPType *_) {
+            return true;
+        })
+        .Case([](BooleanType *_) {
+            return true;
+        })
+        .Case([](OptionalType *optionalType) {
+            return checkEquatability(optionalType->getContained());
+        })
+        .Default([](Type *type) {
+            return false;
+        });
+}
+
 Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right) {
     if (left == right) {
         auto boolean = typeResolver.booleanType();
-        return TypeSwitch<Type *, Type *>(left)
-            .Case([boolean](IntegerType *_) {
+        if (auto optionalType = dyn_cast<OptionalType>(left)) {
+            if (isa<AST::NilLiteral>(binary.getRight()) || isa<AST::NilLiteral>(binary.getLeft())) {
                 return boolean;
-            })
-            .Case([boolean](FPType *_) {
-                return boolean;
-            })
-            .Case([boolean](BooleanType *_) {
-                return boolean;
-            })
-            .Default([](Type *type) -> Type * {
-                // TODO: Diagnostic.
-                return nullptr;
-            });
+            }
+        }
+        if (checkEquatability(left)) {
+            return boolean;
+        } else {
+            Diagnostic::error(binary, "Cannot test types " + left->makeName() + " and " + right->makeName() + " for equality.");
+            return nullptr;
+        }
     }
-    
-    assert(false);
-    
+    Diagnostic::error(binary, "Cannot test types " + left->makeName() + " and " + right->makeName() + " for equality.");
+    return nullptr;
 }
 
 Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right) {

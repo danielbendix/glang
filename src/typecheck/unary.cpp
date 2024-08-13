@@ -4,6 +4,7 @@
 #include "llvm/Support/Casting.h"
 
 using llvm::dyn_cast;
+using llvm::isa;
 
 Type *ExpressionTypeChecker::typeCheckBooleanNegationOperator(AST::UnaryExpression& unary) {
     auto boolean = typeResolver.booleanType();
@@ -140,4 +141,29 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
     Diagnostic::error(unary, "Cannot dereference non-pointer type.");
 
     return {};
+}
+
+TypeResult ExpressionTypeChecker::typeCheckForceUnwrapOperator(AST::UnaryExpression& unary) {
+    if (isa<AST::NilLiteral>(unary.getTarget())) {
+        Diagnostic::error(unary, "Cannot force unwrap nil literal.");
+        return {};
+    }
+
+    TypeResult target = typeCheckExpression(unary.getTarget());
+
+    if (!target) {
+        return {};
+    }
+
+    if (target.isConstraint()) {
+        Diagnostic::error(unary, "Unable to determine type of force unwrap target.");
+        return {};
+    }
+
+    if (auto optionalType = dyn_cast<OptionalType>(target.type())) {
+        return {optionalType->getContained(), target.canAssign()};
+    } else {
+        Diagnostic::error(unary, "Cannot force unwrap non-optional value.");
+        return {};
+    }
 }

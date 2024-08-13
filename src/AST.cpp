@@ -113,12 +113,13 @@ namespace AST {
             case Not: return pc << "not ";
             case AddressOf: return pc << '&';
             case Dereference: return pc << '*';
+            case ForceUnwrap: return pc << '!';
             case ZeroExtend: return pc << "#zext ";
             case SignExtend: return pc << "#sext ";
             case IntegerToFP: return pc << "#itoFP ";
             case FPExtend: return pc << "#fpext ";
             case OptionalWrap: return pc << "#wrap";
-}
+        }
         return pc;
     }
 
@@ -199,7 +200,35 @@ namespace AST {
     }
 
     void UnaryExpression::print(PrintContext& pc) const {
-        pc << op << *target;
+        using enum UnaryOperator;
+        switch (op) {
+            case Negate: pc << '-'; break;
+            case BitwiseNegate: pc << '~'; break;
+            case Not: pc << "not "; break;
+            case AddressOf: pc << '&'; break;
+            case Dereference: pc << '*'; break;
+            case ForceUnwrap: break;
+            case ZeroExtend: pc << "#zext("; break;
+            case SignExtend: pc << "#sext("; break;
+            case IntegerToFP: pc << "#itoFP("; break;
+            case FPExtend: pc << "#fpext("; break;
+            case OptionalWrap: pc << "#wrap("; break;
+        }
+        pc << *target;
+        switch (op) {
+            case Negate:
+            case BitwiseNegate:
+            case Not:
+            case AddressOf:
+            case Dereference:
+                  break;
+            case ForceUnwrap: pc << '!'; break;
+            case ZeroExtend: pc << ")"; break;
+            case SignExtend: pc << ")"; break;
+            case IntegerToFP: pc << ")"; break;
+            case FPExtend: pc << ")"; break;
+            case OptionalWrap: pc << ")"; break;
+        }
     }
 
     void FunctionDeclaration::print(PrintContext& pc) const {

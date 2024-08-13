@@ -14,7 +14,7 @@ using llvm::dyn_cast;
 using enum PassResultKind;
 
 TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType) {
-    Type *type;
+    Type *type = nullptr;
     using enum AST::UnaryOperator;
     switch (unary.getOp()) {
         case Not: {
@@ -40,13 +40,22 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
         case AddressOf:
             type = typeCheckAddressOfOperator(unary, propagatedType);
             break;
-        case Dereference:
+        case Dereference: {
             type = typeCheckDereferenceOperator(unary);
             unary.setType(type);
             if (type) {
                 return {type, true};
             }
             break;
+        }
+        case ForceUnwrap: {
+            TypeResult target = typeCheckForceUnwrapOperator(unary);
+            if (!target) {
+                break;
+            }
+            unary.setType(target);
+            return target;
+        }
         case AST::UnaryOperator::ZeroExtend:
         case AST::UnaryOperator::SignExtend:
         case AST::UnaryOperator::IntegerToFP:

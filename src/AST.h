@@ -875,6 +875,7 @@ namespace AST {
         Not,
         AddressOf,
         Dereference,
+        ForceUnwrap,
         ZeroExtend,
         SignExtend,
         IntegerToFP,

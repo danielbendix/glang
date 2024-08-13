@@ -267,40 +267,86 @@ public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
     
     llvm::Value *getAssignmentTarget(AST::Expression& expression) {
-        if (auto *identifier = llvm::dyn_cast<AST::Identifier>(&expression)) {
-            switch (identifier->getResolution()->getKind()) {
-                case IdentifierResolution::IRK_Local: {
-                    LocalResolution *local = static_cast<LocalResolution *>(identifier->getResolution());
-                    auto value = function.getVariable(&static_cast<LocalResolution *>(identifier->getResolution())->getBinding());
-                    assert(value.getInt() == 0);
-                    return value.getPointer();
+        // TODO: Consider adding a special visit for subtrees of Node.
+        return AST::visit(expression, overloaded {
+            [&](AST::Identifier& identifier) {
+                switch (identifier.getResolution()->getKind()) {
+                    case IdentifierResolution::IRK_Local: {
+                        LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
+                        auto value = function.getVariable(&static_cast<LocalResolution *>(identifier.getResolution())->getBinding());
+                        assert(value.getInt() == 0);
+                        return value.getPointer();
+                    }
+                    case IdentifierResolution::IRK_Global: {
+                        assert(false && "TODO");
+                    }
+                    case IdentifierResolution::IRK_Parameter:
+                    case IdentifierResolution::IRK_Function:
+                    case IdentifierResolution::IRK_Type:
+                        assert(false);
                 }
-                case IdentifierResolution::IRK_Global: {
-                    assert(false && "TODO");
+            },
+            [&](AST::MemberAccessExpression& memberAccess) {
+                llvm::Value *target = getAssignmentTarget(memberAccess.getTarget());
+                switch (memberAccess.getResolution().getKind()) {
+                    case MemberResolution::MRK_Struct_Field: {
+                        auto targetType = memberAccess.getTarget().getType();
+                        return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, static_cast<const StructFieldResolution&>(memberAccess.getResolution()).getIndex());
+                    }
+                    case MemberResolution::MRK_Struct_Method:
+                    case MemberResolution::MRK_Enum_Kind:
+                        llvm_unreachable("Invalid assignment target");
                 }
-                case IdentifierResolution::IRK_Parameter:
-                case IdentifierResolution::IRK_Function:
-                case IdentifierResolution::IRK_Type:
-                    assert(false);
-            }
-        }
-        if (auto *memberAccess = dyn_cast<AST::MemberAccessExpression>(&expression)) {
-            llvm::Value *target = getAssignmentTarget(memberAccess->getTarget());
-            switch (memberAccess->getResolution().getKind()) {
-                case MemberResolution::MRK_Struct_Field: {
-                    auto targetType = memberAccess->getTarget().getType();
-                    return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, static_cast<const StructFieldResolution&>(memberAccess->getResolution()).getIndex());
+            },
+            [&](AST::UnaryExpression& unary) {
+                switch (unary.getOp()) {
+                    case AST::UnaryOperator::Dereference:
+                        return unary.getTarget().acceptVisitor(*this);
+                    case AST::UnaryOperator::ForceUnwrap: {
+                        // The pointer part of this is likely unnecessary, as we can always assign to an
+                        // optional pointer, and dereferencing will use the r-value path of !.
+                        auto target = getAssignmentTarget(unary.getTarget());
+                        auto optionalType = cast<OptionalType>(unary.getTarget().getType());
+                        auto targetType = function.getLLVMType(optionalType);
+
+                        llvm::Value *isNil;
+                        if (isa<PointerType>(optionalType->getContained())) {
+                            auto pointer = function.builder.CreateLoad(targetType, target);
+                            auto null = llvm::Constant::getNullValue(targetType);
+                            isNil = function.builder.CreateICmpEQ(pointer, null);
+                        } else {
+                            auto structType = cast<llvm::StructType>(targetType);
+                            auto flagType = structType->getTypeAtIndex(0U);
+                            auto flagPointer = function.builder.CreateConstGEP2_32(structType, target, 0, 0);
+                            auto flag = function.builder.CreateLoad(flagType, flagPointer);
+                            isNil = function.builder.CreateICmpEQ(flag, function.getIntegerConstant(1, 0));
+                        }
+
+                        auto& trap = function.createTrapBlock();
+                        auto& success = function.createOrphanedBlock();
+
+                        function.builder.CreateCondBr(isNil, &trap, &success);
+                        function.patchOrphanedBlock(success);
+
+                        if (isa<PointerType>(optionalType->getContained())) {
+                            return target;
+                        } else {
+                            return function.builder.CreateConstGEP2_32(targetType, target, 0, 1);
+                        }
+
+                        return unary.getTarget().acceptVisitor(*this);
+                    }
+                    default: llvm_unreachable("Unable to get unary expression as l-value");
+
                 }
-                case MemberResolution::MRK_Struct_Method:
-                    llvm_unreachable("Invalid assignment target");
+                if (unary.getOp() == AST::UnaryOperator::Dereference) {
+                    return unary.getTarget().acceptVisitor(*this);
+                }
+            },
+            [&](auto&) -> llvm::Value * {
+                llvm_unreachable("Invalid assignment target.");
             }
-        }
-        if (auto *unaryExpression = dyn_cast<AST::UnaryExpression>(&expression)) {
-            if (unaryExpression->getOp() == AST::UnaryOperator::Dereference) {
-                return unaryExpression->getTarget().acceptVisitor(*this);
-            }
-        }
-        return nullptr;
+        });
     }
 
     void visitBlock(const AST::Block& block) {
@@ -745,6 +791,30 @@ public:
                 Type *dereferencedType = unary.getType();
                 return function.builder.CreateLoad(function.getLLVMType(dereferencedType), target);
             }
+            case ForceUnwrap: {
+                auto optionalType = cast<OptionalType>(unary.getTarget().getType());
+                llvm::Value *isZero;
+                if (auto pointerType = dyn_cast<PointerType>(optionalType->getContained())) {
+                    auto null = llvm::Constant::getNullValue(function.getLLVMType(pointerType));
+                    isZero = function.builder.CreateICmpEQ(target, null);
+                } else {
+                    auto flag = function.builder.CreateExtractValue(target, {0});
+                    auto zero = function.getIntegerConstant(1, 0);
+                    isZero = function.builder.CreateICmpEQ(flag, zero);
+                }
+
+                auto& trap = function.createTrapBlock();
+                auto& success = function.createOrphanedBlock();
+
+                function.builder.CreateCondBr(isZero, &trap, &success);
+                function.patchOrphanedBlock(success);
+
+                if (auto pointerType = dyn_cast<PointerType>(optionalType->getContained())) {
+                    return target;
+                } else {
+                    return function.builder.CreateExtractValue(target, {1});
+                }
+            }
             case SignExtend: {
                 auto& integerType = cast<IntegerType>(*unary.getType());
                 return function.builder.CreateSExt(target, function.getLLVMType(integerType));
@@ -835,6 +905,75 @@ public:
 
     }
 
+    llvm::Value *codegenEquality(llvm::Value *left, llvm::Value *right, Type *type) {
+        return TypeSwitch<Type *, llvm::Value *>(type)
+        .Case([&](IntegerType *integerType) {
+            return function.builder.CreateICmpEQ(left, right);
+        })
+        .Case([&](FPType *_) {
+            return function.builder.CreateFCmpOEQ(left, right);
+        })
+        .Case([&](BooleanType *_) {
+            return function.builder.CreateICmpEQ(left, right);
+        })
+        .Case([&](OptionalType *optionalType) -> llvm::Value * {
+            if (auto pointerType = dyn_cast<PointerType>(optionalType->getContained())) {
+                return function.builder.CreateICmpEQ(left, right);
+            } else {
+                auto leftFlag = function.builder.CreateExtractValue(left, {0});
+                auto rightFlag = function.builder.CreateExtractValue(right, {0});
+                auto zero = function.getIntegerConstant(1, 0);
+                auto one = function.getIntegerConstant(1, 1);
+                auto llvmBoolean = zero->getType();
+
+                auto& compareFlags = function.currentBlock();
+                auto& testFlags = function.createOrphanedBlock();
+                auto& compareValues = function.createOrphanedBlock();
+                auto& end = function.createOrphanedBlock();
+
+                auto flagComparison = function.builder.CreateICmpEQ(leftFlag, rightFlag);
+                function.builder.CreateCondBr(flagComparison, &testFlags, &end);
+
+                function.patchOrphanedBlock(testFlags);
+                auto flagTest = function.builder.CreateICmpEQ(leftFlag, one);
+                function.builder.CreateCondBr(flagTest, &compareValues, &end);
+
+                function.patchOrphanedBlock(compareValues);
+                auto leftValue = function.builder.CreateExtractValue(left, {1});
+                auto rightValue = function.builder.CreateExtractValue(right, {1});
+                auto valueComparison = codegenEquality(leftValue, rightValue, optionalType->getContained());
+                function.builder.CreateBr(&end);
+
+                function.patchOrphanedBlock(end);
+                auto phi = function.builder.CreatePHI(llvmBoolean, 3);
+                phi->addIncoming(zero, &compareFlags);
+                phi->addIncoming(one, &testFlags);
+                phi->addIncoming(valueComparison, &compareValues);
+                return phi;
+            }
+        });
+    }
+
+    llvm::Value *testAgainstNil(llvm::Value *value, OptionalType *type, bool equal) {
+        if (auto pointerType = dyn_cast<PointerType>(type->getContained())) {
+            auto null = llvm::Constant::getNullValue(function.getLLVMType(pointerType));
+            if (equal) {
+                return function.builder.CreateICmpEQ(value, null);
+            } else {
+                return function.builder.CreateICmpNE(value, null);
+            }
+        } else {
+            auto flag = function.builder.CreateExtractValue(value, {0});
+            auto zero = function.getIntegerConstant(1, 0);
+
+            if (equal) {
+                return function.builder.CreateICmpEQ(flag, zero);
+            } else {
+                return function.builder.CreateICmpNE(flag, zero);
+            }
+        }
+    }
+
     llvm::Value *visitBinaryExpression(AST::BinaryExpression& binary) {
         using enum AST::BinaryOperator;
         if (binary.getOp() == LogicalAnd || binary.getOp() == LogicalOr) {
@@ -905,16 +1044,15 @@ public:
                 }
             }
 
-            case Equal: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    return function.builder.CreateICmpEQ(left, right);
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpOEQ(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpEQ(left, right);
-                });
+            case Equal: 
+                if (auto optionalType = dyn_cast<OptionalType>(binary.getLeft().getType())) {
+                    if (isa<AST::NilLiteral>(binary.getLeft())) {
+                        return testAgainstNil(right, cast<OptionalType>(binary.getRight().getType()), true);
+                    } else if (isa<AST::NilLiteral>(binary.getRight())) {
+                        return testAgainstNil(left, cast<OptionalType>(binary.getLeft().getType()), true);
+                    }
+                }
+                return codegenEquality(left, right, binary.getLeft().getType());
 
             case NotEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
                 .Case([&](IntegerType *integerType) {
@@ -928,6 +1066,17 @@ public:
                 })
                 .Case([&](BooleanType *_) {
                     return function.builder.CreateICmpNE(left, right);
+                })
+                .Case([&](OptionalType *optionalType) {
+                    if (isa<AST::NilLiteral>(binary.getLeft())) {
+                        return testAgainstNil(right, cast<OptionalType>(binary.getRight().getType()), false);
+                    } else if (isa<AST::NilLiteral>(binary.getRight())) {
+                        return testAgainstNil(left, cast<OptionalType>(binary.getLeft().getType()), false);
+                    } else {
+                        // TODO: Compare discriminant bits. If both are 1, compare contents.
+                        llvm_unreachable("");
+
+                    }
                 });
 
             case Less: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
@@ -1209,6 +1358,7 @@ std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
     performCodegen(context);
 
     if (llvm::verifyModule(*module, &llvm::outs())) {
+        llvm::outs() << *module;
         module.reset();
         return module;
     }

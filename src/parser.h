@@ -29,7 +29,7 @@ struct ParserState {
     Kind kind;
 };
 
-enum class Precedence;
+enum class Precedence : int;
 
 class ParserException {
 public:
@@ -179,7 +179,9 @@ public:
     AST::Expression *initializer(AST::Identifier *identifier);
 
     [[nodiscard]]
-    AST::Expression *unary();
+    AST::Expression *prefixUnary();
+    [[nodiscard]]
+    AST::Expression *postfixUnary(AST::Expression *expression);
 
     void advance() {
         previous = current;
