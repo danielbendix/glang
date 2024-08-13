@@ -42,8 +42,17 @@ namespace AST {
                 return delete static_cast<ExpressionStatement *>(node);
 
            // TODO: Reorder expressions
-            case NK_Expr_Literal:
-                return delete static_cast<Literal *>(node);
+            case NK_Expr_Literal_Nil:
+                return delete static_cast<NilLiteral *>(node);
+            case NK_Expr_Literal_False:
+            case NK_Expr_Literal_True:
+                return delete static_cast<BooleanLiteral *>(node);
+            case NK_Expr_Literal_Integer:
+                return delete static_cast<IntegerLiteral *>(node);
+            case NK_Expr_Literal_Floating:
+                return delete static_cast<FloatingPointLiteral *>(node);
+            case NK_Expr_Literal_String:
+                return delete static_cast<StringLiteral *>(node);
             case NK_Expr_Identifier:
                 return delete static_cast<Identifier *>(node);
             case NK_Expr_Self:
@@ -331,36 +340,36 @@ namespace AST {
         pc << ";\n";
     }
 
-    void Literal::print(PrintContext& pc) const {
-        std::visit([&](auto&& arg) {
-            using T = std::decay_t<decltype(arg)>;
-            if constexpr (std::is_same_v<T, bool>) {
-                pc << (arg ? "true" : "false");
-            } else if constexpr (std::is_same_v<T, Integer>) {
-                switch (arg.type) {
-                case IntegerType::Binary:
-                    pc << "0b";
-                    return pc.printInteger(arg.integer, 2);
-                case IntegerType::Octal:
-                    pc << "0o";
-                    return pc.printInteger(arg.integer, 8);
-                case IntegerType::Decimal:
-                    return pc.printInteger(arg.integer, 10);
-                case IntegerType::Hexadecimal:
-                    pc << "0o";
-                    return pc.printInteger(arg.integer, 16);
-                }
-                pc.printInteger(arg.integer, 10);
-            } else if constexpr (std::is_same_v<T, double>) {
-                pc << arg;
-            } else if constexpr (std::is_same_v<T, string>) {
-                pc << arg;
-            } else if constexpr (std::is_same_v<T, std::monostate>) {
-                pc << "nil";
-            } else { 
-                static_assert(always_false_v<T>, "Switch falls through.");
-            }
-        }, internal);
+    void NilLiteral::print(PrintContext& pc) const {
+        pc << "nil";
+    }
+
+    void BooleanLiteral::print(PrintContext& pc) const {
+        pc << (getValue() ? "true" : "false");
+    }
+
+    void IntegerLiteral::print(PrintContext& pc) const {
+        switch (integerType) {
+            case Type::Binary:
+                pc << "0b";
+                return pc.printInteger(value, 2);
+            case Type::Octal:
+                pc << "0o";
+                return pc.printInteger(value, 8);
+            case Type::Decimal:
+                return pc.printInteger(value, 10);
+            case Type::Hexadecimal:
+                pc << "0x";
+                return pc.printInteger(value, 16);
+        }
+    }
+
+    void FloatingPointLiteral::print(PrintContext& pc) const {
+        pc << value;
+    }
+
+    void StringLiteral::print(PrintContext& pc) const {
+        pc << value;
     }
 
     void CallExpression::print(PrintContext& pc) const {

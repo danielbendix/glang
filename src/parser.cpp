@@ -681,31 +681,57 @@ AST::Literal *Parser::createStringLiteral(const Token& token)
         }
     }
 
-    return AST::Literal::create(context.nodeAllocator, token, std::move(string));
+    return AST::StringLiteral::create(context.nodeAllocator, token, std::move(string));
 }
 
-// This should be renamed to something like terminal or expressionTerminal
 AST::Expression *Parser::literal()
 {
     // FIXME: Check overflow of numerical literals
     using enum TokenType;
-    using AST::Literal;
-    using IntegerType = AST::Literal::IntegerType;
+    using AST::NilLiteral;
+    using AST::BooleanLiteral;
+    using AST::IntegerLiteral;
+    using AST::FloatingPointLiteral;
+    using IntegerType = AST::IntegerLiteral::Type;
 
     switch (previous.type) {
-        case Integer: return Literal::create(context.nodeAllocator, previous, parseInteger<0, 10>(previous), IntegerType::Decimal);
-        case Binary: return Literal::create(context.nodeAllocator, previous, parseInteger<2, 2>(previous), IntegerType::Binary);
-        case Octal: return Literal::create(context.nodeAllocator, previous, parseInteger<2, 8>(previous), IntegerType::Octal);
-        case Hexadecimal: return Literal::create(context.nodeAllocator, previous, parseInteger<2, 16>(previous), IntegerType::Hexadecimal);
+        case Binary: 
+            return IntegerLiteral::create(
+                context.nodeAllocator, 
+                previous, 
+                parseInteger<2, 2>(previous), 
+                IntegerType::Binary
+            );
+        case Octal: 
+            return IntegerLiteral::create(
+                context.nodeAllocator, 
+                previous, 
+                parseInteger<2, 8>(previous), 
+                IntegerType::Octal
+            );
+        case Integer: 
+            return IntegerLiteral::create(
+                context.nodeAllocator, 
+                previous, 
+                parseInteger<0, 10>(previous), 
+                IntegerType::Decimal
+            );
+        case Hexadecimal: 
+            return IntegerLiteral::create(
+                context.nodeAllocator, 
+                previous, 
+                parseInteger<2, 16>(previous), 
+                IntegerType::Hexadecimal
+            );
 
-        case Floating: return Literal::create(context.nodeAllocator, previous, parseDouble(previous));
+        case Floating: return FloatingPointLiteral::create(context.nodeAllocator, previous, parseDouble(previous));
 
         case String: return createStringLiteral(previous);
 
-        case True: return Literal::create(context.nodeAllocator, previous, true);
-        case False: return Literal::create(context.nodeAllocator, previous, false);
+        case True: return BooleanLiteral::create(context.nodeAllocator, previous, true);
+        case False: return BooleanLiteral::create(context.nodeAllocator, previous, false);
 
-        case Nil: return Literal::createNil(context.nodeAllocator, previous);
+        case Nil: return NilLiteral::create(context.nodeAllocator, previous);
 
         default: throw ParserException(previous, ParserException::Cause::ExpectedLiteral);
     }

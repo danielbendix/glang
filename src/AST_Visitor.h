@@ -44,8 +44,17 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<Identifier *>(&node));
             case NK_Expr_Self:
                 return std::invoke(visitor, *static_cast<Self *>(&node));
-            case NK_Expr_Literal:
-                return std::invoke(visitor, *static_cast<Literal *>(&node));
+            case NK_Expr_Literal_Nil:
+                return std::invoke(visitor, *static_cast<NilLiteral *>(&node));
+            case NK_Expr_Literal_False:
+            case NK_Expr_Literal_True:
+                return std::invoke(visitor, *static_cast<BooleanLiteral *>(&node));
+            case NK_Expr_Literal_String:
+                return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
+            case NK_Expr_Literal_Integer:
+                return std::invoke(visitor, *static_cast<IntegerLiteral *>(&node));
+            case NK_Expr_Literal_Floating:
+                return std::invoke(visitor, *static_cast<FloatingPointLiteral *>(&node));
             case NK_Expr_Unary:
                 return std::invoke(visitor, *static_cast<UnaryExpression *>(&node));
             case NK_Expr_Binary:
@@ -109,8 +118,17 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const Identifier *>(&node));
             case NK_Expr_Self:
                 return std::invoke(visitor, *static_cast<const Self *>(&node));
-            case NK_Expr_Literal:
-                return std::invoke(visitor, *static_cast<const Literal *>(&node));
+            case NK_Expr_Literal_Nil:
+                return std::invoke(visitor, *static_cast<const NilLiteral *>(&node));
+            case NK_Expr_Literal_False:
+            case NK_Expr_Literal_True:
+                return std::invoke(visitor, *static_cast<const BooleanLiteral *>(&node));
+            case NK_Expr_Literal_String:
+                return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
+            case NK_Expr_Literal_Integer:
+                return std::invoke(visitor, *static_cast<const IntegerLiteral *>(&node));
+            case NK_Expr_Literal_Floating:
+                return std::invoke(visitor, *static_cast<const FloatingPointLiteral *>(&node));
             case NK_Expr_Unary:
                 return std::invoke(visitor, *static_cast<const UnaryExpression *>(&node));
             case NK_Expr_Binary:
@@ -131,6 +149,48 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const TypeModifier *>(&node));
             case NK_Binding_Identifier:
                 return std::invoke(visitor, *static_cast<const IdentifierBinding *>(&node));
+        }
+    }
+}
+
+namespace AST {
+    template <typename Func>
+    auto visitLiteral(Literal& node, Func&& visitor) {
+        using enum Node::Kind;
+        switch (node.getKind()) {
+            case NK_Expr_Literal_Nil:
+                return std::invoke(visitor, *static_cast<NilLiteral *>(&node));
+            case NK_Expr_Literal_False:
+            case NK_Expr_Literal_True:
+                return std::invoke(visitor, *static_cast<BooleanLiteral *>(&node));
+            case NK_Expr_Literal_String:
+                return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
+            case NK_Expr_Literal_Integer:
+                return std::invoke(visitor, *static_cast<IntegerLiteral *>(&node));
+            case NK_Expr_Literal_Floating:
+                return std::invoke(visitor, *static_cast<FloatingPointLiteral *>(&node));
+            default:
+                llvm_unreachable("Unsupported literal kind.");
+        }
+    }
+
+    template <typename Func>
+    auto visitLiteral(const Literal& node, Func&& visitor) {
+        using enum Node::Kind;
+        switch (node.getKind()) {
+            case NK_Expr_Literal_Nil:
+                return std::invoke(visitor, *static_cast<const NilLiteral *>(&node));
+            case NK_Expr_Literal_False:
+            case NK_Expr_Literal_True:
+                return std::invoke(visitor, *static_cast<const BooleanLiteral *>(&node));
+            case NK_Expr_Literal_String:
+                return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
+            case NK_Expr_Literal_Integer:
+                return std::invoke(visitor, *static_cast<const IntegerLiteral *>(&node));
+            case NK_Expr_Literal_Floating:
+                return std::invoke(visitor, *static_cast<const FloatingPointLiteral *>(&node));
+            default:
+                llvm_unreachable("Unsupported literal kind.");
         }
     }
 }
@@ -230,7 +290,12 @@ namespace AST {
         ReturnType visit(AST::Expression& expression, Args&&... args) {
             using enum Node::Kind;
             switch (expression.getKind()) {
-                case NK_Expr_Literal:
+                case NK_Expr_Literal_Nil:
+                case NK_Expr_Literal_False:
+                case NK_Expr_Literal_True:
+                case NK_Expr_Literal_Integer:
+                case NK_Expr_Literal_Floating:
+                case NK_Expr_Literal_String:
                     return subclass().visitLiteral(*static_cast<Literal *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Identifier:
                     return subclass().visitIdentifier(*static_cast<Identifier *>(&expression), std::forward<Args>(args)...);

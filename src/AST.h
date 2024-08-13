@@ -32,6 +32,7 @@
  *  Declaration:
  *  Statement:
  *  Expression:
+ *  Binding:
  *  Type:
  */
 
@@ -101,8 +102,13 @@ namespace AST {
 
             // Expression
             NK_Expr_Identifier,
+            NK_Expr_Literal_Nil,
+            NK_Expr_Literal_False,
+            NK_Expr_Literal_True,
+            NK_Expr_Literal_Integer,
+            NK_Expr_Literal_Floating,
+            NK_Expr_Literal_String,
             NK_Expr_Self,
-            NK_Expr_Literal,
             NK_Expr_Unary,
             NK_Expr_Binary,
             NK_Expr_Call,
@@ -486,99 +492,192 @@ namespace AST {
     };
 
     class Literal : public Expression {
+    protected:
+        using Expression::Expression;
+
+    public:
+//        void print(PrintContext& pc) const;
+//
+//        explicit Literal(Token token, APInt&& integer, IntegerType integerType) : Literal{token, Integer{std::move(integer), integerType}} {}
+//
+//        template <Allocator Allocator>
+//        static Literal *NONNULL create(Allocator& allocator, Token token, bool value) {
+//            return allocate(allocator, [&](auto space) {
+//                return new(space) Literal{token, value};
+//            });
+//        }
+//
+//        template <Allocator Allocator>
+//        static Literal *NONNULL create(Allocator& allocator, Token token, double value) {
+//            return allocate(allocator, [&](auto space) {
+//                return new(space) Literal{token, value};
+//            });
+//        }
+//
+//        template <Allocator Allocator>
+//        static Literal *NONNULL create(Allocator& allocator, Token token, APInt&& value, IntegerType integerType) {
+//            return allocate(allocator, [&](auto space) {
+//                return new(space) Literal{token, std::move(value), integerType};
+//            });
+//        }
+//
+//        template <Allocator Allocator>
+//        static Literal *NONNULL create(Allocator& allocator, Token token, string&& value) {
+//            return allocate(allocator, [&](auto space) {
+//                return new(space) Literal{token, std::move(value)};
+//            });
+//        }
+//
+//        template <Allocator Allocator>
+//        static Literal *NONNULL createNil(Allocator& allocator, Token token) {
+//            return allocate(allocator, [&](auto space) {
+//                return new(space) Literal{token, std::monostate{}};
+//            });
+//        }
+//
+//        Literal::Type getLiteralType() const {
+//            return Literal::Type(internal.index());
+//        }
+//
+//        bool getBoolean() const noexcept {
+//            return std::get<bool>(internal);
+//        }
+//
+//        const APInt& getInteger() const {
+//            return std::get<Integer>(internal).integer;
+//        }
+//
+//        double getDouble() const {
+//            return std::get<double>(internal);
+//        }
+//
+//        const string& getString() const {
+//            return std::get<string>(internal);
+//        }
+//
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() >= NK_Expr_Literal_Nil && node->getKind() <= NK_Expr_Literal_String;
+        }
+    };
+
+    class NilLiteral : public Literal {
+    protected:
+        NilLiteral(Token token) : Literal{NK_Expr_Literal_Nil, token} {}
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static NilLiteral *NONNULL create(Allocator& allocator, Token token) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) NilLiteral{token};
+            });
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() == NK_Expr_Literal_Nil;
+        }
+    };
+
+    class BooleanLiteral : public Literal {
+    protected:
+        BooleanLiteral(Token token, bool value) : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, token} {}
+
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static BooleanLiteral *NONNULL create(Allocator& allocator, Token token, bool value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) BooleanLiteral{token, value};
+            });
+        }
+
+        bool getValue() const {
+            return getKind() == NK_Expr_Literal_True;
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() == NK_Expr_Literal_False || node->getKind() == NK_Expr_Literal_True;
+        }
+    };
+
+    class IntegerLiteral : public Literal {
     public:
         enum class Type: uint8_t {
-            Boolean = 0,
-            Integer,
-            Double,
-            String,
-            Nil,
-        };
-
-        enum class IntegerType: uint8_t {
             Binary,
             Octal,
             Decimal,
             Hexadecimal,
         };
+    private:
+        // TODO: Split this into different types of integer literals.
+        Type integerType;
+        APInt value;
     protected:
-        struct Integer {
-            APInt integer;
-            IntegerType type;
-        };
-
-        using Internal = std::variant<
-            bool,
-            Integer,
-            double,
-            string,
-            std::monostate
-        >;
-        Internal internal;
-
-        explicit Literal(Token token, Internal&& internal) : Expression{NK_Expr_Literal, Location{token}}, internal{std::move(internal)} {}
+        IntegerLiteral(Token token, APInt&& value, Type integerType) 
+            : Literal{NK_Expr_Literal_Integer, token}
+            , value{std::move(value)}
+            , integerType{integerType} {}
     public:
         void print(PrintContext& pc) const;
 
-        explicit Literal(Token token, APInt&& integer, IntegerType integerType) : Literal{token, Integer{std::move(integer), integerType}} {}
-
         template <Allocator Allocator>
-        static Literal *NONNULL create(Allocator& allocator, Token token, bool value) {
+        static IntegerLiteral *NONNULL create(Allocator& allocator, Token token, APInt&& value, Type integerType) {
             return allocate(allocator, [&](auto space) {
-                return new(space) Literal{token, value};
+                return new(space) IntegerLiteral{token, std::move(value), integerType};
             });
         }
 
-        template <Allocator Allocator>
-        static Literal *NONNULL create(Allocator& allocator, Token token, double value) {
-            return allocate(allocator, [&](auto space) {
-                return new(space) Literal{token, value};
-            });
-        }
-
-        template <Allocator Allocator>
-        static Literal *NONNULL create(Allocator& allocator, Token token, APInt&& value, IntegerType integerType) {
-            return allocate(allocator, [&](auto space) {
-                return new(space) Literal{token, std::move(value), integerType};
-            });
-        }
-
-        template <Allocator Allocator>
-        static Literal *NONNULL create(Allocator& allocator, Token token, string&& value) {
-            return allocate(allocator, [&](auto space) {
-                return new(space) Literal{token, std::move(value)};
-            });
-        }
-
-        template <Allocator Allocator>
-        static Literal *NONNULL createNil(Allocator& allocator, Token token) {
-            return allocate(allocator, [&](auto space) {
-                return new(space) Literal{token, std::monostate{}};
-            });
-        }
-
-        Literal::Type getLiteralType() const {
-            return Literal::Type(internal.index());
-        }
-
-        bool getBoolean() const noexcept {
-            return std::get<bool>(internal);
-        }
-
-        const APInt& getInteger() const {
-            return std::get<Integer>(internal).integer;
-        }
-
-        double getDouble() const {
-            return std::get<double>(internal);
-        }
-
-        const string& getString() const {
-            return std::get<string>(internal);
+        const APInt& getValue() const {
+            return value;
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal;
+            return node->getKind() == NK_Expr_Literal_Integer;
+        }
+    };
+
+    class FloatingPointLiteral : public Literal {
+        // Maybe use a more precise value, and track overflow.
+        double value;
+    protected:
+        FloatingPointLiteral(Token token, double value) : Literal{NK_Expr_Literal_Floating, token}, value{value} {}
+
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static FloatingPointLiteral *NONNULL create(Allocator& allocator, Token token, double value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) FloatingPointLiteral{token, value};
+            });
+        }
+
+        double getValue() const {
+            return value;
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() == NK_Expr_Literal_Floating;
+        }
+    };
+
+    class StringLiteral : public Literal {
+        string value;
+
+        StringLiteral(Token token, string&& value) : Literal{NK_Expr_Literal_String, token}, value{std::move(value)} {}
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static StringLiteral *NONNULL create(Allocator& allocator, Token token, string&& value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) StringLiteral{token, std::move(value)};
+            });
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() == NK_Expr_Literal_String;
         }
     };
 

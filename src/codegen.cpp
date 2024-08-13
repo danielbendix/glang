@@ -365,9 +365,8 @@ public:
 
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
         auto value = assignment.getValue().acceptVisitor(*this);
-        auto *target = getAssignmentTarget(assignment.getTarget());
-        auto *alloca = static_cast<llvm::AllocaInst *>(target);
-        function.builder.CreateStore(value, alloca, false);
+        auto target = getAssignmentTarget(assignment.getTarget());
+        function.builder.CreateStore(value, target, false);
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
@@ -677,31 +676,10 @@ public:
     }
 
     llvm::Value *visitLiteral(AST::Literal& literal) {
-        using enum AST::Literal::Type;
-        switch (literal.getLiteralType()) {
-            case Integer: {
-                // FIXME: FIXME: FIXME: allow different number types.
-                auto integerType = cast<IntegerType>(literal.getType());
-                auto bitWidth = integerType->bitWidth;
-                llvm::APInt i;
-                if (integerType->isSigned) {
-                    i = literal.getInteger().sextOrTrunc(bitWidth);
-                } else {
-                    i = literal.getInteger().zextOrTrunc(bitWidth);
-                }
-                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
-            }
-            case Double: {
-                auto type = cast<FPType>(literal.getType());
-                auto llvmType = function.getLLVMType(type);
-                return llvm::ConstantFP::get(llvmType, literal.getDouble());
-            }
-            case Boolean: {
-                llvm::APInt i(1, literal.getBoolean() ? 1 : 0, true);
-                return function.getIntegerConstant(1, literal.getBoolean() ? 1 : 0);
-                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
-            }
-            case Nil: {
+        using namespace AST;
+        using llvm::Value;
+        return AST::visitLiteral(literal, overloaded {
+            [&](const AST::NilLiteral& nil) -> Value * {
                 auto optionalType = cast<OptionalType>(literal.getType());
                 if (isa<PointerType>(optionalType->getContained())) {
                     return llvm::Constant::getNullValue(function.getLLVMType(optionalType));
@@ -712,10 +690,32 @@ public:
                         llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))
                     });
                 }
+            },
+            [&](const AST::BooleanLiteral& boolean) -> Value * {
+                llvm::APInt i(1, boolean.getValue() ? 1 : 0, true);
+                return function.getIntegerConstant(1, boolean.getValue() ? 1 : 0);
+                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
+            },
+            [&](const AST::IntegerLiteral& integer) -> Value * {
+                auto integerType = cast<IntegerType>(literal.getType());
+                auto bitWidth = integerType->bitWidth;
+                llvm::APInt i;
+                if (integerType->isSigned) {
+                    i = integer.getValue().sextOrTrunc(bitWidth);
+                } else {
+                    i = integer.getValue().zextOrTrunc(bitWidth);
+                }
+                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
+            },
+            [&](const AST::FloatingPointLiteral& floating) -> Value * {
+                auto type = cast<FPType>(literal.getType());
+                auto llvmType = function.getLLVMType(type);
+                return llvm::ConstantFP::get(llvmType, floating.getValue());
+            },
+            [&](const AST::StringLiteral& string) -> Value * {
+                llvm_unreachable("String literals are not supported.");
             }
-            case String: assert(false);
-        }
-        return nullptr;
+        });
     }
 
     llvm::Value *visitUnaryExpression(AST::UnaryExpression& unary) {

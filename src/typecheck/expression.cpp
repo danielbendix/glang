@@ -368,18 +368,35 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
 }
 
 TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *propagatedType) {
-    using enum AST::Literal::Type;
     // TODO: Validate against declaration type.
-    switch (literal.getLiteralType()) {
-        case Boolean:
+    
+    using namespace AST;
+
+    return AST::visitLiteral(literal, overloaded {
+        [&](const NilLiteral& nil) -> TypeResult {
+            if (propagatedType) {
+                if (isa<OptionalType>(propagatedType)) {
+                    literal.setType(propagatedType);
+                    return propagatedType;
+                } else {
+                    // Perhaps this should just also return the type constraint.
+                    // Add expected type to diagnostic.
+                    Diagnostic::error(literal, "Unable to infer type of nil literal.");
+                    return {};
+                }
+            } else {
+                return TypeConstraint::Optional;
+            }
+        },
+        [&](const BooleanLiteral& boolean) -> TypeResult {
             literal.setType(typeResolver.booleanType());
             return typeResolver.booleanType();
-        case Integer: {
+        },
+        [&](const IntegerLiteral& integer) -> TypeResult {
             // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
             if (propagatedType) {
                 if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
-                    auto& value = literal.getInteger();
-
+                    auto& value = integer.getValue();
                     
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
@@ -402,39 +419,26 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             auto defaultIntegerType = typeResolver.defaultIntegerType();
             literal.setType(defaultIntegerType);
             return defaultIntegerType;
-        }
-        case Double:
+        },
+        [&](const FloatingPointLiteral& floating) -> TypeResult {
             if (propagatedType) {
                 if (auto fpType = dyn_cast<FPType>(propagatedType)) {
                     literal.setType(propagatedType);
                     return propagatedType;
+                } else {
+                    return TypeConstraint::Floating;
                 }
             } else {
-                return TypeConstraint::Floating;
+                auto defaultFloatingType = typeResolver.defaultFPType();
+                literal.setType(defaultFloatingType);
+                return defaultFloatingType;
             }
-            // TODO: Add default type for floating point.
-            Diagnostic::error(literal, "Unbound loating-point literals are currently not supported.");
-            return {};
-            break;
-        case String:
+        },
+        [&](const StringLiteral& string) -> TypeResult {
             Diagnostic::error(literal, "String literals are currently not supported.");
             return {};
-            break;
-        case Nil:
-            if (propagatedType) {
-                if (isa<OptionalType>(propagatedType)) {
-                    literal.setType(propagatedType);
-                    return propagatedType;
-                } else {
-                    // Perhaps this should just also return the type constraint.
-                    // Add expected type to diagnostic.
-                    Diagnostic::error(literal, "Unable to infer type of nil literal.");
-                    return {};
-                }
-            } else {
-                return TypeConstraint::Optional;
-            }
-    }
+        },
+    });
 }
 
 TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
