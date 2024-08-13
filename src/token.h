@@ -108,14 +108,14 @@ std::ostream& operator<<(std::ostream& os, TokenType tokenType);
 
 struct Token final {
     TokenType type;
-    int line;
-    int column;
-    int length;
+    uint32_t line;
+    uint32_t column;
+    uint32_t length;
     // Since we're storing the length (in bytes), we could compute the
     // string_view from a char * and the length;
     std::string_view chars;
 
-    Token(TokenType type, std::string_view chars, int line, int column, int length) 
+    Token(TokenType type, std::string_view chars, uint32_t line, uint32_t column, uint32_t length) 
         : type{type}, chars{chars}, line{line}, column{column}, length{length} {}
 };
 

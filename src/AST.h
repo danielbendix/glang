@@ -67,10 +67,9 @@ namespace AST {
     class PrintContext;
 
     struct Location {
-        // TODO: SourceFile reference
-        int line;
-        int column;
-        int length;
+        uint32_t line;
+        uint32_t column;
+        uint32_t length;
 
         Location(Token token) : line{token.line}, column{token.column}, length{token.length} {}
     };

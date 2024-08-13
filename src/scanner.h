@@ -26,8 +26,8 @@ private:
     iterator start;
     iterator current;
     iterator end;
-    int line;
-    int column;
+    uint32_t line;
+    uint32_t column;
     ErrorCause _error = NO_ERROR;
 
     bool isAtEnd() {
@@ -54,7 +54,7 @@ private:
 
     void multilineComment();
     void skipWhitespace();
-    template <auto Predicate> void munchMany();
+    template <auto predicate> void munchMany();
     template <auto predicate> bool munchMany1();
     [[nodiscard]]
     Token makeToken(TokenType type);

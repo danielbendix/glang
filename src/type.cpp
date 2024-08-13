@@ -215,8 +215,8 @@ llvm::Type *OptionalType::_getLLVMType(llvm::LLVMContext& context) const {
     if (auto pointerType = dyn_cast<PointerType>(&contained)) {
         return pointerType->getLLVMType(context);
     } else {
-        auto child = contained.getLLVMType(context);
         auto flag = llvm::IntegerType::get(context, 1);
+        auto child = contained.getLLVMType(context);
         return llvm::StructType::get(flag, child);
     }
 }
