@@ -18,7 +18,7 @@ uint64_t hashString(const std::string_view string) {
     return hash;
 }
 
-uint64_t hashString(const char *string) {
+constexpr uint64_t hashString(const char *string) {
     uint64_t hash = 14695981039346656037UL;
     uint8_t c;
     while ((c = *string++)) {
@@ -28,7 +28,7 @@ uint64_t hashString(const char *string) {
     return hash;
 }
 
-uint64_t hashString(const char *string, size_t length) {
+constexpr uint64_t hashString(const char *string, size_t length) {
     uint64_t hash = 14695981039346656037UL;
     uint8_t c;
     while ((c = *string++)) {
