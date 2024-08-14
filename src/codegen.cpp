@@ -300,7 +300,8 @@ public:
             },
             [&](AST::UnaryExpression& unary) {
                 switch (unary.getOp()) {
-                    case AST::UnaryOperator::Dereference:
+                    case AST::UnaryOperator::PrefixDereference:
+                    case AST::UnaryOperator::PostfixDereference:
                         return unary.getTarget().acceptVisitor(*this);
                     case AST::UnaryOperator::ForceUnwrap: {
                         // The pointer part of this is likely unnecessary, as we can always assign to an
@@ -337,10 +338,6 @@ public:
                         return unary.getTarget().acceptVisitor(*this);
                     }
                     default: llvm_unreachable("Unable to get unary expression as l-value");
-
-                }
-                if (unary.getOp() == AST::UnaryOperator::Dereference) {
-                    return unary.getTarget().acceptVisitor(*this);
                 }
             },
             [&](auto&) -> llvm::Value * {
@@ -790,7 +787,8 @@ public:
             case AddressOf: {
                 return getAssignmentTarget(unary.getTarget());
             }
-            case Dereference: {
+            case PrefixDereference:
+            case PostfixDereference: {
                 Type *dereferencedType = unary.getType();
                 return function.builder.CreateLoad(function.getLLVMType(dereferencedType), target);
             }

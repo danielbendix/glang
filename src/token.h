@@ -21,6 +21,7 @@ enum class TokenType : uint8_t {
     Colon,
     Semicolon,
     Arrow,
+    At,
     Bang,
     Question,
     Equal,

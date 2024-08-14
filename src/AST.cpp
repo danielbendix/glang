@@ -107,24 +107,6 @@ namespace AST {
         return *this;
     }
 
-    PrintContext& operator<<(PrintContext& pc, UnaryOperator op) {
-        using enum UnaryOperator;
-        switch (op) {
-            case Negate: return pc << '-';
-            case BitwiseNegate: return pc << '~';
-            case Not: return pc << "not ";
-            case AddressOf: return pc << '&';
-            case Dereference: return pc << '*';
-            case ForceUnwrap: return pc << '!';
-            case ZeroExtend: return pc << "#zext ";
-            case SignExtend: return pc << "#sext ";
-            case IntegerToFP: return pc << "#itoFP ";
-            case FPExtend: return pc << "#fpext ";
-            case OptionalWrap: return pc << "#wrap";
-        }
-        return pc;
-    }
-
     PrintContext& operator<<(PrintContext& pc, BinaryOperator op) {
         using enum BinaryOperator;
         switch (op) {
@@ -208,7 +190,8 @@ namespace AST {
             case BitwiseNegate: pc << '~'; break;
             case Not: pc << "not "; break;
             case AddressOf: pc << '&'; break;
-            case Dereference: pc << '*'; break;
+            case PrefixDereference: pc << '*'; break;
+            case PostfixDereference: break;
             case ForceUnwrap: break;
             case ZeroExtend: pc << "#zext("; break;
             case SignExtend: pc << "#sext("; break;
@@ -222,8 +205,9 @@ namespace AST {
             case BitwiseNegate:
             case Not:
             case AddressOf:
-            case Dereference:
+            case PrefixDereference:
                   break;
+            case PostfixDereference: pc << '@'; break;
             case ForceUnwrap: pc << '!'; break;
             case ZeroExtend: pc << ")"; break;
             case SignExtend: pc << ")"; break;

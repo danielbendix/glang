@@ -383,6 +383,7 @@ Token Scanner::next() noexcept {
             case '&': return makeToken(Ampersand);
             case '|': return makeToken(Pipe);
             case '^': return makeToken(Caret);
+            case '@': return makeToken(At);
             case '!': {
                 if (peek() == '=') {
                     advance();

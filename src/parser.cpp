@@ -799,7 +799,7 @@ std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type)
         case TokenType::Minus: return {AST::UnaryOperator::Negate, Precedence::Unary};
         case TokenType::Tilde: return {AST::UnaryOperator::BitwiseNegate, Precedence::Unary};
         case TokenType::Ampersand: return {AST::UnaryOperator::AddressOf, Precedence::Unary};
-        case TokenType::Star: return {AST::UnaryOperator::Dereference, Precedence::Unary};
+        case TokenType::Star: return {AST::UnaryOperator::PrefixDereference, Precedence::Unary};
         default: llvm_unreachable("Token type is not a unary prefix operator");
     }
 }
@@ -824,6 +824,13 @@ AST::Expression *Parser::postfixUnary(AST::Expression *expression)
                 context.nodeAllocator, 
                 token, 
                 AST::UnaryOperator::ForceUnwrap, 
+                expression
+            );
+        case TokenType::At:
+            return AST::UnaryExpression::create(
+                context.nodeAllocator,
+                token,
+                AST::UnaryOperator::PostfixDereference,
                 expression
             );
         default:
@@ -896,6 +903,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(DotDotLess)]            = {NULL,                         &Parser::binary,       Precedence::Range},
 
     [static_cast<int>(Bang)]                  = {NULL,                         &Parser::postfixUnary, Precedence::Unary},
+    [static_cast<int>(At)]                    = {NULL,                         &Parser::postfixUnary, Precedence::Unary},
 
     [static_cast<int>(Plus)]                  = {NULL,                         &Parser::binary,       Precedence::Term},
     [static_cast<int>(Minus)]                 = {&Parser::prefixUnary,         &Parser::binary,       Precedence::Term},
