@@ -201,15 +201,28 @@ public:
         scopeLevel--;
     }
 
-    bool pushParameter(const Symbol& identifier, AST::FunctionDeclaration& function, int index) {
+    Result pushParameter(const Symbol& identifier, AST::FunctionDeclaration& function, int index) {
+        for (int i = locals.size() - 1; i >= 0 && locals[i].scopeLevel == scopeLevel; --i) {
+            if (locals[i].identifier == identifier) {
+                Diagnostic::error(function, "Invalid redeclaration of parameter " + identifier.string());
+                return ERROR;
+            }
+        }
         locals.emplace_back(identifier, scopeLevel, function, index);
 
-        return true;
+        return OK;
     }
 
-    void pushBinding(const Symbol& identifier, AST::IdentifierBinding& binding) {
-        // FIXME: Push the bindings.
+    Result pushBinding(const Symbol& identifier, AST::IdentifierBinding& binding) {
+        for (int i = locals.size() - 1; i >= 0 && locals[i].scopeLevel == scopeLevel; --i) {
+            if (locals[i].identifier == identifier) {
+                Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
+                Diagnostic::note(*locals[i].as.binding, identifier.string() + " previously declared here.");
+                return ERROR;
+            }
+        }
         locals.emplace_back(identifier, scopeLevel, binding);
+        return OK;
     }
 
     std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> getResolution(const Symbol& identifier) {
@@ -291,7 +304,7 @@ public:
 
         for (int pi = 0; pi < function.getParameterCount(); ++pi) {
             auto& parameter = function.getParameter(pi);
-            manager.pushParameter(parameter.name, function, pi);
+            result |= manager.pushParameter(parameter.name, function, pi);
         }
         manager.pushInnerScope();
 
@@ -314,7 +327,7 @@ public:
         }
         // FIXME: Support other binding types.
         auto& identifierBinding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
-        manager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
+        result |= manager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
