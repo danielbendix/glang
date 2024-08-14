@@ -46,6 +46,7 @@ public:
         InvalidBinaryOperator,
         InvalidInteger,
         InvalidFloating,
+        InvalidCharacterLiteral,
         InvalidEscapeSequence,
     };
 //private:
@@ -68,6 +69,8 @@ public:
             return "Invalid integer.";
         case ParserException::Cause::InvalidFloating:
             return "Invalid floating-point number.";
+        case ParserException::Cause::InvalidCharacterLiteral:
+            return "Invalid character literal.";
         case ParserException::Cause::InvalidEscapeSequence:
             return "Invalid escape sequence in string.";
         }
@@ -162,6 +165,8 @@ public:
 
     [[nodiscard]]
     AST::Expression *literal();
+    [[nodiscard]]
+    AST::Literal *createCharacterLiteral(const Token& token);
     [[nodiscard]]
     AST::Literal *createStringLiteral(const Token& token);
     [[nodiscard]]

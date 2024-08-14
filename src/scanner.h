@@ -12,7 +12,7 @@ public:
     static const ErrorCause NO_ERROR;
 
     // TODO: Maybe we don't need to move the string here.
-    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()}, line{1}, column{0} {}
+    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()} {}
 
     Token next() noexcept;
 
@@ -26,12 +26,20 @@ private:
     iterator start;
     iterator current;
     iterator end;
-    uint32_t line;
-    uint32_t column;
+    uint32_t line = 1;
+    uint32_t column = 0;
+    uint32_t startLine = line;
+    uint32_t startColumn = column;
     ErrorCause _error = NO_ERROR;
 
     bool isAtEnd() {
         return current == end;
+    }
+
+    void setStart() {
+        start = current;
+        startLine = line;
+        startColumn = column;
     }
 
     char advance() {
@@ -62,6 +70,7 @@ private:
     TokenType identifierType();
     Token identifier();
     Token escapedIdentifier();
+    Token character();
     Token string();
     Token number(char first);
 
@@ -81,6 +90,8 @@ enum class Scanner::ErrorCause {
     EmptyHexadecimalLiteral,
     EmptyFloatingPointFraction,
     EmptyFloatingPointExponent,
+    EmptyCharacterLiteral,
+    UnterminatedCharacterLiteral,
     UnterminatedStringLiteral,
     UnterminatedBlockComment,
     UnrecognizedCharacter,

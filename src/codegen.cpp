@@ -758,6 +758,9 @@ public:
                 auto llvmType = function.getLLVMType(type);
                 return llvm::ConstantFP::get(llvmType, floating.getValue());
             },
+            [&](const AST::CharacterLiteral& string) -> Value * {
+                llvm_unreachable("String literals are not supported.");
+            },
             [&](const AST::StringLiteral& string) -> Value * {
                 llvm_unreachable("String literals are not supported.");
             }

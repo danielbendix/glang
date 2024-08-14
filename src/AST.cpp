@@ -51,6 +51,8 @@ namespace AST {
                 return delete static_cast<IntegerLiteral *>(node);
             case NK_Expr_Literal_Floating:
                 return delete static_cast<FloatingPointLiteral *>(node);
+            case NK_Expr_Literal_Character:
+                return delete static_cast<CharacterLiteral *>(node);
             case NK_Expr_Literal_String:
                 return delete static_cast<StringLiteral *>(node);
             case NK_Expr_Identifier:
@@ -395,6 +397,29 @@ namespace AST {
 
     void FloatingPointLiteral::print(PrintContext& pc) const {
         pc << value;
+    }
+
+    void CharacterLiteral::print(PrintContext& pc) const {
+        Character codepoint = value;
+        pc << '\'';
+        if (codepoint <= 0x7F) {
+            pc << static_cast<char>(codepoint);
+        } else if (codepoint <= 0x7FF) {
+            pc << static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F))
+               << static_cast<char>(0x80 | (codepoint & 0x3F));
+        } else if (codepoint <= 0xFFFF) {
+            pc << static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F))
+               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
+               << static_cast<char>(0x80 | (codepoint & 0x3F));
+        } else if (codepoint <= 0x10FFFF) {
+            pc << static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07))
+               << static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F))
+               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
+               << static_cast<char>(0x80 | (codepoint & 0x3F));
+        } else {
+            pc << "[Invalid codepoint: " << codepoint << "]";
+        }
+        pc << '\'';
     }
 
     void StringLiteral::print(PrintContext& pc) const {

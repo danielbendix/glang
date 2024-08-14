@@ -1,0 +1,9 @@
+fn main() -> i64 {
+    let poopEmoji = '💩';
+    let sunglasses = '😎';
+    let ae = 'æ';
+    let oe = 'ø';
+    let aa = 'å';
+
+    return 0;
+}

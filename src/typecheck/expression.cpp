@@ -443,6 +443,10 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                 return defaultFloatingType;
             }
         },
+        [&](const CharacterLiteral& character) -> TypeResult {
+            Diagnostic::error(literal, "Character literals are currently not supported.");
+            return {};
+        },
         [&](const StringLiteral& string) -> TypeResult {
             Diagnostic::error(literal, "String literals are currently not supported.");
             return {};

@@ -106,6 +106,7 @@ namespace AST {
             NK_Expr_Literal_True,
             NK_Expr_Literal_Integer,
             NK_Expr_Literal_Floating,
+            NK_Expr_Literal_Character,
             NK_Expr_Literal_String,
             NK_Expr_Self,
             NK_Expr_Unary,
@@ -658,6 +659,28 @@ namespace AST {
 
         static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Literal_Floating;
+        }
+    };
+    
+    class CharacterLiteral : public Literal {
+    public:
+        using Character = uint32_t;
+    private:
+        const Character value;
+
+        CharacterLiteral(Token token, Character value) : Literal{NK_Expr_Literal_Character, token}, value{value} {}
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static CharacterLiteral *NONNULL create(Allocator& allocator, Token token, Character value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) CharacterLiteral{token, value};
+            });
+        }
+        
+        static bool classof(const Node *NONNULL node) {
+            return node->getKind() == NK_Expr_Literal_Character;
         }
     };
 

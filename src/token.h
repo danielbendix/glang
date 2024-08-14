@@ -97,6 +97,7 @@ enum class TokenType : uint8_t {
     Binary,
     Octal,
     Hexadecimal,
+    Character,
     String,
 
     Error,

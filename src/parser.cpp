@@ -500,8 +500,12 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
     ParseRule rule = ParseRule::expressionRules[static_cast<int>(previous.type)];
 
     if (!rule.prefixHandler) {
-        throw ParserException(previous, ParserException::Cause::ExpectedExpression);
-        // FIXME: Throw exception
+        if (previous.type == TokenType::Error) {
+            // TODO: Use scanner error.
+            throw ParserException(previous, ParserException::Cause::ExpectedExpression);
+        } else {
+            throw ParserException(previous, ParserException::Cause::ExpectedExpression);
+        }
     }
 
     auto expr = (this->*rule.prefixHandler)();
@@ -656,12 +660,59 @@ std::optional<char> escapeCharacter(char c)
     }
 }
 
+template <int length>
+static inline void checkLength(const Token& token, std::string_view characters) {
+    if (characters.length() != length) {
+        throw ParserException(token, ParserException::Cause::InvalidCharacterLiteral);
+    }
+}
+
+AST::Literal *Parser::createCharacterLiteral(const Token& token) 
+{
+    // NOTE: Assumption of single quote delimiters.
+    std::string_view characters = token.chars;
+    characters.remove_prefix(1);
+    characters.remove_suffix(1);
+
+    AST::CharacterLiteral::Character value = 0;
+
+    // TODO: I shouldn't be rolling my own unicode handling code.
+    uint8_t c = characters[0];
+
+    if (c == '\\') {
+
+    } else if (c <= 0x7F) {
+        checkLength<1>(token, characters);
+        value = c;
+    } else {
+        int length = std::countl_one(c);
+        switch (length) {
+            case 2:
+                checkLength<2>(token, characters);
+                value = (characters[0] & 0x1F) << 6 | (characters[1] & 0x3F);
+                break;
+            case 3:
+                checkLength<3>(token, characters);
+                value = (characters[0] & 0xF) << 12 | (characters[1] & 0x3F) << 6 | (characters[2] & 0x3F);
+                break;
+            case 4:
+                checkLength<4>(token, characters);
+                value = (characters[0] & 0x7) << 18 | (characters[1] & 0x3F) << 12 | (characters[2] & 0x3F) << 6 | (characters[3] & 0x3F);
+                break;
+            default:
+                throw ParserException(token, ParserException::Cause::InvalidCharacterLiteral);
+        }
+    }
+
+    return AST::CharacterLiteral::create(context.nodeAllocator, token, value);
+}
+
 AST::Literal *Parser::createStringLiteral(const Token& token)
 {
     AST::string string{allocator<char>()};
     string.reserve(token.chars.length() - 2); // Don't reserve for quotes
     
-    // NOTE: This currently only supports double quotes as separators
+    // NOTE: This currently only supports double quotes as delimiters.
     std::string_view characters = token.chars;
     characters.remove_prefix(1);
     characters.remove_suffix(1);
@@ -725,6 +776,8 @@ AST::Expression *Parser::literal()
             );
 
         case Floating: return FloatingPointLiteral::create(context.nodeAllocator, previous, parseDouble(previous));
+
+        case Character: return createCharacterLiteral(previous);
 
         case String: return createStringLiteral(previous);
 
@@ -871,15 +924,16 @@ ParseRule ParseRule::expressionRules[] = {
 
     [static_cast<int>(Not)]                   = {&Parser::prefixUnary,         NULL,                  Precedence::None},
 
-    [static_cast<int>(String)]                = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(Nil)]                   = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(True)]                  = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(False)]                 = {&Parser::literal,             NULL,                  Precedence::None},
     [static_cast<int>(Integer)]               = {&Parser::literal,             NULL,                  Precedence::None},
     [static_cast<int>(Binary)]                = {&Parser::literal,             NULL,                  Precedence::None},
     [static_cast<int>(Octal)]                 = {&Parser::literal,             NULL,                  Precedence::None},
     [static_cast<int>(Hexadecimal)]           = {&Parser::literal,             NULL,                  Precedence::None},
     [static_cast<int>(Floating)]              = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(True)]                  = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(False)]                 = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Nil)]                   = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(Character)]             = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(String)]                = {&Parser::literal,             NULL,                  Precedence::None},
 
     [static_cast<int>(Identifier)]            = {&Parser::identifier,          NULL,                  Precedence::None},
     [static_cast<int>(Self)]                  = {&Parser::self,                NULL,                  Precedence::None},

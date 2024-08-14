@@ -33,7 +33,7 @@ bool isHexDigit(char c)
 
 void Scanner::multilineComment() {
     // Keep this for a potential error token.
-    start = current;
+    setStart();
     advance();
     advance();
     int depth = 1;
@@ -99,10 +99,8 @@ void Scanner::skipWhitespace() {
 Token Scanner::makeToken(TokenType type)
 {
     std::string_view chars = std::string_view(start, current);
-    int length = current - start;
-    int column = this->column - length;
-    assert(column >= 0);
-    return Token(type, chars, line, column, current - start);
+    uint32_t length = current - start;
+    return Token(type, chars, startLine, startColumn, current - start);
 }
 
 [[nodiscard]]
@@ -225,6 +223,36 @@ Token Scanner::escapedIdentifier()
     return makeToken(TokenType::Identifier);
 }
 
+Token Scanner::character()
+{
+    char c = peek();
+    while (c != '\'' && !isAtEnd()) {
+        switch (advance()) {
+            case '\n': 
+                newline();
+                break;
+            case '\\':
+                advance();
+                break;
+        }
+        c = peek();
+    }
+    
+    if (isAtEnd()) {
+        error(UnterminatedCharacterLiteral, std::format("{}:{}: error: unterminated character literal", this->line, this->column));
+        return errorToken();
+    }
+
+    advance();
+
+    if (current - start == 2) {
+        error(EmptyCharacterLiteral, std::format("{}:{}: error: empty character literal", this->line, this->column));
+        return errorToken();
+    }
+
+    return makeToken(TokenType::Character);
+}
+
 Token Scanner::string()
 {
     char c = peek();
@@ -330,7 +358,7 @@ Token Scanner::next() noexcept {
             return errorToken();
         }
 
-        start = current;
+        setStart();
 
         char c = advance();
 
@@ -339,6 +367,7 @@ Token Scanner::next() noexcept {
 
         switch (c) {
             case '`': return escapedIdentifier();
+            case '\'': return character();
             case '"': return string();
             case '{': return makeToken(LeftBracket);
             case '}': return makeToken(RightBracket);
@@ -449,12 +478,10 @@ Token Scanner::next() noexcept {
                 return token;
             }
             default: 
-                std::cout << c << "\n";
-                std::cout << int(c) << "\n";
                 return errorToken(UnrecognizedCharacter);
         }
     }
-
+    setStart();
     return makeToken(EndOfFile);
 }
 
@@ -474,5 +501,4 @@ void Scanner::error(ErrorCause cause) {
 
 void Scanner::error(ErrorCause cause, const std::string& message) {
     _error = cause;
-    std::cerr << message << "\n";
 }

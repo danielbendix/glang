@@ -49,6 +49,8 @@ namespace AST {
             case NK_Expr_Literal_False:
             case NK_Expr_Literal_True:
                 return std::invoke(visitor, *static_cast<BooleanLiteral *>(&node));
+            case NK_Expr_Literal_Character:
+                return std::invoke(visitor, *static_cast<CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
             case NK_Expr_Literal_Integer:
@@ -123,6 +125,8 @@ namespace AST {
             case NK_Expr_Literal_False:
             case NK_Expr_Literal_True:
                 return std::invoke(visitor, *static_cast<const BooleanLiteral *>(&node));
+            case NK_Expr_Literal_Character:
+                return std::invoke(visitor, *static_cast<const CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
             case NK_Expr_Literal_Integer:
@@ -163,6 +167,8 @@ namespace AST {
             case NK_Expr_Literal_False:
             case NK_Expr_Literal_True:
                 return std::invoke(visitor, *static_cast<BooleanLiteral *>(&node));
+            case NK_Expr_Literal_Character:
+                return std::invoke(visitor, *static_cast<CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
             case NK_Expr_Literal_Integer:
@@ -183,6 +189,8 @@ namespace AST {
             case NK_Expr_Literal_False:
             case NK_Expr_Literal_True:
                 return std::invoke(visitor, *static_cast<const BooleanLiteral *>(&node));
+            case NK_Expr_Literal_Character:
+                return std::invoke(visitor, *static_cast<const CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
             case NK_Expr_Literal_Integer:
@@ -295,6 +303,7 @@ namespace AST {
                 case NK_Expr_Literal_True:
                 case NK_Expr_Literal_Integer:
                 case NK_Expr_Literal_Floating:
+                case NK_Expr_Literal_Character:
                 case NK_Expr_Literal_String:
                     return subclass().visitLiteral(*static_cast<Literal *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Identifier:
