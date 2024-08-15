@@ -15,6 +15,8 @@ public:
     virtual void warning(AST::Node& node, std::string& message) = 0;
 
     virtual void note(AST::Node& node, std::string& message) = 0;
+
+    virtual ~DiagnosticWriter() = default;
 };
 
 

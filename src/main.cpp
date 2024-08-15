@@ -74,14 +74,13 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // TODO: Fix lifetimes here
-    JSONDiagnosticWriter jsonWriter{std::cout};
-    IODiagnosticWriter ioWriter{std::cout};
-
+    std::unique_ptr<DiagnosticWriter> writer;
     if (options.flags.json) {
-        Diagnostic::setWriter(jsonWriter);
+        writer.reset(new JSONDiagnosticWriter{std::cout});
+        Diagnostic::setWriter(*writer);
     } else {
-        Diagnostic::setWriter(ioWriter);
+        writer.reset(new IODiagnosticWriter{std::cout});
+        Diagnostic::setWriter(*writer);
     }
 
     file.seekg(0, file.end);
@@ -107,7 +106,7 @@ int main(int argc, char **argv)
             auto module =  validate(std::move(parsed), options.flags.verbose);
             auto llvmModule = codegen(*module);
 
-            if (arg.printIR) {
+            if (arg.printIR && llvmModule) {
                 llvm::outs() << *llvmModule;
             }
 
@@ -116,5 +115,4 @@ int main(int argc, char **argv)
             static_assert(always_false_v<T>, "Switch falls through.");
         }
     }, options.mode);
-
 }
