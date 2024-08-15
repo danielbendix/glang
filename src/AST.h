@@ -496,65 +496,6 @@ namespace AST {
         using Expression::Expression;
 
     public:
-//        void print(PrintContext& pc) const;
-//
-//        explicit Literal(Token token, APInt&& integer, IntegerType integerType) : Literal{token, Integer{std::move(integer), integerType}} {}
-//
-//        template <Allocator Allocator>
-//        static Literal *NONNULL create(Allocator& allocator, Token token, bool value) {
-//            return allocate(allocator, [&](auto space) {
-//                return new(space) Literal{token, value};
-//            });
-//        }
-//
-//        template <Allocator Allocator>
-//        static Literal *NONNULL create(Allocator& allocator, Token token, double value) {
-//            return allocate(allocator, [&](auto space) {
-//                return new(space) Literal{token, value};
-//            });
-//        }
-//
-//        template <Allocator Allocator>
-//        static Literal *NONNULL create(Allocator& allocator, Token token, APInt&& value, IntegerType integerType) {
-//            return allocate(allocator, [&](auto space) {
-//                return new(space) Literal{token, std::move(value), integerType};
-//            });
-//        }
-//
-//        template <Allocator Allocator>
-//        static Literal *NONNULL create(Allocator& allocator, Token token, string&& value) {
-//            return allocate(allocator, [&](auto space) {
-//                return new(space) Literal{token, std::move(value)};
-//            });
-//        }
-//
-//        template <Allocator Allocator>
-//        static Literal *NONNULL createNil(Allocator& allocator, Token token) {
-//            return allocate(allocator, [&](auto space) {
-//                return new(space) Literal{token, std::monostate{}};
-//            });
-//        }
-//
-//        Literal::Type getLiteralType() const {
-//            return Literal::Type(internal.index());
-//        }
-//
-//        bool getBoolean() const noexcept {
-//            return std::get<bool>(internal);
-//        }
-//
-//        const APInt& getInteger() const {
-//            return std::get<Integer>(internal).integer;
-//        }
-//
-//        double getDouble() const {
-//            return std::get<double>(internal);
-//        }
-//
-//        const string& getString() const {
-//            return std::get<string>(internal);
-//        }
-//
         static bool classof(const Node *NONNULL node) {
             return node->getKind() >= NK_Expr_Literal_Nil && node->getKind() <= NK_Expr_Literal_String;
         }
