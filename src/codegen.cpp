@@ -18,6 +18,7 @@ using llvm::cast;
 using llvm::isa;
 using llvm::dyn_cast;
 using llvm::TypeSwitch;
+using llvm::enumerate;
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -473,27 +474,76 @@ public:
         function.builder.CreateStore(value, alloca, false);
     }
 
+    llvm::Value *codegenConditionalBinding(AST::VariableDeclaration& declaration, llvm::BasicBlock& onFailure) {
+        auto initial = declaration.getInitialValue();
+        assert(initial);
+
+        auto optionalValue = initial->acceptVisitor(*this);
+        auto optionalType = cast<OptionalType>(initial->getType());
+
+        llvm::Value *test;
+        llvm::Value *value;
+        if (isa<PointerType>(optionalType->getContained())) {
+            test = function.builder.CreateIsNotNull(optionalValue);
+            value = optionalValue;
+        } else {
+            auto flag = function.builder.CreateExtractValue(optionalValue, {0});
+            test = function.builder.CreateIsNotNull(flag);
+            value = function.builder.CreateExtractValue(optionalValue, {1});
+        }
+
+        auto& onSuccess = function.createOrphanedBlock();
+        function.builder.CreateCondBr(test, &onSuccess, &onFailure);
+        function.patchOrphanedBlock(onSuccess);
+
+        if (declaration.getIsMutable()) {
+            auto& alloca = function.addVariable(declaration.getBinding());
+            function.builder.CreateStore(value, &alloca);
+        } else {
+            function.pushValueBinding(declaration.getBinding(), value);
+        }
+
+        return test;
+    }
+
+    llvm::Value *codegenConditions(const AST::vector<AST::Condition>& conditions, llvm::BasicBlock& onFalse) {
+        auto last = conditions.size() - 1;
+
+        llvm::Value *value = nullptr;
+        llvm::BasicBlock *next = nullptr;
+        for (auto [i, condition] : enumerate(conditions)) {
+            value = TypeSwitch<AST::Condition, llvm::Value *>(condition)
+                .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
+                    return codegenConditionalBinding(*variable, onFalse);
+                })
+                .Case<AST::Expression *>([&](AST::Expression *expression) {
+                    auto condition =  expression->acceptVisitor(*this);
+                    auto& onTrue = function.createOrphanedBlock();
+                    function.builder.CreateCondBr(condition, &onTrue, &onFalse);
+                    function.patchOrphanedBlock(onTrue);
+                    return condition;
+                });
+        }
+        return value;
+    }
+
     void visitIfStatement(AST::IfStatement& ifStatement) {
         llvm::BasicBlock& end = function.createOrphanedBlock();
         llvm::BasicBlock *next = nullptr;
         const int blockCount = ifStatement.getConditionCount() + (ifStatement.getFallback() ? 0 : -1);
         for (int i = 0; i < ifStatement.getConditionCount(); ++i) {
-            llvm::BasicBlock& block = next ? function.patchOrphanedBlock(*next) : function.currentBlock();
+            if (next) {
+                function.patchOrphanedBlock(*next);
+            }
 
             auto& branch = ifStatement.getCondition(i);
-            auto condition = branch.getCondition().acceptVisitor(*this);
-
             if (i == blockCount) {
                 next = &end;
             } else {
                 next = &function.createOrphanedBlock();
             }
-            llvm::BasicBlock& ifEntry = function.createOrphanedBlock();
+            auto condition = codegenConditions(branch.getConditions(), *next);
 
-            function.builder.CreateCondBr(condition, &ifEntry, next);
-
-            function.patchOrphanedBlock(ifEntry);
-           
             visitBlock(branch.getBlock());
             if (!function.currentBlock().getTerminator()) {
                 function.builder.CreateBr(&end);
@@ -516,15 +566,15 @@ public:
     }
 
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
-        auto *condition = guardStatement.getCondition().acceptVisitor(*this);
+        // TODO: Because of the code reuse with if & while, this currently
+        // generates a superfluous branch that we could avoid.
+        llvm::BasicBlock& exit = function.createOrphanedBlock();
+        codegenConditions(guardStatement.getConditions(), exit);
 
-
-        llvm::BasicBlock& entry = function.createOrphanedBlock();
         llvm::BasicBlock& next = function.createOrphanedBlock();
+        function.builder.CreateBr(&next);
 
-        function.builder.CreateCondBr(condition, &next, &entry);
-
-        function.patchOrphanedBlock(entry);
+        function.patchOrphanedBlock(exit);
 
         visitBlock(guardStatement.getBlock());
 
@@ -543,16 +593,12 @@ public:
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
         auto& header = function.createOrphanedBlock();
         auto& end = function.createOrphanedBlock();
-        auto& loop = function.createOrphanedBlock();
 
         function.builder.CreateBr(&header);
         
         function.patchOrphanedBlock(header);
-        auto *condition = whileStatement.getCondition().acceptVisitor(*this);
 
-        function.builder.CreateCondBr(condition, &loop, &end);
-
-        function.patchOrphanedBlock(loop);
+        codegenConditions(whileStatement.getConditions(), end);
 
         LoopInfo loopInfo{header, end};
         pushLoop(loopInfo);

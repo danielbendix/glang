@@ -11,6 +11,8 @@
 using Result = PassResult;
 using enum PassResultKind;
 
+using llvm::TypeSwitch;
+
 
 class NamespaceBuilder {
     ModuleDef& names;
@@ -85,7 +87,6 @@ public:
         return result;
     }
 };
-
 
 /// Create map for global namespace, and ensure that no duplicate declarations exist.
 class DeclarationTableVisitor : public AST::DeclarationVisitorT<DeclarationTableVisitor, Result> {
@@ -238,7 +239,7 @@ public:
         }
         
         if (auto declaration = moduleDefinition.all.lookup(identifier)) {
-            auto result = llvm::TypeSwitch<ModuleDef::Definition, unique_ptr_t<IdentifierResolution>>(*declaration)
+            auto result = TypeSwitch<ModuleDef::Definition, unique_ptr_t<IdentifierResolution>>(*declaration)
                 .Case<AST::FunctionDeclaration *>([](auto function) {
                     return FunctionResolution::create(*function);
                 })
@@ -366,11 +367,37 @@ public:
         assignment.getOperand().acceptVisitor(*this);
     }
 
+    void handleConditionalBinding(AST::VariableDeclaration& variable) {
+        if (auto initial = variable.getInitialValue()) {
+            initial->acceptVisitor(*this);
+        } else {
+            Diagnostic::error(variable, "Conditional binding must have a value specified.");
+            result = ERROR;
+        }
+        // FIXME: Support other binding types.
+        auto& identifierBinding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        result |= manager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
+    }
+
+    void handleCondition(AST::Condition condition) {
+        TypeSwitch<AST::Condition>(condition)
+            .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
+                handleConditionalBinding(*variable);
+            })
+            .Case<AST::Expression *>([&](AST::Expression *expression) {
+                expression->acceptVisitor(*this);
+            });
+    }
+
     void visitIfStatement(AST::IfStatement& ifStatement) {
-        for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
-            auto& branch = ifStatement.getCondition(ci);
-            branch.getCondition().acceptVisitor(*this);
+        for (int bi = 0; bi < ifStatement.getConditionCount(); ++bi) {
+            manager.pushInnerScope();
+            auto& branch = ifStatement.getCondition(bi);
+            for (auto condition : branch.getConditions()) {
+                handleCondition(condition);
+            }
             visitBlock(branch.getBlock());
+            manager.popInnerScope();
         }
         if (auto* fallback = ifStatement.getFallback()) {
             visitBlock(*fallback);
@@ -378,8 +405,10 @@ public:
     }
 
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
-        guardStatement.getCondition().acceptVisitor(*this);
         visitBlock(guardStatement.getBlock());
+        for (auto condition : guardStatement.getConditions()) {
+            handleCondition(condition);
+        }
     }
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
@@ -389,8 +418,12 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
-        whileStatement.getCondition().acceptVisitor(*this);
+        manager.pushInnerScope();
+        for (auto condition : whileStatement.getConditions()) {
+            handleCondition(condition);
+        }
         visitBlock(whileStatement.getBlock());
+        manager.popInnerScope();
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {

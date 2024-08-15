@@ -253,7 +253,7 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
     }
 }
 
-AST::VariableDeclaration *Parser::variableDeclaration()
+AST::VariableDeclaration *Parser::variableDeclaration(bool isPattern)
 {
     auto token = previous;
     bool isMutable = token.type == TokenType::Var;
@@ -266,10 +266,12 @@ AST::VariableDeclaration *Parser::variableDeclaration()
 
     AST::Expression *initial = nullptr;
     if (match(TokenType::Equal)) {
-        initial = expression({});
+        initial = expression({.allowInitializer = !isPattern});
     }
 
-    consume(TokenType::Semicolon);
+    if (!isPattern) {
+        consume(TokenType::Semicolon);
+    }
 
     return AST::VariableDeclaration::create(context.nodeAllocator, token, isMutable, std::move(variableBinding), std::move(tp), std::move(initial));
 }
@@ -308,15 +310,32 @@ AST::Statement *Parser::statement()
     return assignmentOrExpression();
 }
 
+AST::vector<AST::Condition> Parser::conditions() 
+{
+    AST::vector<AST::Condition> conditions{allocator<AST::Condition>()};
+    while (true) {
+        if (match(TokenType::Var) || match(TokenType::Let)) {
+            conditions.emplace_back(variableDeclaration(true));
+        } else {
+            conditions.emplace_back(expression({.allowInitializer = false}));
+        }
+
+        if (!match(TokenType::Comma)) {
+            break;
+        }
+    }
+    return conditions;
+}
+
 AST::IfStatement *Parser::ifStatement()
 {
     auto token = previous;
-    AST::vector<AST::IfStatement::Branch> conditionals{allocator<AST::IfStatement::Branch>()};
+    AST::vector<AST::IfStatement::Branch> branches{allocator<AST::IfStatement::Branch>()};
     std::optional<AST::Block> fallback;
     while (true) {
-        auto condition = expression({.allowInitializer = false});
+        auto conds = conditions();
         auto code = block();
-        conditionals.emplace_back(std::move(condition), std::move(code));
+        branches.emplace_back(std::move(conds), std::move(code));
 
         if (match(TokenType::Else)) {
             if (!match(TokenType::If)) {
@@ -328,7 +347,7 @@ AST::IfStatement *Parser::ifStatement()
         }
     }
 
-    return AST::IfStatement::create(context.nodeAllocator, token, std::move(conditionals), std::move(fallback));
+    return AST::IfStatement::create(context.nodeAllocator, token, std::move(branches), std::move(fallback));
 }
 
 AST::ForStatement *Parser::forStatement()
@@ -350,13 +369,13 @@ AST::GuardStatement *Parser::guardStatement()
 {
     auto token = previous;
 
-    auto condition = expression({.allowInitializer = false});
+    auto conds = conditions();
 
     consume(TokenType::Else); // TODO: Expected 'else' after condition in guard
 
     auto code = block();
 
-    return AST::GuardStatement::create(context.nodeAllocator, token, condition, std::move(code));
+    return AST::GuardStatement::create(context.nodeAllocator, token, std::move(conds), std::move(code));
 }
 
 AST::ReturnStatement *Parser::returnStatement()
@@ -370,10 +389,10 @@ AST::ReturnStatement *Parser::returnStatement()
 AST::WhileStatement *Parser::whileStatement()
 {
     auto token = previous;
-    auto condition = expression({.allowInitializer = false});
+    auto conds = conditions();
     auto code = block();
 
-    return AST::WhileStatement::create(context.nodeAllocator, token, std::move(condition), std::move(code));
+    return AST::WhileStatement::create(context.nodeAllocator, token, std::move(conds), std::move(code));
 }
 
 AST::BreakStatement *Parser::breakStatement()

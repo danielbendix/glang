@@ -2,6 +2,8 @@
 #include "AST_Visitor.h"
 #include "templates.h"
 
+#include "llvm/ADT/TypeSwitch.h"
+using llvm::TypeSwitch;
 
 namespace AST {
     void Node::deleteNode(AST::Node *node) {
@@ -139,6 +141,25 @@ namespace AST {
         }
     }
 
+    PrintContext& operator<<(PrintContext& pc, const vector<Condition>& conditions) {
+        bool needsSeparator = false;
+        for (auto condition : conditions) {
+            if (needsSeparator) {
+                pc << ", ";
+            } else {
+                needsSeparator = true;
+            }
+            TypeSwitch<AST::Condition>(condition)
+                .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
+                    pc << *variable;
+                })
+                .Case<AST::Expression *>([&](AST::Expression *expression) {
+                    pc << *expression;
+                });
+        }
+        return pc;
+    }
+
     void Block::print(PrintContext& pc) const {
         pc.indent();
         for (auto& declaration : *this) {
@@ -274,12 +295,12 @@ namespace AST {
 
     void IfStatement::print(PrintContext& pc) const {
         bool isElse = false;
-        for (auto const& branch : conditionals) {
+        for (auto const& branch : branches) {
             if (isElse) {
-                pc << " else if " << *branch.condition << " {\n";
+                pc << " else if " << branch.conditions << " {\n";
             } else {
                 pc.startLine();
-                pc << "if " << *branch.condition << " {\n";
+                pc << "if " << branch.conditions << " {\n";
             }
             branch.block.print(pc);
             pc.startLine();
@@ -292,7 +313,7 @@ namespace AST {
 
     void GuardStatement::print(PrintContext& pc) const {
         pc.startLine();
-        pc << "guard " << *condition << " else {\n";
+        pc << "guard " << conditions << " else {\n";
         block.print(pc);
         pc.startLine();
         pc << "}\n";
@@ -309,7 +330,7 @@ namespace AST {
 
     void WhileStatement::print(PrintContext& pc) const {
         pc.startLine();
-        pc << "while " << *condition << " {\n";
+        pc << "while " << conditions << " {\n";
         code.print(pc);
         pc.startLine();
         pc << "}\n";

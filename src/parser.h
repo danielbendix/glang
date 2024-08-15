@@ -123,9 +123,12 @@ public:
     [[nodiscard]]
     AST::EnumDeclaration::Case::Member enumCaseMember();
     [[nodiscard]]
-    AST::VariableDeclaration *variableDeclaration();
+    AST::VariableDeclaration *variableDeclaration(bool isPattern = false);
     [[nodiscard]]
     AST::StatementDeclaration *statementDeclaration();
+
+    [[nodiscard]]
+    AST::vector<AST::Condition> conditions();
 
     // Statement
     [[nodiscard]]

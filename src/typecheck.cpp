@@ -19,6 +19,7 @@ using enum PassResultKind;
 using Result = PassResult;
 
 using llvm::TypeSwitch;
+using llvm::isa, llvm::cast;
 
 class GlobalDeclarationTypeChecker {
     ModuleDef& moduleDefinition;
@@ -247,16 +248,79 @@ public:
         }
     }
 
+    void handleConditionalBinding(AST::VariableDeclaration& variable) {
+        Type *declaredType = nullptr;
+        Type *propagatedType = nullptr;
+        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
+            declaredType = typeResolver.resolveType(*typeDeclaration);
+
+            if (!declaredType) {
+                Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
+                result = ERROR;
+                return;
+            }
+
+            propagatedType = declaredType->getOptionalType();
+        }
+
+        Type *type = nullptr;
+        AST::Expression *initial = variable.getInitialValue();
+        assert(initial);
+        ExpressionTypeChecker checker{typeResolver};
+        if (declaredType) {
+            type = checker.typeCheckExpression(*initial, propagatedType);
+        } else {
+            type = checker.typeCheckExpression(*initial);
+        }
+
+        if (!type) {
+            result = ERROR;
+            return;
+        }
+        if (!isa<OptionalType>(type)) {
+            Diagnostic::error(*initial, "Expected optional type in conditional binding.");
+            result = ERROR;
+            return;
+        }
+        auto optionalType = cast<OptionalType>(type);
+        type = optionalType->getContained();
+
+        if (declaredType && type != declaredType) {
+            Diagnostic::error(*initial, "Cannot coerce in conditional binding.");
+            result = ERROR;
+            type = declaredType;
+        }
+        
+        auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        binding.setType(type);
+        binding.setIsMutable(variable.getIsMutable());
+        variable.setType(*type);
+    }
+
+    void handleCondition(AST::Condition condition) {
+        TypeSwitch<AST::Condition>(condition)
+            .Case<AST::VariableDeclaration *>([&](auto variable) {
+                handleConditionalBinding(*variable);
+            })
+            .Case<AST::Expression *>([&](auto expression) {
+                ExpressionTypeChecker typeChecker{typeResolver};
+                Type *type = typeChecker.typeCheckExpression(*expression, typeResolver.booleanType());
+                if (!type) {
+                    if (!type) {
+                        result = ERROR;
+                    } else if (type != typeResolver.booleanType()) {
+                        Diagnostic::error(*expression, "Condition in if statement is not a boolean");
+                        result = ERROR;
+                    }
+                }
+            });
+    }
+
     void visitIfStatement(AST::IfStatement& ifStatement) {
-        ExpressionTypeChecker typeChecker{typeResolver};
-        for (int ci = 0; ci < ifStatement.getConditionCount(); ++ci) {
-            auto& branch = ifStatement.getCondition(ci);
-            Type *type = typeChecker.typeCheckExpression(branch.getCondition(), typeResolver.booleanType());
-            if (!type) {
-                result = ERROR;
-            } else if (type != typeResolver.booleanType()) {
-                Diagnostic::error(branch.getCondition(), "Condition in if statement is not a boolean");
-                result = ERROR;
+        for (int bi = 0; bi < ifStatement.getConditionCount(); ++bi) {
+            auto& branch = ifStatement.getCondition(bi);
+            for (auto condition : branch.getConditions()) {
+                handleCondition(condition);
             }
             visitBlock(branch.getBlock());
         }
@@ -268,12 +332,8 @@ public:
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
         ExpressionTypeChecker typeChecker{typeResolver};
 
-        Type *type = typeChecker.typeCheckExpression(guardStatement.getCondition(), typeResolver.booleanType());
-        if (!type) {
-            result = ERROR;
-        } else if (type != typeResolver.booleanType()) {
-            Diagnostic::error(guardStatement.getCondition(), "Condition in if statement is not a boolean");
-            result = ERROR;
+        for (auto condition : guardStatement.getConditions()) {
+            handleCondition(condition);
         }
         visitBlock(guardStatement.getBlock());
     }
@@ -310,10 +370,9 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
-        ExpressionTypeChecker typeChecker{typeResolver};
-        Type *type = typeChecker.typeCheckExpression(whileStatement.getCondition(), typeResolver.booleanType());
-        if (!type) {
-            result = ERROR;
+        for (int ci = 0; ci < whileStatement.getNumConditions(); ++ci) {
+            AST::Condition condition = whileStatement.getCondition(ci);
+            handleCondition(condition);
         }
         visitBlock(whileStatement.getBlock());
     }
@@ -329,22 +388,22 @@ public:
             return;
         }
 
-        Type *elementType =  TypeSwitch<Type *, Type *>(type)
-                .Case([&forStatement](ArrayType *arrayType) -> Type * {
-                    if (!arrayType->isBounded) {
-                        Diagnostic::error(forStatement.getIterable(), "Cannot iterate over unbounded array.");
-                        return nullptr;
-                    } else {
-                        return arrayType->getContained();
-                    }
-                })
-                .Case([](RangeType *rangeType) -> Type * {
-                    return rangeType->getBoundType();
-                })
-                .Default([&forStatement](Type *type) -> Type * {
-                    Diagnostic::error(forStatement.getIterable(), "Target of for loop is not iterable.");
+        Type *elementType = TypeSwitch<Type *, Type *>(type)
+            .Case([&forStatement](ArrayType *arrayType) -> Type * {
+                if (!arrayType->isBounded) {
+                    Diagnostic::error(forStatement.getIterable(), "Cannot iterate over unbounded array.");
                     return nullptr;
-                });
+                } else {
+                    return arrayType->getContained();
+                }
+            })
+            .Case([](RangeType *rangeType) -> Type * {
+                return rangeType->getBoundType();
+            })
+            .Default([&forStatement](Type *type) -> Type * {
+                Diagnostic::error(forStatement.getIterable(), "Target of for loop is not iterable.");
+                return nullptr;
+            });
 
         if (!elementType) {
             return;

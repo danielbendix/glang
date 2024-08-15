@@ -1025,6 +1025,8 @@ namespace AST {
         }
     };
 
+    using Condition = llvm::PointerUnion<VariableDeclaration *NONNULL, Expression *NONNULL>;
+
     // Statements
     template <typename Subclass, typename ReturnType, typename... Args>
     class StatementVisitorT;
@@ -1036,7 +1038,6 @@ namespace AST {
     protected:
         using Node::Node;
     };
-
 
     class AssignmentStatement : public Statement {
     protected:
@@ -1112,14 +1113,22 @@ namespace AST {
     class IfStatement : public Statement {
     public:
         class Branch {
-            Expression *NONNULL condition;
+            vector<Condition> conditions;
             Block block;
 
         public:
-            Branch(Expression *NONNULL condition, Block&& block) : condition{condition}, block{std::move(block)} {}
+            Branch(vector<Condition>&& conditions, Block&& block) : conditions{std::move(conditions)}, block{std::move(block)} {}
 
-            Expression& getCondition() const {
-                return *condition;
+            size_t getNumConditions() const {
+                return conditions.size();
+            }
+
+            Condition getCondition(size_t i) const {
+                return conditions[i];
+            }
+
+            const vector<Condition>& getConditions() const {
+                return conditions;
             }
 
             Block& getBlock() {
@@ -1134,47 +1143,47 @@ namespace AST {
         };
     protected:
         // TODO: Rename to branches
-        vector<Branch> conditionals;
+        vector<Branch> branches;
         std::optional<Block> fallback;
 
         // NOTE: this would be safer if it took a conditional, and a vector of subsequent ones, but initialization becomes more troublesome that way.
-        IfStatement(Token token, vector<Branch>&& conditionals, std::optional<Block>&& fallback) 
+        IfStatement(Token token, vector<Branch>&& branches, std::optional<Block>&& fallback) 
             : Statement{NK_Stmt_If, token}
-            , conditionals{std::move(conditionals)}
+            , branches{std::move(branches)}
             , fallback{std::move(fallback)}
         {
-            assert(this->conditionals.size() > 0 && "if statement must have at least one condition.");
+            assert(this->branches.size() > 0 && "if statement must have at least one condition.");
         }
 
     public:
         void print(PrintContext& pc) const;
 
         template <Allocator Allocator>
-        static IfStatement *NONNULL create(Allocator& allocator, Token token, vector<Branch>&& conditionals, std::optional<Block>&& fallback) {
+        static IfStatement *NONNULL create(Allocator& allocator, Token token, vector<Branch>&& branches, std::optional<Block>&& fallback) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IfStatement{token, std::move(conditionals), std::move(fallback)};
+                return new(space) IfStatement{token, std::move(branches), std::move(fallback)};
             });
         }
 
         size_t getConditionCount() const {
-            return conditionals.size();
+            return branches.size();
         }
 
         Branch& getBranch(size_t i) {
-            return conditionals.at(i);
+            return branches.at(i);
         }
 
         const Branch& getBranch(size_t i) const {
-            return conditionals.at(i);
+            return branches.at(i);
         }
 
         // TODO: Remove these
         Branch& getCondition(size_t i) {
-            return conditionals.at(i);
+            return branches.at(i);
         }
 
         const Branch& getCondition(size_t i) const {
-            return conditionals.at(i);
+            return branches.at(i);
         }
 
         Block *NULLABLE getFallback() {
@@ -1201,27 +1210,23 @@ namespace AST {
     };
 
     class GuardStatement : public Statement {
-        Expression *NONNULL condition;
+        vector<Condition> conditions;
         Block block;
     protected:
-        GuardStatement(Token token, Expression *NONNULL condition, Block&& block) : Statement{NK_Stmt_Guard, token}, condition{condition}, block{std::move(block)} {}
+        GuardStatement(Token token, vector<Condition>&& conditions, Block&& block) : Statement{NK_Stmt_Guard, token}, conditions{std::move(conditions)}, block{std::move(block)} {}
 
     public:
         void print(PrintContext& pc) const;
 
         template <Allocator Allocator>
-        static GuardStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL condition, Block&& block) {
+        static GuardStatement *NONNULL create(Allocator& allocator, Token token, vector<Condition>&& conditions, Block&& block) {
             return allocate(allocator, [&](auto space) {
-                return new(space) GuardStatement{token, condition, std::move(block)};
+                return new(space) GuardStatement{token, std::move(conditions), std::move(block)};
             });
         }
 
-        Expression& getCondition() {
-            return *condition;
-        }
-
-        const Expression& getCondition() const {
-            return *condition;
+        const vector<Condition>& getConditions() const {
+            return conditions;
         }
 
         Block& getBlock() {
@@ -1266,12 +1271,12 @@ namespace AST {
 
     class WhileStatement : public Statement {
     protected:
-        Expression *NONNULL condition;
+        vector<Condition> conditions;
         Block code;
 
-        WhileStatement(Token token, Expression *NONNULL condition, Block&& code) 
+        WhileStatement(Token token, vector<Condition>&& conditions, Block&& code) 
             : Statement{NK_Stmt_While, token}
-            , condition{condition}
+            , conditions{std::move(conditions)}
             , code{std::move(code)} 
         {}
     
@@ -1279,15 +1284,22 @@ namespace AST {
         void print(PrintContext& pc) const;
 
         template <Allocator Allocator>
-        static WhileStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL condition, Block&& code) {
+        static WhileStatement *NONNULL create(Allocator& allocator, Token token, vector<Condition>&& conditions, Block&& code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) WhileStatement{token, condition, std::move(code)};
-
+                return new(space) WhileStatement{token, std::move(conditions), std::move(code)};
             });
         }
 
-        Expression& getCondition() const {
-            return *condition;
+        size_t getNumConditions() const {
+            return conditions.size();
+        }
+
+        Condition getCondition(size_t i) const {
+            return conditions[i];
+        }
+
+        const vector<Condition>& getConditions() const {
+            return conditions;
         }
 
         Block& getBlock() {
