@@ -280,7 +280,7 @@ class CodeVisitor
         for (auto& declaration : block) {
             declaration.acceptVisitor(*this);
         }
-        manager.popOuterScope();
+        manager.popInnerScope();
     }
 
 public:
@@ -323,8 +323,8 @@ public:
     // Declarations
 
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        if (variable.getInitialValue()) {
-            variable.getInitialValue()->acceptVisitor(*this);
+        if (auto initial = variable.getInitialValue()) {
+            initial->acceptVisitor(*this);
         }
         // FIXME: Support other binding types.
         auto& identifierBinding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
