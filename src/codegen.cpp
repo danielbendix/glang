@@ -242,7 +242,6 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
     struct LoopInfo {
         llvm::BasicBlock& continueBlock;
         llvm::BasicBlock& endBlock;
-        LoopInfo *previous = nullptr;
 
         LoopInfo(llvm::BasicBlock& continueBlock, llvm::BasicBlock& endBlock)
             : continueBlock{continueBlock}
@@ -256,14 +255,16 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
 
     LoopInfo *currentLoop = nullptr;
 
-    void pushLoop(LoopInfo& loop) {
-        loop.previous = currentLoop;
-        currentLoop = &loop;
+    template <typename Func>
+    __attribute__((always_inline))
+    void withLoop(LoopInfo&& loop, Func&& f) {
+        LoopInfo loop_ = loop;
+        LoopInfo *previous = currentLoop;
+        currentLoop = &loop_;
+        std::invoke(f);
+        currentLoop = previous;
     }
 
-    void popLoop() {
-        currentLoop = currentLoop->previous;
-    }
 public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
     
@@ -600,10 +601,9 @@ public:
 
         codegenConditions(whileStatement.getConditions(), end);
 
-        LoopInfo loopInfo{header, end};
-        pushLoop(loopInfo);
-        visitBlock(whileStatement.getBlock());
-        popLoop();
+        withLoop({header, end}, [&]() {
+            visitBlock(whileStatement.getBlock());
+        });
 
         if (!function.currentBlock().getTerminator()) {
             function.builder.CreateBr(&header);
@@ -647,10 +647,10 @@ public:
             function.pushAddressBinding(forStatement.getBinding(), currentPointer);
 
             auto& latch = function.createOrphanedBlock();
-            LoopInfo loopInfo{latch, end};
-            pushLoop(loopInfo);
-            visitBlock(forStatement.getBlock());
-            popLoop();
+
+            withLoop({latch, end}, [&]() {
+                visitBlock(forStatement.getBlock());
+            });
 
             if (!function.currentBlock().getTerminator()) {
                 function.builder.CreateBr(&latch);
@@ -706,10 +706,9 @@ public:
             function.pushValueBinding(forStatement.getBinding(), current);
 
             auto& latch = function.createOrphanedBlock();
-            LoopInfo loopInfo{latch, end};
-            pushLoop(loopInfo);
-            visitBlock(forStatement.getBlock());
-            popLoop();
+            withLoop({latch, end}, [&]() {
+                visitBlock(forStatement.getBlock());
+            });
 
             if (!function.currentBlock().getTerminator()) {
                 function.builder.CreateBr(&latch);
