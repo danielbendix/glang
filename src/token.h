@@ -47,6 +47,10 @@ enum class TokenType : uint8_t {
     SlashEqual,
     PercentEqual,
 
+    AmpersandEqual,
+    CaretEqual,
+    PipeEqual,
+
     // Logical operators
     Not,
     And,

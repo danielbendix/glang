@@ -220,8 +220,6 @@ public:
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
-        assert(false);
-
         // TODO: This needs to type check the binary operation between the target and the operand.
         ExpressionTypeChecker typeChecker{typeResolver};
         TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
@@ -231,7 +229,6 @@ public:
         }
         if (target.isConstraint()) {
             result = ERROR;
-            // TODO; get cause of r-value-ness.
             Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
             return;
         }
@@ -245,6 +242,18 @@ public:
         Type *valueType = typeChecker.typeCheckExpression(assignment.getOperand(), targetType);
         if (!valueType) {
             result = ERROR;
+            return;
+        }
+
+        auto [coerceResult, wrapped] = coerceCompoundAssignmentOperand(*targetType, *valueType, assignment.getOp(), assignment.getOperand());
+
+        if (coerceResult.failed()) {
+            result = ERROR;
+            return;
+        }
+
+        if (wrapped) {
+            assignment.setWrappedOperand(wrapped);
         }
     }
 

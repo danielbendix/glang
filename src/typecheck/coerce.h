@@ -6,6 +6,8 @@
 
 using Result = PassResult;
 
-std::pair<Result, AST::Expression *> coerceType(Type& to, Type& from, AST::Expression& expression) noexcept;
+std::pair<Result, AST::Expression *> coerceType(Type& to, Type& from, AST::Expression& expression);
+
+std::pair<Result, AST::Expression *> coerceCompoundAssignmentOperand(Type& to, Type& from, AST::BinaryOperator op, AST::Expression& expression);
 
 #endif // LANG_typecheck_expression_h

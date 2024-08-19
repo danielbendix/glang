@@ -1108,6 +1108,10 @@ namespace AST {
         Expression& getOperand() const {
             return *operand;
         }
+
+        void setWrappedOperand(Expression *NONNULL wrapped) {
+            operand = wrapped;
+        }
     };
 
     class IfStatement : public Statement {

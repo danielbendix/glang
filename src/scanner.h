@@ -62,6 +62,7 @@ private:
 
     void multilineComment();
     void skipWhitespace();
+    template <char c, TokenType ifRead, TokenType ifNotRead>Token checkNext();
     template <auto predicate> void munchMany();
     template <auto predicate> bool munchMany1();
     [[nodiscard]]

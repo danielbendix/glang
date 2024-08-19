@@ -86,7 +86,7 @@ std::pair<Result, AST::Expression *> unwrappingOptionals(OptionalType& destinati
     }
 }
 
-std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source, AST::Expression& expression) noexcept {
+std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source, AST::Expression& expression) {
     if (&source == &destination) {
         return {OK, nullptr};
     }
@@ -146,6 +146,7 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
         } else {
             return unwrappingOptionals(optionalDestination, source, expression);
         }
+        llvm_unreachable("TODO: Solve uneven optional type coercion.");
         // TODO: Solve uneven optional type coercion
         break;
     }
@@ -157,5 +158,39 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
         return {ERROR, nullptr};
     case TK_Protocol:
         assert(false);
+    }
+
+
+    Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName());
+    return {ERROR, nullptr};
+}
+
+std::pair<Result, AST::Expression *> coerceCompoundAssignmentOperand(Type& to, Type& from, AST::BinaryOperator op, AST::Expression& rhs) {
+    switch (op) {
+    case AST::BinaryOperator::OpenRange:
+    case AST::BinaryOperator::ClosedRange:
+    case AST::BinaryOperator::Equal:
+    case AST::BinaryOperator::NotEqual:
+    case AST::BinaryOperator::Less:
+    case AST::BinaryOperator::LessEqual:
+    case AST::BinaryOperator::Greater:
+    case AST::BinaryOperator::GreaterEqual:
+    case AST::BinaryOperator::LogicalAnd:
+    case AST::BinaryOperator::LogicalOr:
+        llvm_unreachable("Unsupported binary operator for compound assignment.");
+    case AST::BinaryOperator::Add:
+    case AST::BinaryOperator::Subtract:
+    case AST::BinaryOperator::Multiply:
+    case AST::BinaryOperator::Divide:
+    case AST::BinaryOperator::Modulo:
+        return coerceType(to, from, rhs);
+    case AST::BinaryOperator::ShiftLeft:
+    case AST::BinaryOperator::ShiftRight:
+        Diagnostic::error(rhs, "TODO: Implement type checking for shift operations.");
+        return {ERROR, nullptr};
+    case AST::BinaryOperator::BitwiseAnd:
+    case AST::BinaryOperator::BitwiseOr:
+    case AST::BinaryOperator::BitwiseXor:
+        return coerceType(to, from, rhs);
     }
 }

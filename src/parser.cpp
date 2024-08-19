@@ -292,6 +292,9 @@ bool isAssignmentOperator(TokenType tokenType)
         case MinusEqual:
         case StarEqual:
         case SlashEqual:
+        case AmpersandEqual:
+        case CaretEqual:
+        case PipeEqual:
             return true;
         default:
             return false;
@@ -423,6 +426,12 @@ std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
             return Multiply;
         case TokenType::SlashEqual:
             return Divide;
+        case TokenType::AmpersandEqual:
+            return BitwiseAnd;
+        case TokenType::CaretEqual:
+            return BitwiseXor;
+        case TokenType::PipeEqual:
+            return BitwiseOr;
         default:
             llvm::llvm_unreachable_internal();
     }

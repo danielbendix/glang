@@ -348,6 +348,14 @@ Token Scanner::number(char first)
     return makeToken(tokenType);
 }
 
+template <char c, TokenType noRead, TokenType readNext>
+Token Scanner::checkNext() {
+    if (peek() == c) {
+        advance();
+        return makeToken(readNext);
+    }
+    return makeToken(noRead);
+}
 
 Token Scanner::next() noexcept {
     using enum TokenType;
@@ -380,9 +388,9 @@ Token Scanner::next() noexcept {
             case ',': return makeToken(Comma);
             case '?': return makeToken(Question);
             case '~': return makeToken(Tilde);
-            case '&': return makeToken(Ampersand);
-            case '|': return makeToken(Pipe);
-            case '^': return makeToken(Caret);
+            case '&': return checkNext<'=', Ampersand, AmpersandEqual>();
+            case '|': return checkNext<'=', Pipe, PipeEqual>();
+            case '^': return checkNext<'=', Caret, CaretEqual>();
             case '@': return makeToken(At);
             case '!': {
                 if (peek() == '=') {
@@ -431,25 +439,9 @@ Token Scanner::next() noexcept {
                 }
                 return makeToken(Minus);
             }
-            case '*': {
-                if (peek() == '=') {
-                    advance();
-                    return makeToken(Caret);
-                }
-                return makeToken(Star);
-            }
-            case '/': 
-                if (peek() == '=') {
-                    advance();
-                    return makeToken(SlashEqual);
-                }
-                return makeToken(Slash);
-            case '%':
-                if (peek() == '=') {
-                    advance();
-                    return makeToken(PercentEqual);
-                }
-                return makeToken(Percent);
+            case '*': return checkNext<'=', Star, StarEqual>();
+            case '/': return checkNext<'=', Slash, SlashEqual>();
+            case '%': return checkNext<'=', Percent, PercentEqual>();
             case '<': {
                 switch (peek()) {
                     case '=':
