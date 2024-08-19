@@ -2,6 +2,7 @@
 #define LANG_typecheck_resolver_h
 
 #include "typecheck.h"
+#include "typeconstraint.h"
 
 #include "builtins.h"
 
@@ -21,6 +22,17 @@ private:
 
 public:
     TypeResolver(ModuleDef& moduleDefinition, const Builtins& builtins) : moduleDefinition{moduleDefinition}, builtins{builtins} {};
+
+    Type *defaultTypeFromTypeConstraint(TypeConstraint *constraint) {
+        switch (constraint->getKind()) {
+            case TypeConstraintKind::Numeric:
+                return defaultIntegerType();
+            case TypeConstraintKind::Floating:
+                return defaultFPType();
+            case TypeConstraintKind::Optional:
+                return nullptr;
+        }
+    }
 
     Type *resolveType(AST::Identifier& identifier) {
         if (auto type = resolveType(identifier.getName())) {

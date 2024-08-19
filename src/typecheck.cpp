@@ -136,7 +136,16 @@ public:
             if (declaredType) {
                 type = checker.typeCheckExpression(*initial, declaredType);
             } else {
-                type = checker.typeCheckExpression(*initial);
+                TypeResult typeResult = checker.typeCheckExpression(*initial);
+                if (typeResult && typeResult.isConstraint()) {
+                    // TODO: get type from constraint, if possible.
+                    Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                    if (defaultType) {
+                        type = checker.typeCheckExpression(*initial, defaultType);
+                    }
+                } else {
+                    type = typeResult;
+                }
             }
 
             if (!type) {
