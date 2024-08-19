@@ -32,7 +32,7 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
     Symbol& name = symbols.getSymbol("i" #bits); \
     IntegerType *type = new IntegerType{name, bits, true}; \
     table.insert(name, type); \
-    if constexpr (bits == 32) { defaultIntegerType = type; } \
+    if constexpr (bits == 64) { defaultIntegerType = type; } \
     owner.push_back(type); }
     INT_TYPE(8);
     INT_TYPE(16);
