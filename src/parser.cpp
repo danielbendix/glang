@@ -166,10 +166,9 @@ AST::FunctionDeclaration *Parser::initializerDeclaration()
         // TODO: Report error with type.
     }
 
-
     auto code = block();
 
-
+    assert(false && "TODO: Implement this, or reconsider.");
 }
 
 AST::StructDeclaration *Parser::structDeclaration()
