@@ -51,7 +51,7 @@ def create_diagnostic(diagnostic: dict) -> Diagnostic:
         case "warning":
             severity = DiagnosticSeverity.Warning
         case "note":
-            severity = DiagnosticSeverity.Information
+            severity = DiagnosticSeverity.Hint
         case _:
             raise Exception("Uknown kind.")
 
