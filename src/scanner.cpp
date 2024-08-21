@@ -114,20 +114,10 @@ TokenType testKeyword(std::string::const_iterator it, std::string::const_iterato
 [[nodiscard]]
 TokenType Scanner::testTry(std::string::const_iterator it, std::string::const_iterator end) {
     std::string_view view(it, end);
-    if (view.length() == 1 && *it == 'y') {
-        switch (peek()) {
-            case '?':
-                advance();
-                return TokenType::TryQuestion;
-            case '!':
-                advance();
-                return TokenType::TryBang;
-            default:
-                return TokenType::Try;
-        }
-    } else {
-        return TokenType::Identifier;
-    }
+    if (view == "") return TokenType::Try;
+    if (view == "?") return TokenType::TryQuestion;
+    if (view == "!") return TokenType::TryBang;
+    return TokenType::Identifier;
 }
 
 TokenType Scanner::identifierType()
@@ -150,6 +140,7 @@ TokenType Scanner::identifierType()
             break;
         case 'f':
             switch (*it++) {
+                case 'a': return testKeyword(it, current, "lse", 3, TokenType::False);
                 case 'o': return testKeyword(it, current, "r", 1, TokenType::For);
                 case 'n': return testKeyword(it, current, "", 0, TokenType::Fn);
             }
@@ -186,7 +177,12 @@ TokenType Scanner::identifierType()
         case 't':
             switch (*it++) {
                 case 'h': return testKeyword(it, current, "row", 3, TokenType::Throw);
-                case 'r': return testTry(it, current);
+                case 'r': {
+                    switch(*it++) {
+                        case 'u': return testKeyword(it, current, "e", 1, TokenType::True);
+                        case 'y': return testTry(it, current);
+                    }
+                }
             }
             break;
         case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
