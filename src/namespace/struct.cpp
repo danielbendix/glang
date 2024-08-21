@@ -12,19 +12,40 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     std::vector<AST::VariableDeclaration *> fields;
     std::vector<AST::FunctionDeclaration *> methods;
 
+    // Bitmap for storing which fields have a default initial value.
+    uint64_t currentInitialized = 0;
+    llvm::SmallVector<uint64_t, 1> areInitialized;
+
     StructVisitor(AST::StructDeclaration& visiting) : visiting{visiting} {}
+
+    void finalize() {
+        if (fields.size() & 0x3F) {
+            areInitialized.push_back(currentInitialized);
+        }
+    }
 
     // Declaration visitor
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        // TODO: To keep structs simple, we need to error on any bindings other than IdentifierBinding here.
         auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
         if (!properties.insert(binding.getIdentifier(), &variable)) {
-            Diagnostic::error(variable, "Duplicate declaration of struct field.");
+            Diagnostic::error(binding, "Duplicate declaration of struct field.");
             auto& existing = *static_cast<AST::Node *>(properties[binding.getIdentifier()].getOpaqueValue());
             Diagnostic::note(existing, "Previously declared here.");
             return ERROR;
         }
+
+        if (variable.getInitialValue()) {
+            currentInitialized |= 1 << (fields.size() & 0x3F);
+        }
+
         fields.push_back(&variable);
+
+        if ((fields.size() & 0x3F) == 0) {
+            areInitialized.push_back(currentInitialized);
+            currentInitialized = 0;
+        }
 
         return OK;
     }
@@ -70,6 +91,8 @@ unique_ptr_t<StructType> resolveStructType(AST::StructDeclaration& structDeclara
     for (auto& declaration : structDeclaration) {
         result |= declaration.acceptVisitor(visitor);
     }
+
+    visitor.finalize();
     
-    return StructType::create(structDeclaration.getName(), result.ok(), std::move(visitor.properties), std::move(visitor.fields), std::move(visitor.methods));
+    return StructType::create(structDeclaration.getName(), result.ok(), std::move(visitor.properties), std::move(visitor.fields), std::move(visitor.methods), visitor.areInitialized);
 }

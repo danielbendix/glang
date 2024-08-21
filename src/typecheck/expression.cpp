@@ -4,6 +4,8 @@
 #include "type/struct.h"
 #include "type/enum.h"
 
+#include "containers/bitmap.h"
+
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/TypeSwitch.h"
 
@@ -275,8 +277,9 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
 
     if (auto structType = dyn_cast<StructType>(initializingType)) {
         initializer.setType(structType);
-        // TODO: Use a set of fields to ensure that all values are being set.
-        // TODO: Use a set of fields to ensure no duplicates.
+
+        Bitmap definedFields{(uint32_t) structType->getFields().size()};
+
         Result result = OK;
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
@@ -306,8 +309,40 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 pair.second = wrapped;
             }
 
+            auto fieldIndex = llvm::cast<StructFieldResolution>(resolutionPtr)->getIndex();
+            if (!definedFields.set(fieldIndex)) {
+                Diagnostic::error(*pair.first, "Duplicate definition of field in struct initializer.");
+                result |= ERROR;
+            }
+
             result |= coerceResult;
         }
+
+        const size_t blocks = Bitmap::block_count(structType->getFields().size());
+        definedFields |= {structType->getInitializedFields(), blocks};
+        if (definedFields.countr_ones() < structType->getFields().size()) {
+            std::vector<const Symbol *> missing;
+            definedFields.iterate_zeros([&](uint32_t index) {
+                auto& binding = llvm::cast<AST::IdentifierBinding>(structType->getFields()[index]->getBinding());
+                missing.push_back(&binding.getIdentifier());
+            });
+
+            std::string names;
+
+            bool needsSeparator = false;
+            for (auto symbol : missing) {
+                if (needsSeparator) {
+                    names += ", ";
+                } else {
+                    needsSeparator = true;
+                }
+                names += symbol->string_view();
+            }
+
+            Diagnostic::error(initializer, "Uninitialized field(s) in initializer declaration: " + names);
+            result |= ERROR;
+        }
+
         if (result.failed()) {
             return {};
         } else {

@@ -32,6 +32,61 @@ public:
         , typeResolver{moduleDefinition, builtins} 
     {}
 
+    Result typeCheckStructField(AST::VariableDeclaration& field) {
+        Type *declaredType = nullptr;
+        if (auto *typeDeclaration = field.getTypeDeclaration()) {
+            declaredType = typeResolver.resolveType(*typeDeclaration);
+            if (!declaredType) {
+                return ERROR;
+            }
+        }
+
+        Type *type = nullptr;
+        if (AST::Expression *initial = field.getInitialValue()) {
+            ExpressionTypeChecker checker{typeResolver};
+            if (declaredType) {
+                type = checker.typeCheckExpression(*initial, declaredType);
+            } else {
+                TypeResult typeResult = checker.typeCheckExpression(*initial);
+                if (typeResult && typeResult.isConstraint()) {
+                    Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                    if (defaultType) {
+                        type = checker.typeCheckExpression(*initial, defaultType);
+                    }
+                } else {
+                    type = typeResult;
+                }
+            }
+
+            if (!type) {
+                Diagnostic::error(*initial, "Unable to resolve type for expression XXX.");
+                return ERROR;
+            }
+
+            if (declaredType && type != declaredType) {
+                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
+                if (wrapped) {
+                    field.setWrappedInitialValue(std::move(wrapped));
+                }
+                if (coerceResult.failed()) {
+                    return coerceResult;
+                }
+                type = declaredType;
+            }
+        } else {
+            type = declaredType;
+        }
+
+        assert(type);
+
+        auto& binding = llvm::cast<AST::IdentifierBinding>(field.getBinding());
+        binding.setType(type);
+        binding.setIsMutable(field.getIsMutable());
+        field.setType(*type);
+
+        return OK;
+    }
+
     Result typeCheckGlobal(AST::VariableDeclaration& variable) {
         Type *declaredType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
@@ -138,7 +193,6 @@ public:
             } else {
                 TypeResult typeResult = checker.typeCheckExpression(*initial);
                 if (typeResult && typeResult.isConstraint()) {
-                    // TODO: get type from constraint, if possible.
                     Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
                     if (defaultType) {
                         type = checker.typeCheckExpression(*initial, defaultType);
@@ -475,7 +529,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
     // TODO: This is a hack
     for (const auto& structType : moduleDefinition.structs) {
         for (auto& field : structType->getFields()) {
-            result |= typeChecker.typeCheckGlobal(*field);
+            result |= typeChecker.typeCheckStructField(*field);
         }
     }
     for (const auto& structType : moduleDefinition.structs) {

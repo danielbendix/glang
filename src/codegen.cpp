@@ -3,6 +3,7 @@
 #include "AST_Visitor.h"
 #include "type.h"
 #include "containers/pointer_map.h"
+#include "containers/bitmap.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/ADT/StringSet.h"
@@ -1276,15 +1277,25 @@ public:
         auto structType = cast<StructType>(initializer.getType());
         llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));
 
+        Bitmap undefined{(uint32_t) structType->getFields().size()};
+
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
             auto fieldResolution = cast<StructFieldResolution>(pair.first->getResolution());
             auto value = pair.second->acceptVisitor(*this);
             unsigned index = fieldResolution.getIndex();
+            undefined.set(index);
 
             structValue = function.builder.CreateInsertValue(structValue, value, {index});
         }
+
+        undefined.iterate_zeros([&](uint32_t index) {
+            auto initial = structType->getFields()[index]->getInitialValue();
+            assert(initial);
+            auto value = initial->acceptVisitor(*this);
+            structValue = function.builder.CreateInsertValue(structValue, value, {index});
+        });
 
         return structValue;
     }
