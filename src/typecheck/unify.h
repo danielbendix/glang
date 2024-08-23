@@ -6,10 +6,13 @@
 
 using Result = PassResult;
 
-void unifyTypesForArithmetic(Type& left, Type& right);
+Type *NULLABLE unifyTypesForComparison(AST::BinaryExpression& binary, Type& left, Type& right);
+Type *NULLABLE unifyTypesForEquality(AST::BinaryExpression& binary, Type& left, Type& right);
+Type *NULLABLE unifyTypesForArithmetic(AST::BinaryExpression& binary, Type& left, Type& right);
+Type *NULLABLE unifyTypesForBitwiseArithmetic(AST::BinaryExpression& binary, Type& left, Type& right, Type *propagatedType);
 
 
-std::pair<Result, unique_ptr_t<AST::Expression>> unifyTypesForBitwiseArithmetic(Type& left, Type& right);
+std::pair<Result, AST::Expression *NULLABLE> unifyTypesForBitwiseArithmetic(Type& left, Type& right);
 
 
 

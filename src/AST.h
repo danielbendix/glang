@@ -950,15 +950,15 @@ namespace AST {
         Expression& getLeft() const {
             return *left;
         }
-        void setLeft(Expression& left) {
-            this->left = &left;
+        void setWrappedLeft(Expression *NONNULL left) {
+            this->left = left;
         }
 
         Expression& getRight() const {
             return *right;
         }
-        void setRight(Expression& right) {
-            this->right = &right;
+        void setWrappedRight(Expression *NONNULL right) {
+            this->right = right;
         }
 
         static bool classof(const Node *NONNULL node) {

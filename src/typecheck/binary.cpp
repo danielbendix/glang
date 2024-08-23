@@ -1,5 +1,6 @@
 #include "typecheck.h"
 #include "typecheck/expression.h"
+#include "typecheck/unify.h"
 
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -55,6 +56,10 @@ Type *ExpressionTypeChecker::defaultTypeFromTypeConstraints(TypeConstraint *left
 std::pair<TypeResult, TypeResult> ExpressionTypeChecker::typeCheckBinaryOperands(AST::Expression& leftChild, AST::Expression& rightChild, Type *propagatedType) {
     auto left = typeCheckExpression(leftChild);
     auto right = typeCheckExpression(rightChild);
+
+    if (!left || !right) {
+        return {left, right};
+    }
 
     if (left.isConstraint()) {
         if (right.isConstraint()) {
@@ -131,16 +136,21 @@ Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary) {
 
         auto boolean = typeResolver.booleanType();
        
+        Type *unified;
+
         if (leftType == rightType) {
-            if (checkEquatability(leftType)) {
-                return boolean;
-            } else {
-                Diagnostic::error(binary, "Cannot test types " + leftType->makeName() + " and " + rightType->makeName() + " for equality.");
+            unified = leftType;
+        } else {
+            unified = unifyTypesForEquality(binary, *leftType, *rightType);
+            if (!unified) {
                 return nullptr;
             }
+        }
+        if (checkEquatability(unified)) {
+            return boolean;
         } else {
-            Diagnostic::error(binary, "TODO: Implement unification of binary operands.");
-            return {};
+            Diagnostic::error(binary, "Cannot test instances of " + unified->makeName() + " for equality.");
+            return nullptr;
         }
     }
 }
@@ -182,17 +192,22 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary) 
         Type *rightType = right;
 
         auto boolean = typeResolver.booleanType();
+
+        Type *unified;
        
         if (leftType == rightType) {
-            if (checkComparability(leftType)) {
-                return boolean;
-            } else {
-                Diagnostic::error(binary, "Cannot compare types " + leftType->makeName() + " and " + rightType->makeName() + ".");
+            unified = leftType;
+        } else {
+            unified = unifyTypesForComparison(binary, *leftType, *rightType);
+            if (!unified) {
                 return nullptr;
             }
+        }
+        if (checkComparability(unified)) {
+            return boolean;
         } else {
-            Diagnostic::error(binary, "TODO: Implement unification of binary operands.");
-            return {};
+            Diagnostic::error(binary, "Cannot compare instances of type " + unified->makeName() + ".");
+            return nullptr;
         }
     }
 }
@@ -262,16 +277,27 @@ TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary
         Type *leftType = left;
         Type *rightType = right;
             
+        Type *unified;
         if (leftType == rightType) {
-            if (!isa<IntegerType>(left.asType())) {
-                Diagnostic::error(binary.getLeft(), "Bitwise arithmetic operand must be an integer type.");
+            unified = leftType;
+        } else {
+            unified = unifyTypesForBitwiseArithmetic(binary, *leftType, *rightType, propagatedType);
+            if (!unified) {
                 return {};
             }
-            return leftType;
-        } else {
-            Diagnostic::error(binary, "TODO: Implement unification of binary operands.");
-            return {};
         }
+
+        return TypeSwitch<Type *, Type *>(unified)
+            .Case([&](IntegerType *integerType) -> Type * {
+                return integerType;
+            })
+            .Case([&](BooleanType *boolean) -> Type * {
+                return boolean;
+            })
+            .Default([&](Type *type) -> Type * {
+                Diagnostic::error(binary, "Cannot apply bitwise operator to operands of type " + type->makeName());
+                return nullptr;
+            });
     } else {
         if (left.isConstraint()) {
             Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
@@ -326,8 +352,7 @@ TypeResult ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& bin
         if (leftType == rightType) {
             return leftType;
         } else {
-            Diagnostic::error(binary, "TODO: Implement unification of binary operands.");
-            return {};
+            return unifyTypesForArithmetic(binary, *leftType, *rightType);
         }
     } else {
         if (left.isConstraint()) {
