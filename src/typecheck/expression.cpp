@@ -72,69 +72,51 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
 }
 
 TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
-    auto left = typeCheckExpression(binary.getLeft());
-    auto right = typeCheckExpression(binary.getRight());
-
-    if (!left || !right) {
-        return {};
-    }
-
-    if (left.isConstraint()) {
-        if (right.isConstraint()) {
-            assert(false && "TODO: Unify constraints and create default type.");
-        } else {
-            left = typeCheckExpression(binary.getLeft(), right.asType());
-        }
-    } else {
-        if (right.isConstraint()) {
-            right = typeCheckExpression(binary.getRight(), left.asType());
-        } else {
-            // Both are types, and should be unifiable.
-        }
-    }
-
-    Type *type;
-
     using enum AST::BinaryOperator;
+
+    TypeResult result;
+
     switch (binary.getOp()) {
         case LogicalOr:
         case LogicalAnd:
-            type = typeCheckLogicalOperator(binary, left, right);
+            result = typeCheckLogicalOperator(binary);
+            break;
+        case Equal:
+        case NotEqual:
+            result = typeCheckEquality(binary);
             break;
         case Less:
         case LessEqual:
         case Greater:
         case GreaterEqual:
-            type = typeCheckComparison(binary, left, right);
+            result = typeCheckComparison(binary);
+            break;
+        case OpenRange:
+        case ClosedRange:
+            result = typeCheckRangeOperator(binary);
             break;
         case ShiftLeft:
         case ShiftRight:
-            type = typeCheckArithmetic(binary, left, right, declaredType);
+            result = typeCheckShift(binary, declaredType);
             break;
         case BitwiseAnd:
         case BitwiseOr:
         case BitwiseXor:
-            type = typeCheckBitwise(binary, left, right);
-            break;
-        case Equal:
-        case NotEqual:
-            type = typeCheckEquality(binary, left, right);
+            result = typeCheckBitwise(binary, declaredType);
             break;
         case Add:
         case Subtract:
         case Multiply:
         case Divide:
         case Modulo:
-            type = typeCheckArithmetic(binary, left, right, declaredType);
-            break;
-        case OpenRange:
-        case ClosedRange:
-            type = typeCheckRangeOperator(binary, left, right);
+            result = typeCheckArithmetic(binary, declaredType);
             break;
     }
 
-    binary.setType(type);
-    return type;
+    if (result.isType()) {
+        binary.setType(result);
+    } 
+    return result;
 }
 
 TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call, Type *declaredType) {

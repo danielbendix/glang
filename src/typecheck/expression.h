@@ -24,6 +24,21 @@ public:
         return expression.acceptVisitor(*this, declaredType);
     }
 
+    Type *typeCheckToTypeOrError(AST::Expression& expression, Type *declaredType) {
+        TypeResult result = typeCheckExpression(expression, declaredType);
+
+        if (!result) {
+            return {};
+        }
+
+        if (result.isConstraint()) {
+            Diagnostic::error(expression, "Unable to determine type of expression.");
+            return {};
+        }
+
+        return result;
+    }
+
     Type *typeCheckBooleanNegationOperator(AST::UnaryExpression& unary);
     TypeResult typeCheckNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
     TypeResult typeCheckBitwiseNegationOperator(AST::UnaryExpression& unary, Type *propagatedType);
@@ -32,13 +47,16 @@ public:
     TypeResult typeCheckForceUnwrapOperator(AST::UnaryExpression& unary);
     TypeResult visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType);
 
-    Type *typeCheckLogicalOperator(AST::BinaryExpression& binary, Type *left, Type *right);
-    Type *typeCheckComparison(AST::BinaryExpression& binary, Type *left, Type *right);
-    Type *typeCheckBitwise(AST::BinaryExpression& binary, Type *left, Type *right);
-    Type *typeCheckShift(AST::BinaryExpression& binary, Type *left, Type *right);
-    Type *typeCheckEquality(AST::BinaryExpression& binary, Type *left, Type *right);
-    Type *typeCheckArithmetic(AST::BinaryExpression& binary, Type *left, Type *right, Type *propagatedType);
-    Type *typeCheckRangeOperator(AST::BinaryExpression& binary, Type *left, Type *right);
+    Type *defaultTypeFromTypeConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild);
+    std::pair<TypeResult, TypeResult> typeCheckBinaryOperands(AST::Expression& leftChild, AST::Expression& rightChild, Type *propagatedType);
+
+    Type *typeCheckLogicalOperator(AST::BinaryExpression& binary);
+    Type *typeCheckEquality(AST::BinaryExpression& binary);
+    Type *typeCheckComparison(AST::BinaryExpression& binary);
+    Type *typeCheckRangeOperator(AST::BinaryExpression& binary);
+    TypeResult typeCheckBitwise(AST::BinaryExpression& binary, Type *propagatedType);
+    TypeResult typeCheckShift(AST::BinaryExpression& binary, Type *propagatedType);
+    TypeResult typeCheckArithmetic(AST::BinaryExpression& binary, Type *propagatedType);
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
