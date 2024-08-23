@@ -786,15 +786,34 @@ public:
                 return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
             },
             [&](const AST::IntegerLiteral& integer) -> Value * {
-                auto integerType = cast<IntegerType>(literal.getType());
-                auto bitWidth = integerType->bitWidth;
-                llvm::APInt i;
-                if (integerType->isSigned) {
-                    i = integer.getValue().sextOrTrunc(bitWidth);
-                } else {
-                    i = integer.getValue().zextOrTrunc(bitWidth);
-                }
-                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
+                return TypeSwitch<Type *, llvm::Value *>(integer.getType())
+                    .Case([&](IntegerType *integerType) {
+                        auto bitWidth = integerType->bitWidth;
+                        llvm::APInt i;
+                        if (integerType->isSigned) {
+                            i = integer.getValue().sextOrTrunc(bitWidth);
+                        } else {
+                            i = integer.getValue().zextOrTrunc(bitWidth);
+                        }
+                        return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
+                    })
+                    .Case([&](FPType *fpType) {
+                        // TODO: We need to think about rounding here.
+                        switch (fpType->precision) {
+                            case FPType::Precision::Single: {
+                                const llvm::fltSemantics &semantics = llvm::APFloat::IEEEsingle();
+                                llvm::APFloat fp{semantics};
+                                fp.convertFromAPInt(integer.getValue(), false, llvm::APFloat::roundingMode::TowardZero);
+                                return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
+                            }
+                            case FPType::Precision::Double: {
+                                const llvm::fltSemantics &semantics = llvm::APFloat::IEEEdouble();
+                                llvm::APFloat fp{semantics};
+                                fp.convertFromAPInt(integer.getValue(), false, llvm::APFloat::roundingMode::TowardZero);
+                                return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
+                            }
+                        }
+                    });
             },
             [&](const AST::FloatingPointLiteral& floating) -> Value * {
                 auto type = cast<FPType>(literal.getType());
