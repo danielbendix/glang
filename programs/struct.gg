@@ -1,0 +1,14 @@
+struct Test {
+    var a: i64 = 0;
+
+    var b: i32;
+    var c: i32;
+}
+
+fn test() -> Test {
+    return {
+        a = 0,
+        b = 2,
+        c = 3,
+    };
+}

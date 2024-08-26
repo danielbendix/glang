@@ -1,0 +1,17 @@
+// Sum of a bounded array
+fn sumBounded(numbers: i64[]) -> i64 {
+    var sum = 0;
+    for n in numbers {
+        sum += n;
+    }
+    return sum;
+}
+
+// Sum of an unbounded array and length
+fn sumUnbounded(numbers: i64[!], count: i64) -> i64 {
+    var sum = 0;
+    for i in 0 ..< count {
+        sum += numbers[i];
+    }
+    return sum;
+}

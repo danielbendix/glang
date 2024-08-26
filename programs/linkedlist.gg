@@ -1,0 +1,52 @@
+struct ListI64 {
+    var value: i64;
+    var next: ListI64*? = nil;
+}
+
+fn reverse(head: ListI64*?) -> ListI64*? {
+    var head = head;
+    var prev: ListI64*? = nil;
+
+    while let current = head {
+        let next = current@.next;
+        current@.next = prev;
+        prev = current;
+        head = next;
+    }
+
+    return prev;
+}
+
+fn addToListNodes(head: ListI64*?, n: i64) {
+    var current = head;
+
+    while let node = current {
+        node@.value += n;
+        current = node@.next;
+    }
+}
+
+fn initialize(ptr: ListI64*) {
+    *ptr = {
+        value = 123,
+    };
+}
+
+fn main() {
+    var head: ListI64 = {
+        value = 1,
+    };
+
+    var second = ListI64 {
+        value = 2,
+    };
+
+    var third = ListI64 {
+        value = 3,
+    };
+
+    head.next = &second;
+    second.next = &third;
+
+    let newHead = reverse(&head);
+}

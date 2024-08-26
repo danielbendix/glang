@@ -1,0 +1,43 @@
+fn main() -> i64 {
+    var sum: i64 = 0;
+    let max: i64 = 100;
+    for n in 0 ..< max {
+        sum += n;
+    }
+    return sum;
+}
+
+fn test() -> i64 {
+    return sum(1000);
+}
+
+fn test2() -> i64 {
+    return fac(16);
+}
+
+fn fac(n: i64) -> i64 {
+    var acc: i64 = 1;
+    for i in 2 ... n {
+        acc *= i;
+    }
+    return acc;
+}
+
+fn sumEven(n: i64) -> i64 {
+    var acc: i64 = 0;
+    for i in 1 ... n {
+        if n & 1 == 1 {
+            continue;
+        }
+        acc += i;
+    }
+    return acc;
+}
+
+fn sum(n: i64) -> i64 {
+    var acc: i64 = 0;
+    for i in 1 ... n {
+        acc += i;
+    }
+    return acc;
+}
