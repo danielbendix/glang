@@ -40,15 +40,7 @@ def create_binding(variable: str, function: str) -> str:
 
 
 def create_return_value(variables: list[str]) -> str:
-    def chunks(array, chunk_size):
-        for i in range(0, len(array), chunk_size):
-            yield array[i : i + chunk_size]
-
-    adds = [
-        "    result = result + " + " + ".join(c) + ";" for c in chunks(variables, 100)
-    ]
-
-    return f"    var result: i64 = 0;\n{"\n".join(adds)}\n    return result;"
+    return f"    let result: i64 = {" + ".join(variables)};\n    return result;"
 
 
 def create_program(function_names: list[str], variables: list[str]) -> str:
