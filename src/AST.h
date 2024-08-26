@@ -550,15 +550,27 @@ namespace AST {
             Decimal,
             Hexadecimal,
         };
+
+        // A hack to put data inside the padding of APInt
+        class Value : public llvm::APInt {
+            bool isSigned;
+            Type type;
+
+            Value(llvm::APInt&& value, bool isSigned, Type type) : APInt{value}, isSigned{isSigned}, type{type} {}
+
+            Value& operator=(APInt&& rhs) {
+                APInt::operator=(rhs);
+                return *this;
+            }
+
+            friend class IntegerLiteral;
+        };
     private:
-        // TODO: Split this into different types of integer literals.
-        Type integerType;
-        APInt value;
+        Value value;
     protected:
         IntegerLiteral(Token token, APInt&& value, Type integerType) 
             : Literal{NK_Expr_Literal_Integer, token}
-            , value{std::move(value)}
-            , integerType{integerType} {}
+            , value{std::move(value), false, integerType} {}
     public:
         void print(PrintContext& pc) const;
 

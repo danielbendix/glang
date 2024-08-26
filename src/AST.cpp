@@ -385,7 +385,7 @@ namespace AST {
     }
 
     void IntegerLiteral::print(PrintContext& pc) const {
-        switch (integerType) {
+        switch (value.type) {
             case Type::Binary:
                 pc << "0b";
                 return pc.printInteger(value, 2);
