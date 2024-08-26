@@ -913,6 +913,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
     return AST::InitializerExpression::create(context.nodeAllocator, token, std::move(identifier), std::move(pairs));
 }
 
+// For improve cache-friendliness, this should probably be a "struct of arrays".
 ParseRule ParseRule::expressionRules[] = {
     // FIXME: Figure out the precedence.
     [static_cast<int>(LeftBrace)]             = {NULL,                         &Parser::subscript,    Precedence::Call},
@@ -941,7 +942,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(LessLess)]              = {NULL,                         &Parser::binary,       Precedence::Shift},
     [static_cast<int>(GreaterGreater)]        = {NULL,                         &Parser::binary,       Precedence::Shift},
 
-    [static_cast<int>(Tilde)]                 = {&Parser::prefixUnary,         NULL,                  Precedence::BitwiseAnd},
+    [static_cast<int>(Tilde)]                 = {&Parser::prefixUnary,         NULL,                  Precedence::None},
     [static_cast<int>(Ampersand)]             = {&Parser::prefixUnary,         &Parser::binary,       Precedence::BitwiseAnd},
     [static_cast<int>(Caret)]                 = {NULL,                         &Parser::binary,       Precedence::BitwiseXor},
     [static_cast<int>(Pipe)]                  = {NULL,                         &Parser::binary,       Precedence::BitwiseOr},

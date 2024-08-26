@@ -124,7 +124,7 @@ public:
         currentScope -= 1;
     }
 
-    void addConstant(AST::Binding binding, llvm::Value *value) {
+    void addConstant(AST::Binding& binding, llvm::Value *value) {
         // TODO: Destructure bindings
         locals.push_back(Local{&binding, {value, 1}, currentScope});
     }

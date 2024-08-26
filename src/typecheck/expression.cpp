@@ -355,6 +355,7 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
         if (memberResolution) {
             memberAccess.setType(memberType);
             memberAccess.setResolution(std::move(memberResolution));
+            // FIXME: Check if resolution is assignable.
             return {memberType, target.canAssign()};
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
