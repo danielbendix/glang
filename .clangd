@@ -1,2 +1,0 @@
-CompileFlags:
-    Add: [-std=c++20, -Wunused-result -I/opt/homebrew/Cellar/llvm/17.0.4/include]

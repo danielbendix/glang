@@ -5,7 +5,6 @@
 #include "token.h"
 #include "resolution/identifier.h"
 #include "resolution/member.h"
-#include "unique_ref.h"
 #include "type.h"
 #include "memory.h"
 #include "context.h"
