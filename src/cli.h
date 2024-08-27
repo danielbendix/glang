@@ -10,6 +10,7 @@ struct Validate {
 struct Codegen {
     bool printCode = false;
     bool printIR = false;
+    std::optional<std::string> outputFile;
 };
 
 /// General-purpose flags

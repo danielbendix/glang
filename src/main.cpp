@@ -12,6 +12,9 @@
 #include "codegen.h"
 #include "control.h"
 
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
+
 void initialize(SymbolTable& symbols)
 {
     setupBuiltins(symbols);
@@ -106,11 +109,22 @@ int main(int argc, char **argv)
             auto module =  validate(std::move(parsed), options.flags.verbose);
             auto llvmModule = codegen(*module);
 
-            if (arg.printIR && llvmModule) {
-                llvm::outs() << *llvmModule;
-            }
+            if (llvmModule) {
+                if (arg.printIR) {
+                    llvm::outs() << *llvmModule;
+                }
+                if (arg.outputFile) {
+                    std::error_code error;
+                    llvm::raw_fd_ostream output(*arg.outputFile, error);
 
-            // TODO: Write bitcode to file.
+                    if (error) {
+                        std::cerr << "Could not open file '" << *arg.outputFile << "' for writing.";
+                    } else {
+                        llvm::WriteBitcodeToFile(*llvmModule, output);
+                        output.close();
+                    }
+                }
+            }
         } else {
             static_assert(always_false_v<T>, "Switch falls through.");
         }

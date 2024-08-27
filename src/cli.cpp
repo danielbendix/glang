@@ -3,18 +3,52 @@
 
 #include <iostream>
 
-static const 
-struct option options[] = {
-    {"validate-only", no_argument,  0, 0},
-    {"json",          no_argument,  0, 0},
-    {"print-code",    no_argument,  0, 0},
-    {"print-ir",      no_argument,  0, 0},
-    {"verbose",       no_argument,  0, 0},
-    {"help",          no_argument,  0, 0},
-    {NULL, 0, 0, 0},
-
+enum OptionValues {
+    VALIDATE_ONLY = 0,
+    JSON = 1,
+    PRINT_CODE = 2,
+    PRINT_IR = 3,
+    VERBOSE = 4,
+    OUTPUT = 'o',
+    HELP = 'h',
 };
 
+static const 
+struct option options[] = {
+    {"validate-only", no_argument,        NULL, VALIDATE_ONLY},
+    {"json",          no_argument,        NULL, JSON},
+    {"print-code",    no_argument,        NULL, PRINT_CODE},
+    {"print-ir",      no_argument,        NULL, PRINT_IR},
+    {"verbose",       no_argument,        NULL, VERBOSE},
+    {"output",        required_argument,  NULL, OUTPUT},
+    {"help",          no_argument,        NULL, HELP},
+    {NULL, 0, 0, 0},
+};
+
+[[noreturn]]
+void printHelp() {
+    auto& os = std::cout;
+
+    os << "glang - G compiler";
+    os << "\n\n";
+
+    //os << "Usage: glang [OPTIONS] FILE1 [FILE2 ...]";
+    os << "Usage: glang [OPTIONS] FILE";
+    os << "\n\n";
+
+    os << "Options:";
+    os << "\n";
+
+    os << "  --validate-only        Only validate code. Do not run codegen.\n";
+    os << "  --json                 Output diagnostics in JSON format.\n";
+    os << "  --print-code           Write the parsed AST in code form to stdout.\n";
+    os << "  --print-ir             Write the produced LLVM IR to stdout.\n";
+    os << "  --verbose              Enable verbose mode.\n";
+    os << "  -o or --output         Specify a file to write the produced LLVM bitcode to.\n";
+    os << "  -h or --help           Print help (this message) and exit.\n";
+
+    exit(0);
+}
 
 Options parseOptionsOrExit(const std::span<char *const> args) {
     Flags flags;
@@ -22,33 +56,41 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
     bool validateOnly = false;
     bool printCode = false;
     bool printIR = false;
+    std::optional<std::string> outputFile;
 
     while (true) {
         int argIndex = optind ? optind : 1;
+        int option;
         int optionIndex;
-        if (getopt_long((int) args.size(), args.data(), "", options, &optionIndex) == -1) {
+        if ((option = getopt_long((int) args.size(), args.data(), "o:h", options, &optionIndex)) == -1) {
             break;
         }
 
-        switch (optionIndex) {
-            case 0:
+        switch (option) {
+            case VALIDATE_ONLY:
                 validateOnly = true;
                 break;
-            case 1:
+            case JSON:
                 flags.json = true;
                 break;
-            case 2:
+            case PRINT_CODE:
                 printCode = true;
                 break;
-            case 3:
+            case PRINT_IR:
                 printIR = true;
                 break;
-            case 4:
+            case VERBOSE:
                 flags.verbose = true;
                 break;
-            case 5:
-                // TODO: Print help;
-                exit(0);
+            case OUTPUT:
+                if (outputFile) {
+                    std::cerr << "ERROR: Input file specified twice. Exiting...\n";
+                    exit(1);
+                }
+                outputFile = optarg;
+                break;
+            case HELP:
+                printHelp();
         }
     }
 
@@ -72,6 +114,6 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
     if (validateOnly) {
         return {Validate{}, flags, std::move(files)};
     } else {
-        return {Codegen{printCode, printIR}, flags, std::move(files)};
+        return {Codegen{printCode, printIR, std::move(outputFile)}, flags, std::move(files)};
     }
 }
