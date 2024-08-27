@@ -266,7 +266,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
-            auto [resolution, fieldType] = structType->resolveMember(pair.first->getMemberName());
+            auto [resolution, memberType] = structType->resolveMember(pair.first->getMemberName());
             if (!resolution) {
                 Diagnostic::error(*pair.first, "Unable to resolve member in initializer expression.");
                 return {};
@@ -278,6 +278,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 return {};
             }
 
+            auto fieldType = memberType.getPointer();
             auto valueType = typeCheckExpression(*pair.second, fieldType);
             if (!valueType) {
                 return {};
@@ -353,10 +354,9 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
     if (auto structType = llvm::dyn_cast_if_present<StructType>(type)) {
         auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
         if (memberResolution) {
-            memberAccess.setType(memberType);
+            memberAccess.setType(memberType.getPointer());
             memberAccess.setResolution(std::move(memberResolution));
-            // FIXME: Check if resolution is assignable.
-            return {memberType, target.canAssign()};
+            return {memberType.getPointer(), target.canAssign() && memberType.getInt()};
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
             return {};
@@ -379,7 +379,8 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
             resolution = enumType->resolveStaticMember(inferredMemberAccess.getMemberName());
         })
         .Case<StructType>([&](auto structType) {
-            resolution = structType->resolveStaticMember(inferredMemberAccess.getMemberName());
+            auto [first, second] = structType->resolveStaticMember(inferredMemberAccess.getMemberName());
+            resolution = {std::move(first), second.getPointer()};
         })
         .Default([](auto type) {
         })
