@@ -40,6 +40,12 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 .Conditional { color: #ed8796; }
 .StorageClass { color: #eed49f; }
 </style>
+<h3 id="factorial-function">Factorial function </h3>
+<pre><span class="Keyword">fn</span> fac(n: <span class="Type">i64</span>) -&gt; <span class="Type">i64</span> {
+    <span class="Conditional">guard</span> n &gt;= <span class="Number">2</span> <span class="Conditional">else</span> { <span class="Statement">return</span> <span class="Number">1</span>; }
+    <span class="Statement">return</span> n * fac(n - <span class="Number">1</span>);
+}
+</pre>
 <h3 id="summing-numbers-in-arrays">Summing numbers in arrays </h3>
 <pre><span class="Comment">// Sum of a bounded array (pointer and size)</span>
 <span class="Keyword" style="color: #f5dbe6">fn</span> sumBounded(numbers: <span class="Type">i64</span>[]) -&gt; <span class="Type">i64</span> {

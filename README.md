@@ -9,6 +9,14 @@ A low-level programming language inspired by C & Swift.
 ## Examples
 *In order to view code with syntax highlighting, [see the Github Pages version of this document.](https://danielbendix.github.io/glang)*
 
+### Factorial function
+```
+fn fac(n: i64) -> i64 {
+    guard n >= 2 else { return 1; }
+    return n * fac(n - 1);
+}
+```
+
 ### Summing numbers in arrays
 ```
 // Sum of a bounded array (pointer and size)

@@ -20,6 +20,14 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 .StorageClass { color: #eed49f; }
 </style>
 
+### Factorial function
+<pre>
+<span class="Keyword">fn</span> fac(n: <span class="Type">i64</span>) -&gt; <span class="Type">i64</span> {
+    <span class="Conditional">guard</span> n &gt;= <span class="Number">2</span> <span class="Conditional">else</span> { <span class="Statement">return</span> <span class="Number">1</span>; }
+    <span class="Statement">return</span> n * fac(n - <span class="Number">1</span>);
+}
+</pre>
+
 ### Summing numbers in arrays
 <pre>
 <span class="Comment">// Sum of a bounded array (pointer and size)</span>
