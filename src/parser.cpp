@@ -169,6 +169,8 @@ AST::FunctionDeclaration *Parser::initializerDeclaration()
     auto code = block();
 
     assert(false && "TODO: Implement this, or reconsider.");
+
+    llvm_unreachable("TODO: Implement this, or reconsider");
 }
 
 AST::StructDeclaration *Parser::structDeclaration()

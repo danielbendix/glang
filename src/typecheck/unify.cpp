@@ -40,7 +40,6 @@ AST::Literal *NULLABLE foldIntegers(AST::BinaryExpression& binary, AST::IntegerL
         case AST::BinaryOperator::ClosedRange:
             break;
         case AST::BinaryOperator::Add:
-            value = left.coalesce(right, [](auto& left, auto& right) { left += right; });
             break;
         case AST::BinaryOperator::Subtract:
             break;

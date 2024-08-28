@@ -102,6 +102,7 @@ public:
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
         assert(false && "TODO: Implement global variables.");
+        llvm_unreachable("TODO: Implement global variables.");
 
         //return builder.addVariable(variable.getName(), unique_ptr_t<AST::VariableDeclaration>{&variable});
     }

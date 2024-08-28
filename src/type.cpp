@@ -198,7 +198,7 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
             return static_cast<const RangeType *>(this)->_getLLVMType(context);
 
         default:
-            assert(false);
+            llvm_unreachable("Unknown type kind.");
     }
 }
 

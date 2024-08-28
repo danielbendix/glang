@@ -287,6 +287,7 @@ public:
                     case IdentifierResolution::IRK_Function:
                     case IdentifierResolution::IRK_Type:
                         assert(false);
+                        llvm_unreachable("Invalid assignment target.");
                 }
             },
             [&](AST::MemberAccessExpression& memberAccess) {
@@ -1357,6 +1358,7 @@ public:
         // TODO: Implement static members
 
         assert(false);
+        llvm_unreachable("TODO");
     }
 };
 
