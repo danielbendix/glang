@@ -1,0 +1,19 @@
+struct Parent {
+    let age: i8;
+    let child: Child;
+}
+
+struct Child {
+    let age: i8;
+}
+
+fn main() -> i64 {
+    var parent: Parent = {
+        age = 35,
+        child = {
+            age = 5,
+        },
+    };
+
+    return 0;
+}

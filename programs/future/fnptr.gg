@@ -1,12 +1,12 @@
-fn add_one(n: int) -> int {
+fn add_one(n: i64) -> i64 {
     return n + 1;
 }
 
-fn add_two(n: int) -> int {
+fn add_two(n: i64) -> i64 {
     return n + 2;
 }
 
-fn test(n: int) -> int {
+fn test(n: i64) -> i64 {
     let a = add_one;
     let b = add_two;
 

@@ -1,0 +1,13 @@
+fn missingNumber(nums: i32[]) -> i32 {
+    var missing: i32 = 0;
+
+    for n in 1 ... nums.length {
+        missing = missing ^ n;
+    }
+
+    for n in nums {
+        missing = missing ^ n;
+    }
+
+    return missing;
+}
