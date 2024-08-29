@@ -27,6 +27,7 @@ struct ThreadContext {
     SymbolTable *NONNULL symbols;
     Heap heap;
     BumpAllocator nodeAllocator;
+    BumpAllocator typeAllocator;
 
     template <typename T>
     ArrayAllocator<T> allocator() {
@@ -40,5 +41,7 @@ ArrayAllocator<T> allocator() {
 }
 
 BumpAllocator& nodeAllocator();
+
+BumpAllocator& typeAllocator();
 
 #endif // LANG_context_h

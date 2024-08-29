@@ -8,11 +8,19 @@
 
 using llvm::dyn_cast;
 
+template <typename T, typename... Args>
+T *create(Args&&... args) {
+    auto& allocator = typeAllocator();
+    return allocate(allocator, [&](void *space) {
+        return new(space) T(std::forward<Args>(args)...);
+    });
+}
+
 Type::TypeIndex& Type::getTypeIndex() {
     if (index) {
         return *index;
     } else {
-        auto index = new TypeIndex{};
+        auto index = create<TypeIndex>();
         this->index = index;
         return *index;
     }
@@ -24,7 +32,7 @@ ArrayType *Type::getBoundedArrayType() {
     if (index.boundedArrayType) {
         return index.boundedArrayType;
     } else {
-        auto type = new ArrayType(*this, true);
+        auto type = create<ArrayType>(*this, true);
         index.boundedArrayType = type;
         return type;
     }
@@ -36,7 +44,7 @@ ArrayType *Type::getUnboundedArrayType() {
     if (index.unboundedArrayType) {
         return index.unboundedArrayType;
     } else {
-        auto type = new ArrayType(*this, false);
+        auto type = create<ArrayType>(*this, false);
         index.unboundedArrayType = type;
         return type;
     }
@@ -48,7 +56,7 @@ RangeType *IntegerType::getOpenRangeType() {
     if (index.openRangeType) {
         return index.openRangeType;
     } else {
-        auto type = new RangeType(*this, false);
+        auto type = create<RangeType>(*this, false);
         index.openRangeType = type;
         return type;
     }
@@ -60,7 +68,7 @@ RangeType *IntegerType::getClosedRangeType() {
     if (index.closedRangeType) {
         return index.closedRangeType;
     } else {
-        auto type = new RangeType(*this, true);
+        auto type = create<RangeType>(*this, true);
         index.closedRangeType = type;
         return type;
     }
@@ -108,13 +116,11 @@ void Type::deleteValue(Type *type) {
 }
 
 PointerType *Type::_getPointerType() {
-    PointerType *pointerType = new PointerType(this);
-    return pointerType;
+    return create<PointerType>(this);
 }
 
 OptionalType *Type::_getOptionalType() {
-    OptionalType *optionalType = new OptionalType(this);
-    return optionalType;
+    return create<OptionalType>(this);
 }
 
 llvm::FunctionType *FunctionType::getFunctionType(llvm::LLVMContext& context) const {

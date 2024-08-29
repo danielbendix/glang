@@ -7,7 +7,7 @@
 void setupBuiltins(SymbolTable& symbols);
 
 class Builtins {
-    std::vector<Type *> allTypes;
+    std::vector<Type *> all;
 public:
     VoidType *voidType;
     IntegerType *defaultIntegerType;

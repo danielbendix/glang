@@ -138,7 +138,11 @@ public:
             parameterTypes.push_back(type);
         }
         if (result.ok()) {
-            auto *functionType = new FunctionType{returnType, std::move(parameterTypes)};
+            auto& allocator = typeAllocator();
+            // TODO: Either put the parameter types in with the types, or in a destructible heap.
+            auto functionType = allocate(allocator, [&](void *space) {
+                return new(space) FunctionType{returnType, std::move(parameterTypes)};
+            });
             function.setType(*functionType);
         }
         return result;
@@ -520,24 +524,23 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 
     GlobalDeclarationTypeChecker typeChecker{moduleDefinition, builtins};
 
-    for (const auto& function : moduleDefinition._functions) {
+    for (const auto function : moduleDefinition.functions) {
         result |= typeChecker.typeCheckFunction(*function);
     }
 
     // Types are populated after here.
 
-    // TODO: This is a hack
-    for (const auto& structType : moduleDefinition.structs) {
+    for (const auto structType : moduleDefinition.structs) {
         for (auto& field : structType->getFields()) {
             result |= typeChecker.typeCheckStructField(*field);
         }
     }
-    for (const auto& structType : moduleDefinition.structs) {
+    for (const auto structType : moduleDefinition.structs) {
         for (auto& method : structType->getMethods()) {
             result |= typeChecker.typeCheckFunction(*method);
         }
     }
-    for (const auto& global : moduleDefinition._globals) {
+    for (const auto global : moduleDefinition.globals) {
         result |= typeChecker.typeCheckGlobal(*global);
         assert(false);
     }
@@ -549,7 +552,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
     // All global types are known here.
 
     FunctionTypeChecker bodyTypeChecker{moduleDefinition, builtins};
-    for (const auto& function : moduleDefinition._functions) {
+    for (const auto function : moduleDefinition.functions) {
         result |= bodyTypeChecker.typeCheckFunctionBody(*function);
     }
 

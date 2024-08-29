@@ -52,7 +52,8 @@ class StructType : public Type {
                     this->initializedFields.single = initializedFields[0];
                     break;
                 default: {
-                    this->initializedFields.multiple = new uint64_t[initializedFields.size()];
+                    auto& allocator = typeAllocator();
+                    this->initializedFields.multiple = (uint64_t *) allocator.allocate(sizeof(uint64_t) * initializedFields.size(), alignof(uint64_t));
                     std::memcpy(this->initializedFields.multiple, initializedFields.data(), sizeof(uint64_t) * initializedFields.size());
                     break;
                 }
@@ -66,13 +67,16 @@ public:
             delete[] initializedFields.multiple;
         }
     }
-    static unique_ptr_t<StructType> create(const Symbol& name, 
+
+    static StructType *NONNULL create(const Symbol& name, 
                                            bool wellFormed, 
                                            SymbolMap<Property>&& properties, 
                                            std::vector<AST::VariableDeclaration *>&& fields, 
                                            std::vector<AST::FunctionDeclaration *>&& methods,
                                            std::span<uint64_t> initializedFields) {
-        return unique_ptr_t<StructType>{new StructType(name, wellFormed, std::move(properties), std::move(fields), std::move(methods), initializedFields)};
+        return allocate(typeAllocator(), [&](void *space) {
+            return new (space) StructType{name, wellFormed, std::move(properties), std::move(fields), std::move(methods), initializedFields};
+        });
     }
 
     void getName(std::string& result) const {

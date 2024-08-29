@@ -14,9 +14,7 @@ class EnumChildVisitor : public AST::DeclarationVisitorT<EnumChildVisitor, PassR
 
 };
 
-unique_ptr_t<EnumType> resolveEnumType(AST::EnumDeclaration& declaration) 
+EnumType *resolveEnumType(AST::EnumDeclaration& declaration) 
 {
-    unique_ptr_t<EnumType> type = unique_ptr_t<EnumType>{new EnumType{declaration.getName(), &declaration}};
-
-    return type;
+    return EnumType::create(declaration.getName(), declaration);
 }

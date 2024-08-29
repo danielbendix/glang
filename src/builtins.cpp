@@ -1,26 +1,36 @@
 #include "builtins.h"
+#include "context.h"
+
+template <typename T, Allocator Allocator, typename... Args>
+T *createType(Allocator& allocator, Args&&... args) {
+    return allocate(allocator, [&](void *space) {
+        return new(space) T(std::forward<Args>(args)...);
+    });
+}
 
 Builtins _builtins;
 
 void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vector<Type *>& owner)
 {
+    auto& allocator = typeAllocator();
+
     Symbol& voidName = symbols.getSymbol("void");
-    VoidType *voidType = new VoidType{voidName};
+    auto voidType = createType<VoidType>(allocator, voidName);
     table.insert(voidName, voidType);
     owner.push_back(voidType);
-
+    
     Symbol& boolName = symbols.getSymbol("bool");
-    BooleanType *booleanType = new BooleanType{boolName};
+    auto booleanType = createType<BooleanType>(allocator, boolName);
     table.insert(boolName, booleanType);
     owner.push_back(booleanType);
 
     Symbol& f32Name = symbols.getSymbol("f32");
-    FPType *f32Type = new FPType{f32Name, FPType::Precision::Single};
+    auto f32Type = createType<FPType>(allocator, f32Name, FPType::Precision::Single);
     table.insert(f32Name, f32Type);
     owner.push_back(f32Type);
 
     Symbol& f64Name = symbols.getSymbol("f64");
-    FPType *f64Type = new FPType{f64Name, FPType::Precision::Double};
+    auto f64Type = createType<FPType>(allocator, f64Name, FPType::Precision::Double);
     table.insert(f64Name, f64Type);
     owner.push_back(f64Type);
 
@@ -30,7 +40,7 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
 
 #define INT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("i" #bits); \
-    IntegerType *type = new IntegerType{name, bits, true}; \
+    auto type = createType<IntegerType>(allocator, name, bits, true); \
     table.insert(name, type); \
     if constexpr (bits == 64) { defaultIntegerType = type; } \
     owner.push_back(type); }
@@ -42,7 +52,7 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
 
 #define UINT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("u" #bits); \
-    Type *type = new IntegerType{name, bits, false}; \
+    auto type = createType<IntegerType>(allocator, name, bits, false); \
     table.insert(name, type); \
     owner.push_back(type); }
     UINT_TYPE(8);
@@ -61,7 +71,7 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
 
 void setupBuiltins(SymbolTable& symbols) 
 {
-    setupNumericTypes(symbols, _builtins.types, _builtins.allTypes);
+    setupNumericTypes(symbols, _builtins.types, _builtins.all);
 }
 
 const Builtins& builtins = _builtins;

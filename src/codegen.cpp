@@ -64,11 +64,11 @@ public:
 bool populateContext(Context& context, ModuleDef& moduleDefinition) {
     ContextPopulator populator{context};
 
-    for (auto& global : moduleDefinition._globals) {
+    for (auto global : moduleDefinition.globals) {
         populator.addGlobal(*global);
     }
 
-    for (auto& function : moduleDefinition._functions) {
+    for (auto function : moduleDefinition.functions) {
         populator.addFunction(*function);
     }
     
@@ -1367,45 +1367,10 @@ void codeGenFunction(AST::FunctionDeclaration& function, llvm::Function& llvmFun
     generator.startCodeGen(function);
 }
 
-class GlobalCodeGenerator : public AST::DeclarationVisitorT<GlobalCodeGenerator, void> {
-
-    Context& context;
-
-public:
-    GlobalCodeGenerator(Context& context) : context{context} {}
-
-    void visitVariableDeclaration(AST::VariableDeclaration& variableDeclaration) {
-        // TODO: Generate global variable.
-        assert(false);
-    }
-
-    void visitFunctionDeclaration(AST::FunctionDeclaration& functionDeclaration) {
-        llvm::Function *llvmFunction = context.llvmFunctions[&functionDeclaration];
-        codeGenFunction(functionDeclaration, *context.llvmFunctions[&functionDeclaration], context);
-    }
-
-    void visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-        assert(false);
-    }
-
-    void visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
-        assert(false);
-    }
-
-    void visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
-        assert(false);
-    }
-
-    void visitStatementDeclaration(AST::StatementDeclaration& statement) {
-        assert(false);
-    }
-};
-
 Result performCodegen(Context& context) {
-    GlobalCodeGenerator generator{context};
-
-    for (auto function : context.functions) {
-        function->acceptVisitor(generator);
+    for (const auto function : context.functions) {
+        llvm::Function *llvmFunction = context.llvmFunctions[function];
+        codeGenFunction(*function, *llvmFunction, context);
     }
 
     return OK;

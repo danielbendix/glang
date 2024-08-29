@@ -52,17 +52,6 @@ namespace AST {
 
     using string = std::basic_string<char, std::char_traits<char>, ArrayAllocator<char>>;
 
-    template <typename T, Allocator A>
-    void *NONNULL allocateSpace(A& allocator) {
-        return allocator.allocate(sizeof(T), alignof(T));
-    }
-
-    template <Allocator Allocator, typename F, typename T = std::remove_pointer_t<std::invoke_result_t<F, void *>>>
-    T *NONNULL allocate(Allocator& allocator, F f) {
-        void *NONNULL space = allocateSpace<T>(allocator);
-        return f(space);
-    }
-
     class PrintContext;
 
     struct Location {
@@ -135,8 +124,6 @@ namespace AST {
         Kind getKind() const { return kind; }
         const Location& getLocation() const { return location; }
 
-        //void acceptVisitor();
-
         void print(std::ostream& os) const;
 
         // TODO: Implement lldb output
@@ -147,9 +134,6 @@ namespace AST {
         static void deleteNode(AST::Node *NONNULL node);
         static void deleteValue(AST::Node *NONNULL node) { deleteNode(node); }
     };
-
-    template <typename T>
-    using unique_ptr = std::unique_ptr<T, Deleter<AST::Node, AST::Node::deleteValue>>;
 
     template <typename T>
     class iterator {

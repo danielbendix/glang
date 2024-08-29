@@ -26,7 +26,7 @@ public:
         Diagnostic::note(existing, "Previously declared here.");
     }
 
-    Result addFunction(const Symbol& name, AST::FunctionDeclaration& declaration) {
+    Result addGlobalFunction(const Symbol& name, AST::FunctionDeclaration& declaration) {
         if (!names.all.insert(name, &declaration)) {
             diagnoseDuplicateDeclaration(name, declaration);
             return ERROR;
@@ -54,36 +54,34 @@ public:
         return OK;
     }
 
-    Result addVariable(const Symbol& name, unique_ptr_t<AST::VariableDeclaration>&& variable) {
+    Result addVariable(const Symbol& name, AST::VariableDeclaration& variable) {
         Result result = OK;
-        result |= addGlobal(name, *variable);
-        // TODO: Create an ambiguous value
-        assert(names.definitions.insert(name, variable.get()));
-        names._globals.push_back(std::move(variable));
+        result |= addGlobal(name, variable);
+        // TODO: Create an ambiguous value on error
+        assert(names.definitions.insert(name, &variable));
+        names.globals.push_back(&variable);
         return result;
     }
 
-    Result addFunction(const Symbol& name, unique_ptr_t<AST::FunctionDeclaration>&& function) {
+    Result addFunction(const Symbol& name, AST::FunctionDeclaration& function) {
         Result result = OK;
-        result |= addFunction(name, *function);
-        // TODO: Create an ambiguous value
-        assert(names.definitions.insert(name, function.get()));
-        names._functions.push_back(std::move(function));
+        result |= addGlobalFunction(name, function);
+        // TODO: Create an ambiguous value on error
+        assert(names.definitions.insert(name, &function));
+        names.functions.push_back(&function);
         return result;
     }
 
-    Result addStructType(const Symbol& name, unique_ptr_t<StructType>&& type, unique_ptr_t<AST::StructDeclaration>&& declaration) {
+    Result addStructType(const Symbol& name, StructType *type, AST::StructDeclaration& declaration) {
         Result result = OK;
-        result |= addType(name, *type, *declaration);
+        result |= addType(name, *type, declaration);
         names.structs.push_back(std::move(type));
-        names.saved.push_back(std::move(declaration));
         return result;
     }
 
-    Result addEnumType(const Symbol& name, unique_ptr_t<EnumType>&& enumType, unique_ptr_t<AST::EnumDeclaration>&& declaration) {
-        Result result = addType(name, *enumType, *declaration);
+    Result addEnumType(const Symbol& name, EnumType *enumType, AST::EnumDeclaration& declaration) {
+        Result result = addType(name, *enumType, declaration);
         names.enums.push_back(std::move(enumType));
-        names.saved.push_back(std::move(declaration));
         return result;
     }
 };
@@ -104,21 +102,21 @@ public:
         assert(false && "TODO: Implement global variables.");
         llvm_unreachable("TODO: Implement global variables.");
 
-        //return builder.addVariable(variable.getName(), unique_ptr_t<AST::VariableDeclaration>{&variable});
+        //return builder.addVariable(variable.getName(), variable);
     }
 
     Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
-        return builder.addFunction(function.getName(), unique_ptr_t<AST::FunctionDeclaration>{&function});
+        return builder.addFunction(function.getName(), function);
     }
 
     Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
         auto structType = resolveStructType(structDeclaration);
-        return builder.addStructType(structDeclaration.getName(), std::move(structType), unique_ptr_t<AST::StructDeclaration>{&structDeclaration});
+        return builder.addStructType(structDeclaration.getName(), structType, structDeclaration);
     }
 
     Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
         auto enumType = resolveEnumType(enumDeclaration);
-        return builder.addEnumType(enumDeclaration.getName(), std::move(enumType), unique_ptr_t<AST::EnumDeclaration>{&enumDeclaration});
+        return builder.addEnumType(enumDeclaration.getName(), std::move(enumType), enumDeclaration);
         Diagnostic::error(enumDeclaration, "Enums are not currently supported.");
         return ERROR;
     }
@@ -505,11 +503,11 @@ PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition)
 
     PassResult result = OK;
 
-    for (auto& global : moduleDefinition._globals) {
+    for (auto global : moduleDefinition.globals) {
         //result |= 
     }
 
-    for (auto& function : moduleDefinition._functions) {
+    for (auto function : moduleDefinition.functions) {
         result |= visitor.resolveScopeInFunction(*function);
     }
 

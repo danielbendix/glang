@@ -2,6 +2,7 @@
 #define LANG_small_byte_array_h
 
 #include "common.h"
+#include "memory.h"
 
 #include <span>
 
@@ -37,6 +38,17 @@ public:
             memcpy(storage.data.array, data.data(), sizeof(T) * data.size());
         } else {
             storage.data.ptr = new T[data.size()];
+            memcpy(storage.data.ptr, data.data(), sizeof(T) * data.size());
+        }
+    }
+
+    template <Allocator Allocator>
+    SmallByteArray(Allocator& allocator, std::vector<T>& data) {
+        storage.size = data.size();
+        if (data.size() <= LBO) {
+            memcpy(storage.data.array, data.data(), sizeof(T) * data.size());
+        } else {
+            storage.data.ptr = (T *) allocator.allocate(sizeof(T) * data.size(), alignof(T));
             memcpy(storage.data.ptr, data.data(), sizeof(T) * data.size());
         }
     }

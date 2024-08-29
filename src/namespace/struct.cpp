@@ -83,7 +83,7 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     }
 };
 
-unique_ptr_t<StructType> resolveStructType(AST::StructDeclaration& structDeclaration) {
+StructType *resolveStructType(AST::StructDeclaration& structDeclaration) {
     StructVisitor visitor{structDeclaration};
 
     Result result = OK;

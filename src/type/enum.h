@@ -44,11 +44,16 @@ private:
     std::vector<Case> cases;
     SymbolMap<size_t> caseMap;
 
+    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
 public:
     void *codegen;
 
 public:
-    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
+    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration) {
+        return allocate(typeAllocator(), [&](void *space) {
+            return new (space) EnumType{declaration.getName(), &declaration};
+        });
+    }
 
     void getName(std::string& result) const {
         result.append(name.string_view());

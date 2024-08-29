@@ -1,6 +1,7 @@
 #ifndef LANG_memory_h
 #define LANG_memory_h
 
+#include "common.h"
 #include <memory>
 #include <cassert>
 
@@ -91,5 +92,10 @@ public:
     }
 };
 
+template <Allocator Allocator, typename F, typename T = std::remove_pointer_t<std::invoke_result_t<F, void *>>>
+T *NONNULL allocate(Allocator& allocator, F f) {
+    void *NONNULL space = allocator.allocate(sizeof(T), alignof(T));
+    return f(space);
+}
 
 #endif // LANG_memory_h
