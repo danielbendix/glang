@@ -31,7 +31,7 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 ### Summing numbers in arrays
 <pre>
 <span class="Comment">// Sum of a bounded array (pointer and size)</span>
-<span class="Keyword" style="color: #f5dbe6">fn</span> sumBounded(numbers: <span class="Type">i64</span>[]) -&gt; <span class="Type">i64</span> {
+<span class="Keyword">fn</span> sumBounded(numbers: <span class="Type">i64</span>[]) -&gt; <span class="Type">i64</span> {
     <span class="Keyword">var</span> sum = <span class="Number">0</span>;
     <span class="Conditional">for</span> n <span class="Conditional">in</span> numbers {
         sum += n;
@@ -79,9 +79,13 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 - Support for strings. Either via a built-in type, or via overloaded string literals
 - The ability to output a binary, and not just LLVM IR
 - More work on structs:
-    - Methods
+    - Cycle detection in struct members
     - Alignment and layout guarantees
+    - Methods
 - Globals, ensuring that the value of a global does not depend on itself through its initial value
+- Constant folding during type checking:
+    - Ensuring that numbers do not exceed their type bounds
+    - Ensuring that constants operands are valid, e.g. no negative shift amounts or negative indices in bounded arrays
 - Static arrays, both local and global, and a type for them
 - More data types:
     - Enums

@@ -68,9 +68,13 @@ fn reverse(head: ListI64*?) -> ListI64*? {
 - Support for strings. Either via a built-in type, or via overloaded string literals
 - The ability to output a binary, and not just LLVM IR
 - More work on structs:
+    - Cycle detection in struct members
     - Alignment and layout guarantees
     - Methods
 - Globals, ensuring that the value of a global does not depend on itself through its initial value
+- Constant folding during type checking:
+    - Ensuring that numbers do not exceed their type bounds
+    - Ensuring that constants operands are valid, e.g. no negative shift amounts or negative indices in bounded arrays
 - Static arrays, both local and global, and a type for them
 - More data types:
     - Enums
