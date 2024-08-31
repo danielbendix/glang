@@ -17,8 +17,13 @@ using llvm::PointerUnion;
 class StructType : public Type {
 
     using Property = PointerUnion<AST::VariableDeclaration *, AST::FunctionDeclaration *>;
-
-    bool wellFormed;
+public:
+    bool typeChecked = false;
+    // False if the struct:
+    // - Contained invalid nested declaration types.
+    // - Contained duplicate declaration names.
+    const bool wellFormed;
+private:
 
     const Symbol& name;
 
