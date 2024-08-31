@@ -1,0 +1,18 @@
+struct A {
+    let i: i64;
+    let a: A;
+    let b: B;
+}
+
+struct B {
+    let c: C;
+}
+
+struct C {
+    let d: D?;
+    let b: B;
+}
+
+struct D {
+    let a: A;
+}

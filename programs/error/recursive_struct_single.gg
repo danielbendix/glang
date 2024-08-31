@@ -1,0 +1,4 @@
+struct Cycle {
+    let cycle: Cycle;
+    let cycle2: Cycle?;
+}

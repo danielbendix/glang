@@ -1,10 +1,11 @@
 struct Parent {
     let age: i8;
-    let child: Child;
+    var child: Child;
 }
 
 struct Child {
     let age: i8;
+    var parent: Parent*? = nil;
 }
 
 fn main() -> i64 {
@@ -14,6 +15,8 @@ fn main() -> i64 {
             age = 5,
         },
     };
+
+    parent.child.parent = &parent;
 
     return 0;
 }
