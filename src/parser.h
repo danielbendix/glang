@@ -179,12 +179,13 @@ public:
     [[nodiscard]]
     AST::Expression *grouping();
     [[nodiscard]]
+    AST::Expression *intrinsic();
+    [[nodiscard]]
+    AST::Expression *initializer(AST::Identifier *identifier);
+    [[nodiscard]]
     AST::Expression *inferredInitializer();
     [[nodiscard]]
     AST::Expression *inferredMember();
-
-    [[nodiscard]]
-    AST::Expression *initializer(AST::Identifier *identifier);
 
     [[nodiscard]]
     AST::Expression *prefixUnary();

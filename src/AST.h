@@ -6,6 +6,7 @@
 #include "resolution/identifier.h"
 #include "resolution/member.h"
 #include "type.h"
+#include "intrinsic.h"
 #include "memory.h"
 #include "context.h"
 
@@ -99,6 +100,7 @@ namespace AST {
             NK_Expr_Self,
             NK_Expr_Unary,
             NK_Expr_Binary,
+            NK_Expr_Intrinsic,
             NK_Expr_Call,
             NK_Expr_Subscript,
             NK_Expr_Initializer,
@@ -958,6 +960,75 @@ namespace AST {
 
         static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Binary;
+        }
+    };
+
+
+    /* This node captures a call if it is present, instead of relying on CallExpression.
+     * This is done to make the type checking process easier.
+     * If a non-callable intrinsic ever has to return a callable, this should be reconsidered.
+     */
+    class IntrinsicExpression : public Expression {
+        IntrinsicKind intrinsic;
+    public:
+        const bool hasTypeArguments;
+        const bool hasCall;
+    private:
+        // TODO: These vectors should be arrays, with LBO for size <= 1.
+        vector<TypeNode *NONNULL> typeArguments;
+        vector<Expression *NONNULL> arguments;
+        Symbol& name;
+
+        IntrinsicExpression(
+            Token token, 
+            Symbol& name, 
+            bool hasTypeArguments, 
+            vector<TypeNode *NONNULL>&& typeArguments, 
+            bool hasCall,
+            vector<Expression *NONNULL>&& arguments
+        ) : Expression{NK_Expr_Intrinsic, token}
+          , name{name}
+          , hasTypeArguments{hasTypeArguments}
+          , typeArguments{std::move(typeArguments)}
+          , hasCall{hasCall}
+          , arguments{std::move(arguments)} {}
+
+    public:
+        void print(PrintContext& pc) const;
+
+        template <Allocator Allocator>
+        static IntrinsicExpression *NONNULL create(
+            Allocator& allocator, 
+            Token token, 
+            Symbol& name, 
+            bool hasTypeArguments,
+            vector<TypeNode *NONNULL>&& typeArguments, 
+            bool hasCall,
+            vector<Expression *NONNULL>&& arguments
+        ) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) IntrinsicExpression(token, name, hasTypeArguments, std::move(typeArguments), hasCall, std::move(arguments));
+            });
+        }
+
+        IntrinsicKind getIntrinsic() const {
+            return intrinsic;
+        }
+
+        void setIntrinsic(IntrinsicKind intrinsic) {
+            this->intrinsic = intrinsic;
+        }
+
+        const Symbol& getName() const {
+            return name;
+        }
+
+        const vector<TypeNode *NONNULL>& getTypeArguments() const {
+            return typeArguments;
+        }
+
+        const vector<Expression *NONNULL>& getArguments() const {
+            return arguments;
         }
     };
 
@@ -1861,6 +1932,22 @@ namespace AST {
         PrintContext& operator<<(T value) requires std::is_arithmetic_v<T> {
             os << value;
             return *this;
+        }
+
+        void withSeparator(const char *separator, auto& range) {
+            bool needsSeparator = false;
+            for (auto element : range) {
+                if (needsSeparator) {
+                    *this << separator;
+                } else {
+                    needsSeparator = true;
+                }
+                if constexpr (std::is_pointer_v<decltype(element)>) {
+                    *this << *element;
+                } else {
+                    *this << element;
+                }
+            }
         }
 
         void printInteger(const llvm::APInt& integer, unsigned base) {

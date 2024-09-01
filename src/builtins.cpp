@@ -69,9 +69,16 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
     _builtins.defaultIntegerType = defaultIntegerType;
 }
 
+void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
+{
+    auto& truncateName = symbols.getSymbol("truncate");
+    intrinsics.insert(truncateName, IntrinsicKind::Truncate);
+}
+
 void setupBuiltins(SymbolTable& symbols) 
 {
     setupNumericTypes(symbols, _builtins.types, _builtins.all);
+    setupIntrinsics(symbols, _builtins.intrinsics);
 }
 
 const Builtins& builtins = _builtins;

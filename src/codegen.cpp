@@ -1224,7 +1224,18 @@ public:
             case LogicalOr: llvm_unreachable("[PRORAMMER EROR]");
         }
 
-        assert(false);
+        llvm_unreachable("[PROGRAMMER ERROR]");
+    }
+
+    llvm::Value *visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
+        switch (intrinsic.getIntrinsic()) {
+            case IntrinsicKind::Truncate: {
+                auto value = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                auto destination = function.getLLVMType(intrinsic.getType());
+                return function.builder.CreateTrunc(value, destination);
+            }
+        }
+        llvm_unreachable("[TODO: Codegen intrinsics]");
         return nullptr;
     }
 

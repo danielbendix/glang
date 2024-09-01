@@ -61,6 +61,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<UnaryExpression *>(&node));
             case NK_Expr_Binary:
                 return std::invoke(visitor, *static_cast<BinaryExpression *>(&node));
+            case NK_Expr_Intrinsic:
+                return std::invoke(visitor, *static_cast<IntrinsicExpression *>(&node));
             case NK_Expr_Call:
                 return std::invoke(visitor, *static_cast<CallExpression *>(&node));
             case NK_Expr_Subscript:
@@ -137,6 +139,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const UnaryExpression *>(&node));
             case NK_Expr_Binary:
                 return std::invoke(visitor, *static_cast<const BinaryExpression *>(&node));
+            case NK_Expr_Intrinsic:
+                return std::invoke(visitor, *static_cast<const IntrinsicExpression *>(&node));
             case NK_Expr_Call:
                 return std::invoke(visitor, *static_cast<const CallExpression *>(&node));
             case NK_Expr_Subscript:
@@ -312,6 +316,8 @@ namespace AST {
                     return subclass().visitUnaryExpression(*static_cast<UnaryExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Binary:
                     return subclass().visitBinaryExpression(*static_cast<BinaryExpression *>(&expression), std::forward<Args>(args)...);
+                case NK_Expr_Intrinsic:
+                    return subclass().visitIntrinsicExpression(*static_cast<IntrinsicExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Call:
                     return subclass().visitCallExpression(*static_cast<CallExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Subscript:

@@ -1,0 +1,7 @@
+fn main() -> i64 {
+    let number: i64 = 0x7FFFFFFFFFFFFFFF;
+
+    let int: i8 = #truncate(number);
+
+    return 0;
+}

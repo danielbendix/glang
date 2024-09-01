@@ -2,6 +2,7 @@
 #define LANG_builtins_h
 
 #include "type.h"
+#include "intrinsic.h"
 #include "containers/symbol_map.h"
 
 void setupBuiltins(SymbolTable& symbols);
@@ -15,6 +16,7 @@ public:
     FPType *defaultFPType;
 
     SymbolMap<Type *> types;
+    SymbolMap<IntrinsicKind> intrinsics;
 
     friend void setupBuiltins(SymbolTable& symbols);
 };

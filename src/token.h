@@ -66,6 +66,8 @@ enum class TokenType : uint8_t {
 
     // Keywords
     Identifier,
+    HashIdentifier,
+
     Self,
     Enum,
     Struct,

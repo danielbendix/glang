@@ -890,6 +890,50 @@ AST::Expression *Parser::grouping()
     return expr;
 }
 
+AST::Expression *Parser::intrinsic()
+{
+    auto token = previous;
+    auto& name = symbols.getSymbol(token.chars.substr(1));
+
+    bool hasTypeArguments = false;
+    AST::vector<AST::TypeNode *NONNULL> typeArguments{context.allocator<AST::TypeNode *>()};
+    if (match(TokenType::Less)) {
+        hasTypeArguments = true;
+
+        if (match(TokenType::Greater)) {
+            // TODO: Error: empty type paramters are not allowed.
+        }
+        do {
+            typeArguments.emplace_back(type());
+        } while (match(TokenType::Comma));
+        consume(TokenType::Greater);
+    }
+
+    bool hasCall = false;
+    AST::vector<AST::Expression *NONNULL> arguments{context.allocator<AST::Expression *>()};
+    if (match(TokenType::LeftParenthesis)) {
+        hasCall = true;
+
+        if (!match(TokenType::RightParenthesis)) {
+            do {
+                arguments.emplace_back(expression({}));
+            } while (match(TokenType::Comma));
+
+            consume(TokenType::RightParenthesis);
+        }
+    }
+
+    return AST::IntrinsicExpression::create(
+        context.nodeAllocator, 
+        token, 
+        name, 
+        hasTypeArguments,
+        std::move(typeArguments), 
+        hasCall,
+        std::move(arguments)
+    );
+}
+
 AST::Expression *Parser::inferredInitializer()
 {
     return initializer(nullptr);
@@ -974,6 +1018,7 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(String)]                = {&Parser::literal,             NULL,                  Precedence::None},
 
     [static_cast<int>(Identifier)]            = {&Parser::identifier,          NULL,                  Precedence::None},
+    [static_cast<int>(HashIdentifier)]        = {&Parser::intrinsic,           NULL,                  Precedence::None},
     [static_cast<int>(Self)]                  = {&Parser::self,                NULL,                  Precedence::None},
 
     [static_cast<int>(Equal)]                 = {NULL,                         NULL,                  Precedence::None},

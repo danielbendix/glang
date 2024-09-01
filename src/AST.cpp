@@ -65,6 +65,8 @@ namespace AST {
                 return delete static_cast<UnaryExpression *>(node);
             case NK_Expr_Binary:
                 return delete static_cast<BinaryExpression *>(node);
+            case NK_Expr_Intrinsic:
+                return delete static_cast<IntrinsicExpression *>(node);
             case NK_Expr_Call:
                 return delete static_cast<CallExpression *>(node);
             case NK_Expr_Subscript:
@@ -141,23 +143,24 @@ namespace AST {
         }
     }
 
-    PrintContext& operator<<(PrintContext& pc, const vector<Condition>& conditions) {
-        bool needsSeparator = false;
-        for (auto condition : conditions) {
-            if (needsSeparator) {
-                pc << ", ";
-            } else {
-                needsSeparator = true;
-            }
-            TypeSwitch<AST::Condition>(condition)
-                .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
-                    pc << *variable;
-                })
-                .Case<AST::Expression *>([&](AST::Expression *expression) {
-                    pc << *expression;
-                });
-        }
+    PrintContext& operator<<(PrintContext& pc, Condition condition) {
+        TypeSwitch<AST::Condition>(condition)
+            .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
+                pc << *variable;
+            })
+            .Case<AST::Expression *>([&](AST::Expression *expression) {
+                pc << *expression;
+            });
         return pc;
+    }
+
+    PrintContext& operator<<(PrintContext& pc, const vector<Condition>& conditions) {
+        pc.withSeparator(", ", conditions);
+        return pc;
+    }
+
+    PrintContext& operator<<(PrintContext& pc, const FunctionParameter& parameter) {
+        return pc << parameter.name << ": " << *parameter.typeDeclaration;
     }
 
     void Block::print(PrintContext& pc) const {
@@ -204,6 +207,20 @@ namespace AST {
         pc << *left << ' ' << op << ' ' << *right;
     }
 
+    void IntrinsicExpression::print(PrintContext& pc) const {
+        pc << '#' << name;
+        if (hasTypeArguments) {
+            pc << '<';
+            pc.withSeparator(", ", typeArguments);
+            pc << '>';
+        }
+        if (hasCall) {
+            pc << '(';
+            pc.withSeparator(", ", arguments);
+            pc << ')';
+        }
+    }
+
     void UnaryExpression::print(PrintContext& pc) const {
         using enum UnaryOperator;
         switch (op) {
@@ -241,15 +258,7 @@ namespace AST {
     void FunctionDeclaration::print(PrintContext& pc) const {
         pc.startLine();
         pc << "fn " << name << "(";
-        bool needsSeparator = false;
-        for (auto& p : parameters) {
-            if (needsSeparator) {
-                pc << ", ";
-            } else {
-                needsSeparator = true;
-            }
-            pc << p.name << ": " << *p.typeDeclaration;
-        }
+        pc.withSeparator(", ", parameters);
         pc << ")";
         if (returnTypeDeclaration) {
             pc << " -> " << *returnTypeDeclaration;

@@ -70,6 +70,7 @@ private:
     TokenType testTry(std::string::const_iterator it, std::string::const_iterator end);
     TokenType identifierType();
     Token identifier();
+    Token hashIdentifier();
     Token escapedIdentifier();
     Token character();
     Token string();

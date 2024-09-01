@@ -207,6 +207,22 @@ Token Scanner::identifier()
     return makeToken(identifierType());
 }
 
+Token Scanner::hashIdentifier()
+{
+    char c;
+    c = peek();
+
+    if (!isAlpha(c)) {
+        // Error: Intrinsic identifier must start with a letter or underscore.
+    }
+
+    munchMany<[](char c) { 
+        return isAlpha(c) || isDigit(c); 
+    }>();
+
+    return makeToken(TokenType::HashIdentifier);
+}
+
 Token Scanner::escapedIdentifier()
 {
     char c;
@@ -370,6 +386,7 @@ Token Scanner::next() noexcept {
         if (isDigit(c)) return number(c);
 
         switch (c) {
+            case '#': return hashIdentifier();
             case '`': return escapedIdentifier();
             case '\'': return character();
             case '"': return string();

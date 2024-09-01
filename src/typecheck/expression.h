@@ -59,6 +59,9 @@ public:
     TypeResult typeCheckArithmetic(AST::BinaryExpression& binary, Type *propagatedType);
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
+    Type *typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    TypeResult visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
     TypeResult visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType);
 

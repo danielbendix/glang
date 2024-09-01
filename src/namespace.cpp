@@ -469,6 +469,12 @@ public:
         binary.getRight().acceptVisitor(*this);
     }
 
+    void visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
+        for (auto argument : intrinsic.getArguments()) {
+            argument->acceptVisitor(*this);
+        }
+    }
+
     void visitCallExpression(AST::CallExpression& call) {
         call.getTarget().acceptVisitor(*this);
 
