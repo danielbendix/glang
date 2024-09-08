@@ -440,28 +440,25 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                         return type;
                     }
                 }
-                // TODO: Get numeric type
+                return TypeConstraint::Numeric;
             } else {
                 return TypeConstraint::Numeric;
             }
-            // TODO: check if value is larger than 32 bit int, then set to i64.
-            auto defaultIntegerType = typeResolver.defaultIntegerType();
-            literal.setType(defaultIntegerType);
-            return defaultIntegerType;
         },
         [&](const FloatingPointLiteral& floating) -> TypeResult {
             if (propagatedType) {
                 if (auto fpType = dyn_cast<FPType>(propagatedType)) {
                     literal.setType(propagatedType);
                     return propagatedType;
-                } else {
-                    return TypeConstraint::Floating;
+                } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
+                    auto rootType = optionalType->removeImplicitWrapperTypes();
+                    if (auto type = visitLiteral(literal, rootType); type.isType()) {
+                        literal.setType(type.asType());
+                        return type;
+                    }
                 }
-            } else {
-                auto defaultFloatingType = typeResolver.defaultFPType();
-                literal.setType(defaultFloatingType);
-                return defaultFloatingType;
             }
+            return TypeConstraint::Floating;
         },
         [&](const CharacterLiteral& character) -> TypeResult {
             Diagnostic::error(literal, "Character literals are currently not supported.");

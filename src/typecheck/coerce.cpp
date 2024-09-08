@@ -65,7 +65,7 @@ std::pair<Result, AST::Expression *> coerceIntegerToFP(
 ) {
     auto fractionBits = destination.fractionBits();
     if (fractionBits > source.bitWidth) {
-        return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, FPExtend, destination)};
+        return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, IntegerToFP, destination)};
     } else {
         Diagnostic::error(expression, "Coercing " + source.makeName() + " to " + destination.makeName() + " could result in a loss of information.");
         return {ERROR, nullptr};
