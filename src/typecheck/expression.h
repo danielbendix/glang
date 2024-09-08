@@ -60,6 +60,7 @@ public:
     TypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
 
     Type *typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    Type *typeCheckPrintIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     TypeResult visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);

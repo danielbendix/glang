@@ -2,6 +2,7 @@
 #include "AST.h"
 #include "AST_Visitor.h"
 #include "type.h"
+#include "type/visitor.h"
 #include "containers/pointer_map.h"
 #include "containers/bitmap.h"
 
@@ -35,41 +36,47 @@ public:
     std::vector<AST::VariableDeclaration *> globals;
     PointerMap<AST::VariableDeclaration *, llvm::Value *> llvmGlobals;
 
+    PointerMap<Type *, llvm::Function *> printFunctions;
+
     Context(LLVMContext& llvmContext, llvm::Module& llvmModule) : llvmContext{llvmContext}, llvmModule{llvmModule} {}
-};
-
-class ContextPopulator {
-   
-    Context& context;
-public:
-
-    ContextPopulator(Context& context) : context{context} {}
 
     void addGlobal(AST::VariableDeclaration& global) {
-        context.globals.push_back(&global);
+        globals.push_back(&global);
         // TODO: Add llvm global
+        assert(false);
     }
 
     void addFunction(AST::FunctionDeclaration& function) {
-        context.functions.push_back(&function);
+        functions.push_back(&function);
 
         auto functionType = function.getType();
-        auto llvmFunctionType = functionType->getFunctionType(context.llvmContext);
+        auto llvmFunctionType = functionType->getFunctionType(llvmContext);
 
-        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName().string_view(), context.llvmModule);
-        context.llvmFunctions.insert(&function, llvmFunction);
+        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName().string_view(), llvmModule);
+        llvmFunctions.insert(&function, llvmFunction);
     }
+
+    llvm::Function *createPrintFunction(Type& type);
+
+    llvm::Function *getPrintFunction(Type& type) {
+        if (auto function = printFunctions.lookup(&type)) {
+            return *function;
+        }
+        
+        auto function = createPrintFunction(type);
+        printFunctions.insert(&type, function);
+        return function;
+    }
+
 };
 
 bool populateContext(Context& context, ModuleDef& moduleDefinition) {
-    ContextPopulator populator{context};
-
     for (auto global : moduleDefinition.globals) {
-        populator.addGlobal(*global);
+        context.addGlobal(*global);
     }
 
     for (auto function : moduleDefinition.functions) {
-        populator.addFunction(*function);
+        context.addFunction(*function);
     }
     
     return false;
@@ -217,12 +224,44 @@ public:
         }
     }
 
+    llvm::Value *createEqualsNil(llvm::Value *optionalValue, OptionalType& optionalType) {
+        if (auto pointerType = dyn_cast<PointerType>(optionalType.getContained())) {
+            auto null = llvm::Constant::getNullValue(getLLVMType(pointerType));
+            return builder.CreateICmpEQ(optionalValue, null);
+        } else {
+            auto flag = builder.CreateExtractValue(optionalValue, {0});
+            auto zero = getIntegerConstant(1, 0);
+            return builder.CreateICmpEQ(flag, zero);
+        }
+    }
+
+    llvm::Value *createExtractSome(llvm::Value *optionalValue, OptionalType& optionalType) {
+        if (isa<PointerType>(optionalType.getContained())) {
+            return optionalValue;
+        } else {
+            return builder.CreateExtractValue(optionalValue, {1});
+        }
+    }
+
     llvm::Type *getLLVMType(Type *type) {
         return type->getLLVMType(context.llvmContext);
     }
 
     llvm::Type *getLLVMType(Type& type) {
         return type.getLLVMType(context.llvmContext);
+    }
+
+    llvm::Type *getIntegerType(unsigned bitWidth) {
+        return llvm::IntegerType::get(context.llvmContext, bitWidth);
+    }
+
+    llvm::Type *getFPType(FPType::Precision precision) {
+        switch (precision) {
+            case FPType::Precision::Single:
+                return llvm::Type::getFloatTy(context.llvmContext);
+            case FPType::Precision::Double:
+                return llvm::Type::getDoubleTy(context.llvmContext);
+        }
     }
 
     llvm::ConstantInt *getIntegerConstant(IntegerType *type, uint64_t value) {
@@ -233,8 +272,170 @@ public:
         auto type = llvm::IntegerType::get(context.llvmContext, bitWidth);
         return llvm::ConstantInt::get(type, value, false);
     }
+
+    llvm::FunctionCallee getPrintFunction(Type& type) {
+        auto function = context.getPrintFunction(type);
+        return llvm::FunctionCallee{function->getFunctionType(), function};
+    }
+
+    llvm::FunctionCallee getPrintf() {
+        llvm::FunctionType *printfType = llvm::FunctionType::get(
+            llvm::Type::getInt32Ty(context.llvmContext), 
+            llvm::PointerType::get(llvm::Type::getInt8Ty(context.llvmContext), 0), 
+            true
+        );
+        return context.llvmModule.getOrInsertFunction("printf", printfType);
+    }
+
+    llvm::FunctionCallee getPutchar() {
+        llvm::FunctionType *putcharType = llvm::FunctionType::get(
+            llvm::Type::getInt32Ty(context.llvmContext), 
+            llvm::Type::getInt32Ty(context.llvmContext),
+            false
+        );
+        return context.llvmModule.getOrInsertFunction("putchar", putcharType);
+    }
 };
 
+llvm::Function *Context::createPrintFunction(Type& type) {
+    auto functionType = llvm::FunctionType::get(llvm::IntegerType::get(llvmContext, 32), {type.getLLVMType(llvmContext)}, false);
+    // TODO: Escape characters in the name.
+    auto llvmFunction = llvm::Function::Create(functionType, llvm::Function::InternalLinkage, "print$" + type.makeName(), llvmModule);
+
+    llvm::Value *value = llvmFunction->getArg(0);
+    CompilingFunction function{*this, *llvmFunction};
+
+    auto printf = function.getPrintf();
+
+    auto returnValue = TypeVisitor::visit(type, overloaded {
+        [&](IntegerType& type) -> llvm::Value * {
+            bool isLong;
+            switch (type.bitWidth) {
+                case 64:
+                    isLong = true;
+                    break;
+                case 32:
+                    isLong = false;
+                    break;
+                default:
+                    isLong = false;
+                    auto int32Type = function.getIntegerType(32);
+                    if (type.isSigned) {
+                        value = function.builder.CreateSExt(value, int32Type);
+                    } else {
+                        value = function.builder.CreateZExt(value, int32Type);
+                    }
+                    break;
+            }
+            char format[5];
+            format[0] = '%';
+            char formatChar = type.isSigned ? 'd' : 'u';
+            if (isLong) {
+                format[1] = 'l';
+                format[2] = formatChar;
+                format[3] = '\0';
+            } else {
+                format[1] = formatChar;
+                format[2] = '\0';
+            }
+
+            auto string = function.builder.CreateGlobalStringPtr(format);
+            return function.builder.CreateCall(printf, {string, value});
+        },
+        [&](FPType& type) -> llvm::Value * {
+            switch (type.precision) {
+                case FPType::Precision::Single:
+                    value = function.builder.CreateFPExt(value, function.getFPType(FPType::Precision::Double));
+                    break;
+                case FPType::Precision::Double:
+                    break;
+            }
+            auto string = function.builder.CreateGlobalStringPtr("%f");
+            return function.builder.CreateCall(printf, {string, value});
+        },
+        [&](BooleanType& _) -> llvm::Value * {
+            auto trueString = function.builder.CreateGlobalStringPtr("true");
+            auto falseString = function.builder.CreateGlobalStringPtr("false");
+            value = function.builder.CreateSelect(value, trueString, falseString);
+            return function.builder.CreateCall(printf, {value});
+        },
+        [&](PointerType& type) -> llvm::Value * {
+            auto string = function.builder.CreateGlobalStringPtr("%p");
+            return function.builder.CreateCall(printf, {string, value});
+        },
+        [&](StructType& type) -> llvm::Value * {
+            auto& fields = type.getFields();
+
+            if (fields.empty()) {
+                auto string = function.builder.CreateGlobalStringPtr(type.makeName() + " {}");
+                return function.builder.CreateCall(printf, {string});
+            }
+
+            auto prefix = type.makeName();
+            prefix += " { ";
+            auto prefixString = function.builder.CreateGlobalStringPtr(prefix);
+            function.builder.CreateCall(printf, {prefixString});
+
+            bool needsSeparator = false;
+
+            for (auto [i, field] : enumerate(type.getFields())) {
+                std::string leader;
+                if (needsSeparator) {
+                    leader += ", ";
+                } else {
+                    needsSeparator = true;
+                }
+
+                auto& binding = cast<AST::IdentifierBinding>(field->getBinding());
+                leader += binding.getIdentifier();
+                leader += " = ";
+
+                auto leaderString = function.builder.CreateGlobalStringPtr(leader);
+                function.builder.CreateCall(printf, {leaderString});
+                auto printFunction = function.getPrintFunction(*field->getType());
+                auto element = function.builder.CreateExtractValue(value, {(unsigned int)i});
+                function.builder.CreateCall(printFunction, {element});
+            }
+
+            auto suffixString = function.builder.CreateGlobalStringPtr(" }");
+            return function.builder.CreateCall(printf, {suffixString});
+        },
+        [&](OptionalType& type) -> llvm::Value * {
+            auto isNil = function.createEqualsNil(value, type);
+
+            auto& onNil = function.createOrphanedBlock();
+            auto& onSome = function.createOrphanedBlock();
+            auto& end = function.createOrphanedBlock();
+            function.builder.CreateCondBr(isNil, &onNil, &onSome);
+
+            function.patchOrphanedBlock(onNil);
+            auto nilString = function.builder.CreateGlobalStringPtr("nil");
+            auto nilCall = function.builder.CreateCall(printf, {nilString});
+            function.builder.CreateBr(&end);
+
+            function.patchOrphanedBlock(onSome);
+            auto someValue = function.createExtractSome(value, type);
+            auto printFunction = getPrintFunction(*type.getContained());
+            auto functionType = llvm::FunctionType::get(function.getIntegerType(32), {function.getLLVMType(type.getContained())}, false);
+            auto someCall = function.builder.CreateCall(functionType, printFunction, {someValue});
+            function.builder.CreateBr(&end);
+
+            function.patchOrphanedBlock(end);
+            auto phi = function.builder.CreatePHI(nilCall->getType(), 2);
+            phi->addIncoming(nilCall, &onNil);
+            phi->addIncoming(someCall, &onSome);
+
+            return phi;
+        },
+        [&](auto& other) -> llvm::Value * {
+            llvm_unreachable("Unsupported type.");
+        }
+    });
+
+    function.builder.CreateRet(returnValue);
+
+    return llvmFunction;
+}
 
 class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenerator, void>
                             , public AST::StatementVisitorT<FunctionCodeGenerator, void>
@@ -1227,12 +1428,67 @@ public:
         llvm_unreachable("[PROGRAMMER ERROR]");
     }
 
+    llvm::Value *createPrint(AST::IntrinsicExpression& printIntrinsic) {
+        auto argument = printIntrinsic.getArguments()[0];
+        auto printf = function.getPrintf();
+        llvm::Value *returnValue;
+        if (auto literal = dyn_cast<AST::Literal>(argument)) {
+            using namespace AST;
+            // We should probably constrain this to only string literals.
+            returnValue = AST::visitLiteral(*literal, overloaded {
+                [&](StringLiteral& stringLiteral) {
+                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
+                    auto& stringLiteralValue = stringLiteral.getValue();
+                    auto string = function.builder.CreateGlobalStringPtr({stringLiteralValue.data(), stringLiteralValue.size()});
+                    return function.builder.CreateCall(printf, {formatString, string});
+                },
+                [&](IntegerLiteral& integerLiteral) {
+                    auto& value = integerLiteral.getValue();
+                    llvm::SmallVector<char, 18> literalString;
+                    value.toString(literalString, 10, false);
+
+                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
+                    auto string = function.builder.CreateGlobalStringPtr({literalString.data(), literalString.size()});
+                    return function.builder.CreateCall(printf, {formatString, string});
+                },
+                [&](FloatingPointLiteral& fpLiteral) {
+                    auto fpValue = fpLiteral.getValue();
+                    auto value = llvm::ConstantFP::get(function.getFPType(FPType::Precision::Double), fpValue);
+                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
+                    return function.builder.CreateCall(printf, {formatString, value});
+
+                },
+                [&](NilLiteral& nilLiteral) {
+                    auto string = function.builder.CreateGlobalStringPtr("nil");
+                    return function.builder.CreateCall(printf, {string});
+                },
+                [&](BooleanLiteral& booleanLiteral) {
+                    auto string = function.builder.CreateGlobalStringPtr(booleanLiteral.getValue() ? "true" : "false");
+                    return function.builder.CreateCall(printf, {string});
+                },
+                [&](auto& _) -> llvm::CallInst * {
+                    llvm_unreachable("Implement");
+                }
+            });
+        } else {
+            auto printFunction = function.getPrintFunction(*argument->getType());
+            llvm::Value *value = argument->acceptVisitor(*this);
+            auto returnValue = function.builder.CreateCall(printFunction, {value});
+        }
+        auto putchar = function.getPutchar();
+        function.builder.CreateCall(putchar, {function.getIntegerConstant(32, 10)});
+        return returnValue;
+    }
+
     llvm::Value *visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
         switch (intrinsic.getIntrinsic()) {
             case IntrinsicKind::Truncate: {
                 auto value = intrinsic.getArguments()[0]->acceptVisitor(*this);
                 auto destination = function.getLLVMType(intrinsic.getType());
                 return function.builder.CreateTrunc(value, destination);
+            }
+            case IntrinsicKind::Print: {
+                return createPrint(intrinsic);
             }
         }
         llvm_unreachable("[TODO: Codegen intrinsics]");

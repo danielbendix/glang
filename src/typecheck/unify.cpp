@@ -2,11 +2,12 @@
 #include "AST_Visitor.h"
 #include "type/visitor.h"
 #include "diagnostic.h"
-
 using enum PassResultKind;
 
 using llvm::dyn_cast;
 using llvm::dyn_cast_if_present;
+
+using namespace TypeVisitor;
 
 template <typename T, typename Visitor>
 T visitTypePair(Type& left, Type& right, Visitor visitor) {

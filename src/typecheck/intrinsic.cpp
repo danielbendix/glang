@@ -1,6 +1,9 @@
 #include "typecheck.h"
 #include "typecheck/expression.h"
 
+using Result = PassResult;
+using enum PassResultKind;
+
 using llvm::dyn_cast;
 
 Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
@@ -80,10 +83,44 @@ Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression
         return nullptr;
     }
 
-    intrinsic.setIntrinsic(IntrinsicKind::Truncate);
     intrinsic.setType(toIntegerType);
 
     return toIntegerType;
+}
+
+Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (intrinsic.hasTypeArguments) {
+        Diagnostic::error(intrinsic, "#print intrinsic takes no type arguments.");
+        return nullptr;
+    }
+
+    if (!intrinsic.hasCall || intrinsic.getArguments().size() == 0) {
+        Diagnostic::error(intrinsic, "#print intrinsic must have one argument.");
+    }
+    auto& arguments = intrinsic.getArguments();
+    if (arguments.size() > 1) {
+        Diagnostic::error(intrinsic, "#print intrinsic takes only one argument..");
+        return nullptr;
+    }
+
+    auto argument = arguments[0];
+
+    if (auto literal = dyn_cast<AST::Literal>(argument)) {
+        // Let literals pass through untyped.
+    } else {
+        TypeResult argumentResult = typeCheckExpression(*argument);
+
+        if (!argumentResult) {
+            return nullptr;
+        } else if (argumentResult.isConstraint()) {
+            Diagnostic::error(*argument, "Unable to determine type of expression.");
+            return nullptr;
+        }
+    }
+
+    auto type = typeResolver.voidType();
+    intrinsic.setType(type);
+    return type;
 }
 
 TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
@@ -94,9 +131,13 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
         return {};
     }
 
+    intrinsic.setIntrinsic(*kind);
+
     switch (*kind) {
         case IntrinsicKind::Truncate:
             return typeCheckTruncateIntrinsic(intrinsic, declaredType);
+        case IntrinsicKind::Print:
+            return typeCheckPrintIntrinsic(intrinsic, declaredType);
     }
 
     llvm_unreachable("[PROGAMMER ERROR]");

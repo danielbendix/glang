@@ -73,6 +73,9 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
 {
     auto& truncateName = symbols.getSymbol("truncate");
     intrinsics.insert(truncateName, IntrinsicKind::Truncate);
+
+    auto& printName = symbols.getSymbol("print");
+    intrinsics.insert(printName, IntrinsicKind::Print);
 }
 
 void setupBuiltins(SymbolTable& symbols) 

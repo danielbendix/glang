@@ -8,6 +8,8 @@
 
 using llvm::dyn_cast;
 
+using namespace TypeVisitor;
+
 template <typename T, typename... Args>
 T *create(Args&&... args) {
     auto& allocator = typeAllocator();

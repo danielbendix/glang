@@ -1,7 +1,51 @@
+struct Outer {
+    var inner: Inner?;
+    var a: i32 = -1000;
+    var b: u32 = 0xFF;
+}
+
+struct Inner {
+    var a: i32 = -100;
+    var b: u32 = 0xFF;
+}
+
+fn testOuterPrint() {
+    var d: Outer?? = {
+        inner = {}
+    };
+
+    #print(d);
+    d = nil;
+    #print(d);
+}
+
 fn main() -> i64 {
-    let number: i64 = 0x7FFFFFFFFFFFFFFF;
+    let number: i64 = 0x7FFFFFFFFFFFFF00;
 
     let int: i8 = #truncate(number);
+    let int2 = #truncate<i8>(number);
+
+    var int3: i8 = 0;
+    int3 = #truncate(number);
+
+    #print("Hello, world");
+    #print(int3);
+
+    let a = 3.0;
+
+    #print(a);
+    #print(&int3);
+
+    let b = true;
+    #print(b);
+
+    var c: f64? = nil;
+    #print(c);
+    c = 123;
+    #print(c);
+
+    testOuterPrint();
 
     return 0;
 }
+

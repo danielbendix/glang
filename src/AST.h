@@ -636,6 +636,10 @@ namespace AST {
             });
         }
 
+        const string& getValue() const {
+            return value;
+        }
+
         static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Expr_Literal_String;
         }

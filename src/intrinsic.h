@@ -6,6 +6,7 @@
 
 enum class IntrinsicKind: uint8_t {
     Truncate,
+    Print,
 //    SignExtend,
 //    ZeroExtend,
 //    Bitcast,

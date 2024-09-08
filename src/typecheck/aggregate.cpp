@@ -8,6 +8,8 @@
 
 #include <ranges>
 
+using namespace TypeVisitor;
+
 using Result = PassResult;
 using enum PassResultKind;
 
