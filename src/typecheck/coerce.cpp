@@ -82,7 +82,7 @@ std::pair<Result, AST::Expression *> unwrappingOptionals(OptionalType& destinati
     if (result.second) {
         return {result.first, AST::UnaryExpression::wrap(nodeAllocator(), *result.second, OptionalWrap, destination)};
     } else {
-        return {result.first, nullptr};
+        return {result.first, AST::UnaryExpression::wrap(nodeAllocator(), expression, OptionalWrap, destination)};
     }
 }
 
