@@ -76,6 +76,9 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
 
     auto& printName = symbols.getSymbol("print");
     intrinsics.insert(printName, IntrinsicKind::Print);
+
+    auto& assertName = symbols.getSymbol("assert");
+    intrinsics.insert(assertName, IntrinsicKind::Assert);
 }
 
 void setupBuiltins(SymbolTable& symbols) 

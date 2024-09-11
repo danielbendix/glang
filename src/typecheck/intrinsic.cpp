@@ -5,6 +5,7 @@ using Result = PassResult;
 using enum PassResultKind;
 
 using llvm::dyn_cast;
+using llvm::isa;
 
 Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     if (!intrinsic.hasCall || intrinsic.getArguments().size() != 1) {
@@ -96,6 +97,7 @@ Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& i
 
     if (!intrinsic.hasCall || intrinsic.getArguments().size() == 0) {
         Diagnostic::error(intrinsic, "#print intrinsic must have one argument.");
+        return nullptr;
     }
     auto& arguments = intrinsic.getArguments();
     if (arguments.size() > 1) {
@@ -123,6 +125,44 @@ Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& i
     return type;
 }
 
+Type *ExpressionTypeChecker::typeCheckAssertIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (intrinsic.hasTypeArguments) {
+        Diagnostic::error(intrinsic, "#assert intrinsic takes no type arguments.");
+        return nullptr;
+    }
+
+    if (!intrinsic.hasCall || intrinsic.getArguments().size() == 0) {
+        Diagnostic::error(intrinsic, "#assert intrinsic must have at least one argument.");
+        return nullptr;
+    }
+    auto& arguments = intrinsic.getArguments();
+
+    if (arguments.size() > 2) {
+        Diagnostic::error(intrinsic, "#assert intrinsic takes only one or two arguments.");
+        return nullptr;
+    }
+
+    auto condition = arguments[0];
+
+    auto conditionResult = typeCheckExpression(*condition, typeResolver.booleanType());
+
+    if (!conditionResult || conditionResult.isConstraint()) {
+        Diagnostic::error(*condition, "First argument to #assert intrinsic must be a boolean.");
+        return nullptr;
+    }
+
+    if (arguments.size() == 2) {
+        auto message = arguments[1];
+
+        if (!isa<AST::StringLiteral>(message)) {
+            Diagnostic::error(*message, "Second argument to #assert intrinsic must be a string literal.");
+            return nullptr;
+        }
+    }
+
+    return typeResolver.voidType();
+}
+
 TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     auto kind = builtins.intrinsics.lookup(intrinsic.getName());
 
@@ -138,6 +178,8 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
             return typeCheckTruncateIntrinsic(intrinsic, declaredType);
         case IntrinsicKind::Print:
             return typeCheckPrintIntrinsic(intrinsic, declaredType);
+        case IntrinsicKind::Assert:
+            return typeCheckAssertIntrinsic(intrinsic, declaredType);
     }
 
     llvm_unreachable("[PROGAMMER ERROR]");

@@ -1490,6 +1490,16 @@ public:
             case IntrinsicKind::Print: {
                 return createPrint(intrinsic);
             }
+            case IntrinsicKind::Assert: {
+                // TODO: Check build type.
+                auto& trap = function.createTrapBlock();
+                auto& next = function.createOrphanedBlock();
+
+                auto condition = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                function.builder.CreateCondBr(condition, &next, &trap);
+                function.patchOrphanedBlock(next);
+                return nullptr;
+            }
         }
         llvm_unreachable("[TODO: Codegen intrinsics]");
         return nullptr;
