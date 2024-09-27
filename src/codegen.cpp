@@ -265,7 +265,7 @@ public:
     }
 
     llvm::ConstantInt *getIntegerConstant(IntegerType *type, uint64_t value) {
-        return llvm::ConstantInt::get(type->getIntegerType(context.llvmContext), value, type->getIsSigned());
+        return llvm::ConstantInt::get(cast<llvm::IntegerType>(type->getLLVMType(context.llvmContext)), value, type->isSigned);
     }
 
     llvm::ConstantInt *getIntegerConstant(int bitWidth, uint64_t value) {

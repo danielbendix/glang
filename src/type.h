@@ -2,6 +2,7 @@
 #define LANG_type_h
 
 #include "common.h"
+#include "layout.h"
 #include "containers/symbol_table.h"
 
 #include "llvm/ADT/StringSet.h"
@@ -62,6 +63,8 @@ protected:
     Type& operator=(Type&&) = delete;
 
 public:
+    Layout getLayout() const;
+
     llvm::Type *getLLVMType(llvm::LLVMContext& context) const {
         if (llvmType) {
             return llvmType;
@@ -124,24 +127,24 @@ public:
 
 class BooleanType : public Type {
     Symbol& name;
-    mutable llvm::IntegerType *type;
 public:
-    BooleanType(Symbol& name, llvm::IntegerType *type = nullptr) : Type{TK_Boolean}, name{name}, type{type} {}
+    const Layout layout;
+public:
+    BooleanType(Symbol& name, Layout layout) : Type{TK_Boolean}, name{name}, layout{layout} {}
 
     void getName(std::string& result) const {
         result.append(name.string_view());
     }
 
-    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) const {
-        if (!type) {
-            type = llvm::Type::getInt1Ty(context);
-        }
-        return type;
+    llvm::IntegerType *_getLLVMType(llvm::LLVMContext& context) const {
+        return llvm::Type::getInt1Ty(context);
     }
 
     static bool classof(const Type *type) {
         return type->getKind() == TK_Boolean;
     }
+
+    friend class Type;
 };
 
 class NumericType : public Type {
@@ -160,16 +163,14 @@ public:
     const Symbol& name;
     const bool isSigned;
     const uint32_t bitWidth;
-private:
-    mutable llvm::IntegerType *type;
+    const Layout layout;
 
-public:
-    IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, llvm::IntegerType *type = nullptr) 
+    IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, Layout layout) 
         : NumericType{TK_Num_Integer}
         , name{name}
         , bitWidth{bitWidth}
         , isSigned{isSigned}
-        , type{type} {}
+        , layout{layout} {}
 
     void getName(std::string& result) const {
         result.append(name.string_view());
@@ -195,11 +196,8 @@ public:
     unsigned getBitWidth() const { return bitWidth; }
     bool getIsSigned() const { return isSigned; }
 
-    llvm::IntegerType * getIntegerType(llvm::LLVMContext& context) const {
-        if (!type) {
-            type = llvm::Type::getIntNTy(context, bitWidth);
-        }
-        return type;
+    llvm::IntegerType *_getLLVMType(llvm::LLVMContext& context) const {
+        return llvm::Type::getIntNTy(context, bitWidth);
     }
 
     static bool classof(const Type *type) {
@@ -290,11 +288,13 @@ public:
     };
     const Symbol& name;
     const Precision precision;
+    const Layout layout;
 
-    FPType(Symbol& name, Precision precision) 
+    FPType(Symbol& name, Precision precision, Layout layout) 
         : NumericType{TK_Num_FP}
         , name{name}
-        , precision{precision} {}
+        , precision{precision} 
+        , layout{layout} {}
 
     void getName(std::string& result) const {
         result.append(name.string_view());

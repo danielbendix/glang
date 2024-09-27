@@ -3,12 +3,12 @@
 
 #include "type.h"
 #include "intrinsic.h"
+#include "target/architecture.h"
 #include "containers/symbol_map.h"
 
-void setupBuiltins(SymbolTable& symbols);
+void setupBuiltins(SymbolTable& symbols, const Architecture& architecture);
 
 class Builtins {
-    std::vector<Type *> all;
 public:
     VoidType *voidType;
     IntegerType *defaultIntegerType;
@@ -18,7 +18,7 @@ public:
     SymbolMap<Type *> types;
     SymbolMap<IntrinsicKind> intrinsics;
 
-    friend void setupBuiltins(SymbolTable& symbols);
+    friend void setupBuiltins(SymbolTable& symbols, const Architecture& architecture);
 };
 
 extern const Builtins& builtins;

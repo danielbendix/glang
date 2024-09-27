@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include "type.h"
+#include "layout.h"
 #include "AST.h"
 
 #include "llvm/ADT/PointerUnion.h"
@@ -25,6 +26,7 @@ public:
     const bool wellFormed;
 private:
 
+    Layout layout = {0, 0};
     const Symbol& name;
 
     SymbolMap<Property> properties;
@@ -114,6 +116,9 @@ public:
     static bool classof(const Type *type) {
         return type->getKind() == TK_Struct;
     }
+
+    friend class Type;
+    friend class AggregateTypeChecker;
 };
 
 #endif // LANG_type_struct_h

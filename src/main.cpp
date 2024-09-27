@@ -17,7 +17,9 @@
 
 void initialize(SymbolTable& symbols)
 {
-    setupBuiltins(symbols);
+    auto cpu = detectCPU();
+    Architecture::populate(cpu);
+    setupBuiltins(symbols, Architecture::current());
 }
 
 ParsedFile parse(SymbolTable& symbols, std::string&& string) {

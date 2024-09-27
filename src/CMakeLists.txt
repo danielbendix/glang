@@ -17,6 +17,7 @@ add_executable(glang
     builtins.cpp
     cli.cpp
     context.cpp
+    layout.cpp
 )
 
 add_subdirectory(namespace)
@@ -24,6 +25,7 @@ add_subdirectory(resolution)
 add_subdirectory(type)
 add_subdirectory(typecheck)
 add_subdirectory(containers)
+add_subdirectory(target)
 
 include_directories(.)
 

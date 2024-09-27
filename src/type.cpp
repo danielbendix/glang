@@ -1,8 +1,8 @@
 #include "type.h"
 #include "type/struct.h"
 #include "type/enum.h"
-
 #include "type/visitor.h"
+#include "target/architecture.h"
 
 #include "containers/string_map.h"
 
@@ -140,6 +140,49 @@ llvm::FunctionType *FunctionType::getFunctionType(llvm::LLVMContext& context) co
     }
 }
 
+Layout Type::getLayout() const {
+    switch (getKind()) {
+        case TK_Void:
+            llvm_unreachable("Cannot store void type.");
+        case TK_Boolean:
+            return static_cast<const BooleanType *>(this)->layout;
+        case TK_Num_Integer:
+            return static_cast<const IntegerType *>(this)->layout;
+        case TK_Num_FP:
+            return static_cast<const FPType *>(this)->layout;
+        case TK_String:
+            llvm_unreachable("TODO: Implement string type.");
+        case TK_Function:
+            llvm_unreachable("TODO: Cannot store functions currently.");
+        case TK_Struct:
+            return static_cast<const StructType *>(this)->layout;
+        case TK_Enum:
+            llvm_unreachable("TODO: Implement enums.");
+        case TK_Protocol:
+            llvm_unreachable("TODO: Cannot store functions currently.");
+        case TK_Pointer:
+            return Architecture::current().pointer;
+        case TK_Optional:
+            // TODO: Do we memoize optional layout?
+            llvm_unreachable("TODO: Add functionality for getting range layout.");
+        case TK_Array: {
+            auto arrayType = static_cast<const ArrayType *>(this);
+            // TODO: Precompute this.
+            if (arrayType->isBounded) {
+
+            } else {
+                return Architecture::current().pointer;
+            }
+            llvm_unreachable("TODO: Add functionality for getting range layout.");
+        }
+        case TK_Range: {
+            auto rangeType = static_cast<const RangeType *>(this);
+            Layout boundLayout = rangeType->getBoundType()->getLayout();
+            llvm_unreachable("TODO: Add functionality for getting range layout.");
+        }
+    }
+}
+
 llvm::Type *ArrayType::llvmTypeBounded = nullptr;
 llvm::Type *ArrayType::llvmTypeUnbounded = nullptr;
 
@@ -187,9 +230,9 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
         case TK_Void:
             return llvm::Type::getVoidTy(context);
         case TK_Boolean:
-            return static_cast<const BooleanType *>(this)->getIntegerType(context);
+            return static_cast<const BooleanType *>(this)->_getLLVMType(context);
         case TK_Num_Integer:
-            return static_cast<const IntegerType *>(this)->getIntegerType(context);
+            return static_cast<const IntegerType *>(this)->_getLLVMType(context);
         case TK_Num_FP:
             return static_cast<const FPType *>(this)->_getLLVMType(context);
         case TK_Function:

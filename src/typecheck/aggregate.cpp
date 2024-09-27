@@ -116,6 +116,11 @@ public:
             type = declaredType;
         }
 
+        TypeVisitor::visit(*type, overloaded {
+            [&](auto&) {}
+
+        });
+
         auto [aggregate, isTypeChecked] = asAggregate(type);
         if (aggregate && !isTypeChecked) {
             if (aggregate == current) {
@@ -150,9 +155,19 @@ public:
 
         push(&structType);
 
+        Layout layout{0, 0};
+
         for (auto field : structType.getFields()) {
             result |= typeCheckStructField(*field);
+            if (result.ok()) {
+                auto [newLayout, offset] = incorporateLayoutAsField_C_ABI(layout, field->getType()->getLayout());
+                layout = newLayout;
+                // TODO: Set offset for field.
+            }
         }
+
+        layout = addPaddingToLayout_C_ABI(layout);
+        structType.layout = layout;
 
         for (auto method : structType.getMethods()) {
             // TODO: Typecheck methods as well

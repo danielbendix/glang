@@ -10,29 +10,25 @@ T *createType(Allocator& allocator, Args&&... args) {
 
 Builtins _builtins;
 
-void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vector<Type *>& owner)
+void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Architecture& architecture)
 {
     auto& allocator = typeAllocator();
 
     Symbol& voidName = symbols.getSymbol("void");
     auto voidType = createType<VoidType>(allocator, voidName);
     table.insert(voidName, voidType);
-    owner.push_back(voidType);
     
     Symbol& boolName = symbols.getSymbol("bool");
-    auto booleanType = createType<BooleanType>(allocator, boolName);
+    auto booleanType = createType<BooleanType>(allocator, boolName, architecture.int8);
     table.insert(boolName, booleanType);
-    owner.push_back(booleanType);
 
     Symbol& f32Name = symbols.getSymbol("f32");
-    auto f32Type = createType<FPType>(allocator, f32Name, FPType::Precision::Single);
+    auto f32Type = createType<FPType>(allocator, f32Name, FPType::Precision::Single, architecture.fpSingle);
     table.insert(f32Name, f32Type);
-    owner.push_back(f32Type);
 
     Symbol& f64Name = symbols.getSymbol("f64");
-    auto f64Type = createType<FPType>(allocator, f64Name, FPType::Precision::Double);
+    auto f64Type = createType<FPType>(allocator, f64Name, FPType::Precision::Double, architecture.fpDouble);
     table.insert(f64Name, f64Type);
-    owner.push_back(f64Type);
 
     // TODO: Add [ui]size, [ui]ptr
    
@@ -40,10 +36,10 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
 
 #define INT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("i" #bits); \
-    auto type = createType<IntegerType>(allocator, name, bits, true); \
+    auto type = createType<IntegerType>(allocator, name, bits, true, architecture.int ## bits); \
     table.insert(name, type); \
     if constexpr (bits == 64) { defaultIntegerType = type; } \
-    owner.push_back(type); }
+}
     INT_TYPE(8);
     INT_TYPE(16);
     INT_TYPE(32);
@@ -52,9 +48,9 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, std::vect
 
 #define UINT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("u" #bits); \
-    auto type = createType<IntegerType>(allocator, name, bits, false); \
+    auto type = createType<IntegerType>(allocator, name, bits, false, architecture.int ## bits); \
     table.insert(name, type); \
-    owner.push_back(type); }
+}
     UINT_TYPE(8);
     UINT_TYPE(16);
     UINT_TYPE(32);
@@ -81,9 +77,9 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
     intrinsics.insert(assertName, IntrinsicKind::Assert);
 }
 
-void setupBuiltins(SymbolTable& symbols) 
+void setupBuiltins(SymbolTable& symbols, const Architecture& architecture)
 {
-    setupNumericTypes(symbols, _builtins.types, _builtins.all);
+    setupNumericTypes(symbols, _builtins.types, architecture);
     setupIntrinsics(symbols, _builtins.intrinsics);
 }
 
