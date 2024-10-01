@@ -75,6 +75,9 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
 
     auto& assertName = symbols.getSymbol("assert");
     intrinsics.insert(assertName, IntrinsicKind::Assert);
+
+    auto& bitcastName = symbols.getSymbol("bitcast");
+    intrinsics.insert(bitcastName, IntrinsicKind::Bitcast);
 }
 
 void setupBuiltins(SymbolTable& symbols, const Architecture& architecture)

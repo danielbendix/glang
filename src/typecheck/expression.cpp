@@ -283,7 +283,8 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
             if (!valueType) {
                 return {};
             } else if (valueType.isConstraint()) {
-                assert(false);
+                Diagnostic::error(*pair.second, "Unable to determine type of expression.");
+                return {};
             }
 
             auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.second);

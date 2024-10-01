@@ -1500,6 +1500,11 @@ public:
                 function.patchOrphanedBlock(next);
                 return nullptr;
             }
+            case IntrinsicKind::Bitcast: {
+                auto from = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                auto type = function.getLLVMType(intrinsic.getType());
+                return function.builder.CreateBitCast(from, type);
+            }
         }
         llvm_unreachable("[TODO: Codegen intrinsics]");
         return nullptr;

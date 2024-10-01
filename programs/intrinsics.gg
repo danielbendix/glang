@@ -13,8 +13,13 @@ fn testOuterPrint() {
     var d: Outer?? = {
         inner = {}
     };
-
     #print(d);
+
+    d = {
+        inner = nil,
+    };
+    #print(d);
+
     d = nil;
     #print(d);
 }
@@ -30,6 +35,10 @@ fn main() -> i64 {
 
     #print("Hello, world");
     #print(int3);
+
+    let ii: i64? = 1;
+    let ff: i32 = 3;
+    let ff2: f64? = ff;
 
     let a = 3.0;
 

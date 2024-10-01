@@ -8,9 +8,9 @@ enum class IntrinsicKind: uint8_t {
     Truncate,
     Print,
     Assert,
+    Bitcast,
 //    SignExtend,
 //    ZeroExtend,
-//    Bitcast,
 //    Memory,
 };
 

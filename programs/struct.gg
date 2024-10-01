@@ -3,6 +3,7 @@ struct Test {
 
     var b: i32;
     var c: i32;
+    var d: bool;
 }
 
 fn test() -> Test {
@@ -10,5 +11,6 @@ fn test() -> Test {
         a = 0,
         b = 2,
         c = 3,
+        d = true,
     };
 }

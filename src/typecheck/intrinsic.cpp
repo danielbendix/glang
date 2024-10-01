@@ -1,5 +1,6 @@
 #include "typecheck.h"
 #include "typecheck/expression.h"
+#include "type/visitor.h"
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -9,7 +10,7 @@ using llvm::isa;
 
 Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     if (!intrinsic.hasCall || intrinsic.getArguments().size() != 1) {
-        Diagnostic::error(intrinsic, "#truncate takes exactly one argument.");
+        Diagnostic::error(intrinsic, "#truncate intrinsic takes exactly one argument.");
         return nullptr;
     }
 
@@ -163,6 +164,89 @@ Type *ExpressionTypeChecker::typeCheckAssertIntrinsic(AST::IntrinsicExpression& 
     return typeResolver.voidType();
 }
 
+bool typeSupportsBitcast(Type& type) {
+    // TODO: We may want to support bitcasting for aggregate types later on.
+    switch (type.getKind()) {
+        case TK_Boolean:
+        case TK_Num_Integer:
+        case TK_Num_FP:
+        case TK_Pointer:
+            return true;
+        case TK_Void:
+        case TK_String:
+        case TK_Function:
+        case TK_Array:
+        case TK_Struct:
+        case TK_Enum:
+        case TK_Protocol:
+        case TK_Optional:
+        case TK_Range:
+            return false;
+    }
+}
+
+Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (!intrinsic.hasCall || intrinsic.getArguments().size() != 1) {
+        Diagnostic::error(intrinsic, "#bitcast intrinsic takes exactly one argument.");
+        return nullptr;
+    }
+
+    Type *toType;
+    if (intrinsic.hasTypeArguments) {
+        auto& typeArguments = intrinsic.getTypeArguments();
+        if (typeArguments.size() > 1) {
+            Diagnostic::error(intrinsic, "#bitcast intrinsic takes only a single type argument.");
+            return nullptr;
+        }
+        toType = typeResolver.resolveType(*typeArguments[0]);
+        if (!toType) {
+            return nullptr;
+        }
+    } else {
+        if (!declaredType) {
+            Diagnostic::error(intrinsic, "Unable to detemine destination type in #bitcast intrinsic.");
+        }
+        toType = declaredType;
+    }
+
+    AST::Expression *argument = intrinsic.getArguments().front();
+
+    // NOTE: At this point we might want to introduce a size constraint when type checking,
+    // as this would allow bitcasting e.g. an integer literal to a double or i8 x 8.
+
+    auto argumentResult = typeCheckExpression(*argument);
+
+    if (!argumentResult) {
+        return nullptr;
+    } else if (argumentResult.isConstraint()) {
+        Diagnostic::error(intrinsic, "Unable to determins source type in #bitcast intrinsic.");
+        return nullptr;
+    }
+    auto fromType = argumentResult.type();
+
+    if (!typeSupportsBitcast(*fromType)) {
+        Diagnostic::error(intrinsic, "Cannot bitcast from " + fromType->makeName());
+        return nullptr;
+    }
+
+    if (!typeSupportsBitcast(*toType)) {
+        Diagnostic::error(intrinsic, "Cannot bitcast to " + toType->makeName());
+        return nullptr;
+    }
+
+    auto fromLayout = fromType->getLayout();
+    auto toLayout = toType->getLayout();
+
+    if (fromLayout.size() != toLayout.size()) {
+        Diagnostic::error(intrinsic, "Cannot bitcast from " + fromType->makeName() + " with size " + std::to_string(fromLayout.size()) + " to " + toType->makeName() + " with size " + std::to_string(toLayout.size()) + ". ");
+        return nullptr;
+    }
+
+    intrinsic.setType(toType);
+
+    return toType;
+}
+
 TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     auto kind = builtins.intrinsics.lookup(intrinsic.getName());
 
@@ -180,6 +264,8 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
             return typeCheckPrintIntrinsic(intrinsic, declaredType);
         case IntrinsicKind::Assert:
             return typeCheckAssertIntrinsic(intrinsic, declaredType);
+        case IntrinsicKind::Bitcast:
+            return typeCheckBitcastIntrinsic(intrinsic, declaredType);
     }
 
     llvm_unreachable("[PROGAMMER ERROR]");
