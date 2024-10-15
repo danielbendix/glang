@@ -66,12 +66,14 @@ fn reverse(head: ListI64*?) -> ListI64*? {
 ### Features
 
 - Support for strings. Either via a built-in type, or via overloaded string literals
+- More intrinsics, like cast, bitcast, sign extend, zero extend, etc
 - The ability to output a binary, and not just LLVM IR
 - More work on structs:
-    - Cycle detection in struct members
     - Alignment and layout guarantees
     - Methods
-- Globals, ensuring that the value of a global does not depend on itself through its initial value
+- Better global handling:
+    - Initializing globals with constant values at compile-time
+    - Analyzing dependencies through functions
 - Constant folding during type checking:
     - Ensuring that numbers do not exceed their type bounds
     - Ensuring that constants operands are valid, e.g. no negative shift amounts or negative indices in bounded arrays
@@ -84,7 +86,6 @@ fn reverse(head: ListI64*?) -> ListI64*? {
         - Cannot be reassigned to a different case
         - Cases will share alignment
         - But only use the memory required by the individual case
-- Intrinsics, like cast, bitcast, sign extend, zero extend, truncate, etc
 - Structured error handling, like in Swift, but always strongly typed
     - This needs to include a specification of the calling convention for throwing functions
 - C-compatible FFI

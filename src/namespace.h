@@ -14,7 +14,7 @@
 #include "llvm/ADT/PointerUnion.h"
 
 struct ModuleDef {
-    using Definition = llvm::PointerUnion<AST::FunctionDeclaration *, AST::VariableDeclaration *, Type *>;
+    using Definition = llvm::PointerUnion<AST::FunctionDeclaration *, AST::VariableDeclaration *, AST::IdentifierBinding *, Type *>;
     SymbolMap<Definition> all;
 
     SymbolMap<AST::Declaration *NONNULL> definitions;

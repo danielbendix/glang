@@ -21,7 +21,7 @@ class PointerMap {
 public:
     PointerMap() {}
 
-    Value operator[](const Key& key) {
+    Value operator[](const Key key) const {
         return internal.at(key);
     }
 

@@ -1049,8 +1049,12 @@ namespace AST {
             this->type = type;
         }
 
-        Type *NONNULL getType() {
+        Type *NONNULL getType() const {
             return type;
+        }
+
+        bool hasType() const {
+            return type != nullptr;
         }
 
         static bool classof(const Node *NONNULL node) {
@@ -1529,6 +1533,7 @@ namespace AST {
         Expression *NULLABLE initial;
         Type *NULLABLE type = nullptr;
         bool isMutable;
+        bool isChecked = false;
 
         VariableDeclaration(
             Token token, 
@@ -1569,6 +1574,14 @@ namespace AST {
 
         Binding& getBinding() {
             return *binding;
+        }
+
+        bool getIsChecked() const {
+            return isChecked;
+        }
+
+        void markAsChecked() {
+            isChecked = true;
         }
 
         Expression *NULLABLE getInitialValue() const {

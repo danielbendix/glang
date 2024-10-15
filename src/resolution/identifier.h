@@ -55,13 +55,18 @@ public:
 
 class GlobalResolution : public IdentifierResolution {
     bool isExtern;
-    AST::IdentifierBinding *variable;
+    AST::IdentifierBinding *binding;
 
-    GlobalResolution(AST::IdentifierBinding *variable, bool isExtern) : IdentifierResolution{IRK_Global}, variable{variable}, isExtern{isExtern} {}
+    GlobalResolution(AST::IdentifierBinding *binding, bool isExtern) : IdentifierResolution{IRK_Global}, binding{binding}, isExtern{isExtern} {}
 public:
     static unique_ptr_t<GlobalResolution> create(AST::IdentifierBinding& variable, bool isExtern) {
         return unique_ptr_t<GlobalResolution>{new GlobalResolution(&variable, isExtern)};
     }
+
+    AST::IdentifierBinding& getBinding() const {
+        return *binding;
+    }
+
     static bool classof(const IdentifierResolution *resolution) {
         return resolution->getKind() == IRK_Global;
     }

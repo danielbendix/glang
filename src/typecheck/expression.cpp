@@ -486,7 +486,17 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
         .Case<FunctionParameterResolution>([](auto parameter) {
             return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
         })
+        .Case<GlobalResolution>([this](auto global) -> TypeResult {
+            auto& binding = global->getBinding();
+            if (binding.hasType() || (globalHandler && (*globalHandler)(binding).ok())) {
+                return TypeResult{binding.getType(), binding.getIsMutable()};
+            } else {
+                return {};
+            }
+        })
     ;
-    identifier.setType(result.asType());
+    if (auto type = result.asType()) {
+        identifier.setType(type);
+    }
     return result;
 }

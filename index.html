@@ -3,7 +3,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
       
       
       
@@ -97,7 +97,12 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 <li>Methods</li>
 </ul>
 </li>
-<li>Globals, ensuring that the value of a global does not depend on itself through its initial value</li>
+<li>Better global handling:
+<ul>
+<li>Initializing globals with constant values at compile-time</li>
+<li>Analyzing dependencies through functions</li>
+</ul>
+</li>
 <li>Constant folding during type checking:
 <ul>
 <li>Ensuring that numbers do not exceed their type bounds</li>

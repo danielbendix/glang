@@ -162,9 +162,16 @@ Layout Type::getLayout() const {
             llvm_unreachable("TODO: Cannot store functions currently.");
         case TK_Pointer:
             return Architecture::current().pointer;
-        case TK_Optional:
+        case TK_Optional: {
+            auto optionalType = static_cast<const OptionalType *>(this);
+            if (llvm::isa<PointerType>(optionalType->getContained())) {
+                return Architecture::current().pointer;
+            } else {
+                Layout containedLayout = optionalType->getContained()->getLayout();
+                return incorporateLayoutAsField(containedLayout, {0, 1}).first;
+            }
             // TODO: Do we memoize optional layout?
-            llvm_unreachable("TODO: Add functionality for getting range layout.");
+        }
         case TK_Array: {
             auto arrayType = static_cast<const ArrayType *>(this);
             // TODO: Precompute this.
@@ -173,7 +180,7 @@ Layout Type::getLayout() const {
             } else {
                 return Architecture::current().pointer;
             }
-            llvm_unreachable("TODO: Add functionality for getting range layout.");
+            llvm_unreachable("TODO: Add functionality for getting array layout.");
         }
         case TK_Range: {
             auto rangeType = static_cast<const RangeType *>(this);

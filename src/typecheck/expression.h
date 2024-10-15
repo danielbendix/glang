@@ -9,11 +9,37 @@ extern VoidType *void_;
 extern BooleanType *boolean;
 extern IntegerType *signed64;
 
-class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
+using Result = PassResult;
 
+class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
+public:
+    using GlobalHandler = std::function<Result(AST::IdentifierBinding&)>;
+private:
     TypeResolver& typeResolver;
+    GlobalHandler *globalHandler = nullptr;
 public:
     ExpressionTypeChecker(TypeResolver& typeResolver) : typeResolver{typeResolver} {}
+    ExpressionTypeChecker(TypeResolver& typeResolver, GlobalHandler& globalHandler) : typeResolver{typeResolver}, globalHandler{&globalHandler} {}
+
+    Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *declaredType) {
+        if (declaredType) {
+            return typeCheckExpression(expression, declaredType);
+        } else {
+            TypeResult typeResult = typeCheckExpression(expression);
+            if (typeResult && typeResult.isConstraint()) {
+                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                if (defaultType) {
+                    if (auto type = typeCheckExpression(expression, defaultType)) {
+                        return type;
+                    }
+                }
+
+                Diagnostic::error(expression, "Cannot determine type of expression.");
+                return nullptr;
+            }
+            return typeResult;
+        }
+    }
 
     TypeResult typeCheckExpression(AST::Expression& expression) {
         return expression.acceptVisitor(*this, {});

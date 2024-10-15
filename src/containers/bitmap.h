@@ -15,6 +15,10 @@ class Bitmap final {
 
     uint64_t *data;
     uint64_t lbo[LBO];
+
+    bool isLBO() const {
+        return blocks < LBO;
+    }
 public:
     Bitmap(uint32_t size) {
         this->size = size;
@@ -42,16 +46,30 @@ public:
         }
     }
 
-    Bitmap(const Bitmap& existing) {
-        Bitmap(existing.data, existing.size);
-    }
-
+    // FIXME: This is a bug
+    Bitmap(const Bitmap&) = delete;
     Bitmap(Bitmap&&) = delete;
     Bitmap& operator=(const Bitmap&) = delete;
-    Bitmap& operator=(Bitmap&&) = delete;
+    Bitmap& operator=(Bitmap&& other) {
+        this->~Bitmap();
+
+        size = other.size;
+        blocks = other.blocks;
+        if (other.isLBO()) {
+            memcpy(lbo, other.lbo, sizeof(uint64_t) * LBO);
+            data = lbo;
+        } else {
+            data = other.data;
+        }
+        other.size = 0;
+        other.blocks = 0;
+        other.data = nullptr;
+
+        return *this;
+    }
 
     ~Bitmap() {
-        if (blocks > 1) {
+        if (isLBO()) {
             delete[] data;
         }
     }

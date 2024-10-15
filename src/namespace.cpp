@@ -12,19 +12,22 @@ using Result = PassResult;
 using enum PassResultKind;
 
 using llvm::TypeSwitch;
+using llvm::cast;
 
 
 class NamespaceBuilder {
     ModuleDef& names;
-    SymbolMap<AST::Declaration *> declarations;
+    SymbolMap<AST::Node *> declarations;
 public:
     NamespaceBuilder(ModuleDef& names) : names{names} {}
 
-    void diagnoseDuplicateDeclaration(const Symbol& name, AST::Declaration& duplicate) {
+    void diagnoseDuplicateDeclaration(const Symbol& name, AST::Node& duplicate) {
         Diagnostic::error(duplicate, "Duplicate declaration.");
         auto& existing = *declarations[name];
         Diagnostic::note(existing, "Previously declared here.");
     }
+
+    // TODO: Clean up all these methods with proper names.
 
     Result addGlobalFunction(const Symbol& name, AST::FunctionDeclaration& declaration) {
         if (!names.all.insert(name, &declaration)) {
@@ -35,12 +38,12 @@ public:
         return OK;
     }
 
-    Result addGlobal(const Symbol& name, AST::VariableDeclaration& declaration) {
-        if (!names.all.insert(name, &declaration)) {
-            diagnoseDuplicateDeclaration(name, declaration);
+    Result addGlobal(const Symbol& name, AST::IdentifierBinding& binding) {
+        if (!names.all.insert(name, &binding)) {
+            diagnoseDuplicateDeclaration(name, binding);
             return ERROR;
         }
-        declarations.insert(name, &declaration);
+        declarations.insert(name, &binding);
         return OK;
     }
 
@@ -54,9 +57,10 @@ public:
         return OK;
     }
 
-    Result addVariable(const Symbol& name, AST::VariableDeclaration& variable) {
+    Result addVariable(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
+        const Symbol& name = binding.getIdentifier();
         Result result = OK;
-        result |= addGlobal(name, variable);
+        result |= addGlobal(name, binding);
         // TODO: Create an ambiguous value on error
         assert(names.definitions.insert(name, &variable));
         names.globals.push_back(&variable);
@@ -99,10 +103,8 @@ public:
     }
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        assert(false && "TODO: Implement global variables.");
-        llvm_unreachable("TODO: Implement global variables.");
-
-        //return builder.addVariable(variable.getName(), variable);
+        auto& binding = cast<AST::IdentifierBinding>(variable.getBinding());
+        return builder.addVariable(binding, variable);
     }
 
     Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -243,12 +245,13 @@ public:
                     return FunctionResolution::create(*function);
                 })
                 .Case<AST::VariableDeclaration *>([](auto variable) {
-                    assert(false);
-                    return nullptr;
-                    //return GlobalResolution::create(variable->getBinding(), false);
+                    return GlobalResolution::create(cast<AST::IdentifierBinding>(variable->getBinding()), false);
                 })
                 .Case<Type *>([](auto type) {
                     return IdentifierTypeResolution::create(type);
+                })
+                .Case<AST::IdentifierBinding *>([](auto binding) {
+                    return GlobalResolution::create(*binding, false);
                 })
                 .Default([](auto any) {
                     assert(false);
@@ -510,7 +513,7 @@ PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition)
     PassResult result = OK;
 
     for (auto global : moduleDefinition.globals) {
-        //result |= 
+        result |= visitor.resolveScopeInGlobal(*global);
     }
 
     for (auto function : moduleDefinition.functions) {
