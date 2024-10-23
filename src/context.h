@@ -5,6 +5,7 @@
 #include "array_allocator.h"
 #include "containers/symbol_table.h"
 
+#include <mutex>
 #include <filesystem>
 
 /// Represents the memory resources of the AST from a single file.

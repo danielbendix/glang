@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <cstdlib>
+#include <cmath>
 #include <charconv>
 
 ParsedFile parseString(std::string&& string) {

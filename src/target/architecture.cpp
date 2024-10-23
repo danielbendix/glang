@@ -25,12 +25,12 @@ Architecture currentArchitecture = {
 
     .pointer = {0, 0},
 
+    .intptr = {0, 0},
+
     .int8 = {0, 0},
     .int16 = {0, 0},
     .int32 = {0, 0},
     .int64 = {0, 0},
-
-    .intptr = {0, 0},
 
     .fpSingle = {0, 0},
     .fpDouble = {0, 0},

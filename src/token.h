@@ -4,6 +4,7 @@
 #include "common.h"
 
 #include <string_view>
+#include <cstdint>
 
 enum class TokenType : u8 {
     // Brackets

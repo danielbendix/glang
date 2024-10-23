@@ -15,6 +15,7 @@ struct alignas(128) Architecture {
     const char *name;
     Layout pointer;
 
+    /// An integral type that is guaranteed to hold a pointer.
     Layout intptr;
 
     Layout int8;

@@ -2,6 +2,9 @@
 #define LANG_cli_h
 
 #include <span>
+#include <vector>
+#include <optional>
+#include <variant>
 #include <filesystem>
 
 struct Validate {

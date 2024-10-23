@@ -1,6 +1,7 @@
 #include "common.h"
 
 #include <string>
+#include <cstdint>
 
 /// Hash a null-terminated string
 constexpr u64 hashString(const char *string);

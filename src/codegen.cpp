@@ -1786,22 +1786,22 @@ llvm::IntegerType *getRegisterType(size_t registerSize) {
     }
 }
 
-void initializeRegisterPackTypesInStructTypes(std::vector<StructType *>& structs) {
-    const Architecture& architecture = Architecture::current();
-
-    auto registerPackSize = architecture.registerSize * architecture.registerPackSize;
-    llvm::Type *registerType = getRegisterType(architecture.registerSize);
-    for (auto structType : structs) {
-        auto layout = structType->getLayout();
-
-        if (layout.size() <= registerPackSize) {
-            auto size = (layout.size() + architecture.registerSize - 1) / architecture.registerSize;
-            structType->setPackType(llvm::ArrayType::get(registerType, size));
-        } else {
-            structType->setPackType(nullptr);
-        }
-    }
-}
+//void initializeRegisterPackTypesInStructTypes(std::vector<StructType *>& structs) {
+//    const Architecture& architecture = Architecture::current();
+//
+//    auto registerPackSize = architecture.registerSize * architecture.registerPackSize;
+//    llvm::Type *registerType = getRegisterType(architecture.registerSize);
+//    for (auto structType : structs) {
+//        auto layout = structType->getLayout();
+//
+//        if (layout.size() <= registerPackSize) {
+//            auto size = (layout.size() + architecture.registerSize - 1) / architecture.registerSize;
+//            structType->setPackType(llvm::ArrayType::get(registerType, size));
+//        } else {
+//            structType->setPackType(nullptr);
+//        }
+//    }
+//}
 
 std::unique_ptr<llvm::Module> generateCode(Module& module)
 {
@@ -1817,7 +1817,7 @@ std::unique_ptr<llvm::Module> generateCode(Module& module)
 
     Context context{llvmContext, *llvmModule};
 
-    initializeRegisterPackTypesInStructTypes(module.structs);
+//    initializeRegisterPackTypesInStructTypes(module.structs);
 
     populateContext(context, module);
 
