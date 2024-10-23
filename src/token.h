@@ -2,6 +2,7 @@
 #define LANG_token_h
 
 #include <string_view>
+#include <cstdint>
 
 enum class TokenType : uint8_t {
     // Brackets

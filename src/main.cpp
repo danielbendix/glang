@@ -1,5 +1,6 @@
 #include <fstream>
 #include <iostream>
+#include <variant>
 
 #include "cli.h"
 #include "AST.h"

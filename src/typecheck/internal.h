@@ -16,7 +16,7 @@ class TypeResult {
     llvm::PointerIntPair<AST::Expression *, 1, bool> folded;
 public:
     TypeResult() : pointer{nullptr}, folded{nullptr, false} {}
-    explicit TypeResult(nullptr_t) : pointer{(Type *)nullptr}, folded{nullptr, false} {}
+    explicit TypeResult(std::nullptr_t) : pointer{(Type *)nullptr}, folded{nullptr, false} {}
     TypeResult(Type *type) : pointer{type=type}, folded{nullptr, false} {}
     TypeResult(Type *type, bool canAssign) : pointer{type}, folded{nullptr, canAssign} {}
     TypeResult(TypeConstraint *constraint) : pointer{constraint}, folded{nullptr, false} {}

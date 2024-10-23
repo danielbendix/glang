@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include <cstdlib>
+#include <cmath>
 #include <charconv>
 
 /* TODO:

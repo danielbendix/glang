@@ -1,4 +1,5 @@
 #include <string>
+#include <cstdint>
 
 /// Hash a null-terminated string
 constexpr uint64_t hashString(const char *string);

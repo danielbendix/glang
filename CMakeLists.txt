@@ -20,9 +20,9 @@ set(CMAKE_CXX_EXTENSIONS Off)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
-find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM 18.1.0...<19.0.0 REQUIRED CONFIG)
 
-find_package(mimalloc REQUIRED)
+#find_package(mimalloc REQUIRED)
 
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")

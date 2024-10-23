@@ -2,7 +2,9 @@
 #define LANG_common_h
 
 #include "templates.h"
+#include <memory>
 #include <vector>
+#include <cstdint>
 
 #ifdef __clang__
     #define NULLABLE _Nullable
