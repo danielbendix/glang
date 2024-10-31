@@ -178,6 +178,7 @@ public:
     ScopeManager(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition} {}
 
     void reset() {
+        scopeLevel = -1;
         locals.clear();
     }
 
@@ -227,35 +228,35 @@ public:
         return OK;
     }
 
-    std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> getResolution(const Symbol& identifier) {
+    IdentifierResolution getResolution(const Symbol& identifier) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             Local& local = locals[i];
             if (local.identifier == identifier) {
                 if (local.isParameter) {
-                    return FunctionParameterResolution::create(local.as.parameter.function, local.as.parameter.index);
+                    return IdentifierResolution::parameter(local.as.parameter.function, local.as.parameter.index);
                 } else {
-                    return LocalResolution::create(*local.as.binding);
+                    return IdentifierResolution::local(local.as.binding);
                 }
             }
         }
         
         if (auto declaration = moduleDefinition.all.lookup(identifier)) {
-            auto result = TypeSwitch<ModuleDef::Definition, unique_ptr_t<IdentifierResolution>>(*declaration)
+            auto result = TypeSwitch<ModuleDef::Definition, IdentifierResolution>(*declaration)
                 .Case<AST::FunctionDeclaration *>([](auto function) {
-                    return FunctionResolution::create(*function);
+                    return IdentifierResolution::function(function);
                 })
                 .Case<AST::VariableDeclaration *>([](auto variable) {
-                    return GlobalResolution::create(cast<AST::IdentifierBinding>(variable->getBinding()), false);
+                    return IdentifierResolution::global(cast<AST::IdentifierBinding>(&variable->getBinding()), false);
                 })
                 .Case<Type *>([](auto type) {
-                    return IdentifierTypeResolution::create(type);
+                    return IdentifierResolution::type(type);
                 })
                 .Case<AST::IdentifierBinding *>([](auto binding) {
-                    return GlobalResolution::create(*binding, false);
+                    return IdentifierResolution::global(binding, false);
                 })
                 .Default([](auto any) {
                     assert(false);
-                    return nullptr;
+                    return IdentifierResolution::unresolved();
                 })
             ;
             if (result) {
@@ -263,7 +264,7 @@ public:
             }
         }
 
-        return nullptr;
+        return IdentifierResolution::unresolved();
     }
 
 };
@@ -450,10 +451,10 @@ public:
     // Expressions
     
     void visitIdentifier(AST::Identifier& identifier) {
-        unique_ptr_t<IdentifierResolution> resolution = manager.getResolution(identifier.getName());
+        IdentifierResolution resolution = manager.getResolution(identifier.getName());
 
         if (resolution) {
-            identifier.setResolution(std::move(resolution));
+            identifier.setResolution(resolution);
         } else {
             result = ERROR;
 

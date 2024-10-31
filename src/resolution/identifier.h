@@ -13,114 +13,113 @@ namespace AST {
     class StructDeclaration;
 };
 
-class IdentifierResolution {
-public:
-    enum Kind {
-        IRK_Global,
-        IRK_Function,
-        IRK_Parameter,
-        IRK_Local,
-        IRK_Type,
+struct IdentifierResolution {
+    enum class Kind : uint8_t {
+        UNRESOLVED,
+        Global,
+        Function,
+        Parameter,
+        Local,
+        Type,
     };
-private:
-    Kind kind;
-protected:
-    IdentifierResolution(Kind kind) : kind{kind} {}
-public:
-    Kind getKind() const {
-        return kind;
-    }
 
-    static void deleteValue(IdentifierResolution *value);
-};
+    struct Unresolved {
+        Kind kind = Kind::UNRESOLVED;
+    };
 
+    struct Local {
+        Kind kind = Kind::Local;
+        AST::IdentifierBinding *NONNULL binding;
 
-class LocalResolution : public IdentifierResolution {
-    AST::IdentifierBinding *binding;
+        Local(AST::IdentifierBinding *NONNULL binding) : binding{binding} {}
+    };
 
-    LocalResolution(AST::IdentifierBinding *binding) : IdentifierResolution{IRK_Local}, binding{binding} {}
-public:
-    static unique_ptr_t<LocalResolution> create(AST::IdentifierBinding& binding) {
-        return unique_ptr_t<LocalResolution>{new LocalResolution(&binding)};
-    }
+    struct Global {
+        Kind kind = Kind::Global;
+        bool isExtern;
+        AST::IdentifierBinding *NONNULL binding;
+
+        Global(AST::IdentifierBinding *NONNULL binding, bool isExtern) : binding{binding}, isExtern{isExtern} {}
+    };
+
+    struct Function {
+        Kind kind = Kind::Function;
+        AST::FunctionDeclaration *NONNULL function;
+
+        Function(AST::FunctionDeclaration *NONNULL function) : function{function} {}
+    };
+
+    struct Parameter {
+        Kind kind = Kind::Parameter;
+        int parameterIndex;
+        AST::FunctionDeclaration *NONNULL function;
+
+        Parameter(AST::FunctionDeclaration *NONNULL function, int parameterIndex) : function{function}, parameterIndex{parameterIndex} {}
+    };
+
+    struct TypeIdentifier {
+        Kind kind = Kind::Type;
+        Type *NONNULL type;
+
+        TypeIdentifier(Type *NONNULL type) : type{type} {}
+    };
     
-    AST::IdentifierBinding& getBinding() const {
-        return *binding;
+    union AS {
+        Unresolved unresolved;
+        Local local;
+        Global global;
+        Function function;
+        Parameter parameter;
+        TypeIdentifier type;
+    } as;
+
+    IdentifierResolution() : as{Unresolved{}} {}
+
+    Kind getKind() const {
+        return as.unresolved.kind;
     }
 
-    static bool classof(const IdentifierResolution *resolution) {
-        return resolution->getKind() == IRK_Local;
-    }
-};
-
-class GlobalResolution : public IdentifierResolution {
-    bool isExtern;
-    AST::IdentifierBinding *binding;
-
-    GlobalResolution(AST::IdentifierBinding *binding, bool isExtern) : IdentifierResolution{IRK_Global}, binding{binding}, isExtern{isExtern} {}
-public:
-    static unique_ptr_t<GlobalResolution> create(AST::IdentifierBinding& variable, bool isExtern) {
-        return unique_ptr_t<GlobalResolution>{new GlobalResolution(&variable, isExtern)};
+    operator bool() const {
+        return getKind() != Kind::UNRESOLVED;
     }
 
-    AST::IdentifierBinding& getBinding() const {
-        return *binding;
+    static IdentifierResolution unresolved() {
+        IdentifierResolution res;
+        res.as.unresolved = Unresolved();
+        return res;
     }
 
-    static bool classof(const IdentifierResolution *resolution) {
-        return resolution->getKind() == IRK_Global;
-    }
-};
-
-class FunctionResolution : public IdentifierResolution {
-    AST::FunctionDeclaration *function;
-
-    FunctionResolution(AST::FunctionDeclaration *function) : IdentifierResolution{IRK_Function}, function{function} {}
-public:
-    static unique_ptr_t<FunctionResolution> create(AST::FunctionDeclaration& function) {
-        return unique_ptr_t<FunctionResolution>{new FunctionResolution(&function)};
+    static IdentifierResolution local(AST::IdentifierBinding *NONNULL binding) {
+        IdentifierResolution res;
+        res.as.local = Local(binding);
+        return res;
     }
 
-    AST::FunctionDeclaration *getFunctionDeclaration() {
-        return function;
+    static IdentifierResolution global(AST::IdentifierBinding *NONNULL binding, bool isExtern) {
+        IdentifierResolution res;
+        res.as.global = Global(binding, isExtern);
+        return res;
     }
 
-    static bool classof(const IdentifierResolution *resolution) {
-        return resolution->getKind() == IRK_Function;
-    }
-};
-
-class FunctionParameterResolution : public IdentifierResolution {
-    int parameterIndex;
-    AST::FunctionDeclaration *function;
-
-    FunctionParameterResolution(AST::FunctionDeclaration *function, int parameterIndex) : IdentifierResolution{IRK_Parameter}, function{function}, parameterIndex{parameterIndex} {}
-public:
-    static unique_ptr_t<FunctionParameterResolution> create(AST::FunctionDeclaration *function, int parameterIndex) {
-        return unique_ptr_t<FunctionParameterResolution>{new FunctionParameterResolution(function, parameterIndex)};
+    static IdentifierResolution function(AST::FunctionDeclaration *NONNULL function) {
+        IdentifierResolution res;
+        res.as.function = Function(function);
+        return res;
     }
 
-    AST::FunctionDeclaration *getFunctionDeclaration() const {
-        return function;
+    static IdentifierResolution parameter(AST::FunctionDeclaration *NONNULL function, int parameterIndex) {
+        IdentifierResolution res;
+        res.as.parameter = Parameter(function, parameterIndex);
+        return res;
     }
 
-    int getParameterIndex() const {
-        return parameterIndex;
-    }
-
-    static bool classof(const IdentifierResolution *resolution) {
-        return resolution->getKind() == IRK_Parameter;
+    static IdentifierResolution type(Type *NONNULL type) {
+        IdentifierResolution res;
+        res.as.type = TypeIdentifier(type);
+        return res;
     }
 };
 
-class IdentifierTypeResolution : public IdentifierResolution {
-    Type *type;
-
-    IdentifierTypeResolution(Type *type) : IdentifierResolution{IRK_Type}, type{type} {}
-public:
-    static unique_ptr_t<IdentifierTypeResolution> create(Type *type) {
-        return unique_ptr_t<IdentifierTypeResolution>{ new IdentifierTypeResolution(type)};
-    }
-};
+static_assert(sizeof(IdentifierResolution) <= 16);
 
 #endif // LANG_resolution_identifier_h

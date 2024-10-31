@@ -473,28 +473,40 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
 }
 
 TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
-    auto *resolution = identifier.getResolution();
-    TypeResult result = llvm::TypeSwitch<IdentifierResolution *, TypeResult>(resolution)
-        .Case<LocalResolution>([](auto local) {
-            auto& binding = local->getBinding();
-            return TypeResult{binding.getType(), binding.getIsMutable()};
-        })
-        .Case<FunctionResolution>([](auto functionResolution) {
-            AST::FunctionDeclaration *function = functionResolution->getFunctionDeclaration();
-            return function->getType();
-        })
-        .Case<FunctionParameterResolution>([](auto parameter) {
-            return parameter->getFunctionDeclaration()->getParameter(parameter->getParameterIndex()).type;
-        })
-        .Case<GlobalResolution>([this](auto global) -> TypeResult {
-            auto& binding = global->getBinding();
-            if (binding.hasType() || (globalHandler && (*globalHandler)(binding).ok())) {
-                return TypeResult{binding.getType(), binding.getIsMutable()};
-            } else {
-                return {};
+    auto resolution = identifier.getResolution();
+    auto nested = [this, resolution] () -> TypeResult {
+        switch (resolution.getKind()) {
+            case IdentifierResolution::Kind::UNRESOLVED:
+                llvm_unreachable("UNDEFINED resolution in type check.");
+                break;
+            case IdentifierResolution::Kind::Global: {
+                auto *binding = resolution.as.global.binding;
+                if (binding->hasType() || (globalHandler && (*globalHandler)(*binding).ok())) {
+                    return TypeResult{binding->getType(), binding->getIsMutable()};
+                } else {
+                    return {};
+                }
             }
-        })
-    ;
+            case IdentifierResolution::Kind::Function: {
+                AST::FunctionDeclaration *function = resolution.as.function.function;
+                return function->getType();
+            }
+            case IdentifierResolution::Kind::Parameter: {
+                return resolution.as.parameter.function->getParameter(resolution.as.parameter.parameterIndex).type;
+            }
+            case IdentifierResolution::Kind::Local: {
+                auto *binding = resolution.as.local.binding;
+                return TypeResult{binding->getType(), binding->getIsMutable()};
+            }
+            case IdentifierResolution::Kind::Type: {
+                // TODO: We need a metatype
+                llvm_unreachable("Implement metatype.");
+                break;
+            }
+        }
+    };
+
+    TypeResult result = nested();
     if (auto type = result.asType()) {
         identifier.setType(type);
     }

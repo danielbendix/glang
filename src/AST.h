@@ -425,7 +425,7 @@ namespace AST {
 
     class Identifier : public Expression {
     protected:
-        std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>> resolution = nullptr;
+        IdentifierResolution resolution;
 
         Symbol& name;
 
@@ -445,12 +445,12 @@ namespace AST {
             return name;
         }
 
-        IdentifierResolution *NULLABLE getResolution() const {
-            return resolution.get();
+        IdentifierResolution getResolution() const {
+            return resolution;
         }
 
-        void setResolution(std::unique_ptr<IdentifierResolution, Deleter<IdentifierResolution>>&& resolution) {
-            this->resolution = std::move(resolution);
+        void setResolution(IdentifierResolution resolution) {
+            this->resolution = resolution;
         }
 
         static bool classof(const Node *NONNULL node) {

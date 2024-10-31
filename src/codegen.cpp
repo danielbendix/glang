@@ -217,6 +217,10 @@ public:
         return {context.llvmGlobals[&binding], 0};
     }
 
+    Binding getGlobal(AST::IdentifierBinding *binding) {
+        return {context.llvmGlobals[binding], 0};
+    }
+
     llvm::AllocaInst& makeStackSlot(llvm::Type *type) {
         allocaBuilder.SetInsertPointPastAllocas(&function);
         auto alloca = allocaBuilder.CreateAlloca(type, nullptr);
@@ -517,23 +521,25 @@ public:
         // TODO: Consider adding a special visit for subtrees of Node.
         return AST::visit(expression, overloaded {
             [&](AST::Identifier& identifier) {
-                switch (identifier.getResolution()->getKind()) {
-                    case IdentifierResolution::IRK_Local: {
-                        LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
-                        auto value = function.getVariable(&static_cast<LocalResolution *>(identifier.getResolution())->getBinding());
+                const auto resolution = identifier.getResolution();
+                switch (resolution.getKind()) {
+                    case IdentifierResolution::Kind::Local: {
+                        const auto local = resolution.as.local;
+                        auto value = function.getVariable(local.binding);
                         assert(value.getInt() == 0);
                         return value.getPointer();
                     }
-                    case IdentifierResolution::IRK_Global: {
-                        GlobalResolution *global = static_cast<GlobalResolution *>(identifier.getResolution());
-                        auto value = function.getGlobal(global->getBinding());
+                    case IdentifierResolution::Kind::Global: {
+                        const auto global = resolution.as.global;
+                        auto value = function.getGlobal(global.binding);
                         assert(value.getInt() == 0);
                         return value.getPointer();
                     }
-                    case IdentifierResolution::IRK_Parameter:
-                    case IdentifierResolution::IRK_Function:
-                    case IdentifierResolution::IRK_Type:
-                        assert(false);
+                    case IdentifierResolution::Kind::UNRESOLVED:
+                        llvm_unreachable("UNRESOLVED identifier resolution in codegen.");
+                    case IdentifierResolution::Kind::Parameter:
+                    case IdentifierResolution::Kind::Function:
+                    case IdentifierResolution::Kind::Type:
                         llvm_unreachable("Invalid assignment target.");
                 }
             },
@@ -994,13 +1000,13 @@ public:
     // Expressions
 
     llvm::Value *visitIdentifier(AST::Identifier& identifier) {
-        switch (identifier.getResolution()->getKind()) {
-            case IdentifierResolution::IRK_Parameter: return &function.getArgument(static_cast<FunctionParameterResolution *>(identifier.getResolution())->getParameterIndex());
-            case IdentifierResolution::IRK_Function: return &function.getFunction(*static_cast<FunctionResolution *>(identifier.getResolution())->getFunctionDeclaration());
-            case IdentifierResolution::IRK_Local: {
+        const auto resolution = identifier.getResolution();
+
+        switch (resolution.getKind()) {
+            case IdentifierResolution::Kind::Local: {
+                const auto local = resolution.as.local;
                 auto type = function.getLLVMType(identifier.getType());
-                LocalResolution *local = static_cast<LocalResolution *>(identifier.getResolution());
-                auto *binding = &local->getBinding();
+                auto *binding = local.binding;
 
                 auto value = function.getVariable(binding);
                 if (value.getInt()) {
@@ -1009,20 +1015,25 @@ public:
                     return function.builder.CreateLoad(type, value.getPointer());
                 }
             }
-            case IdentifierResolution::IRK_Global: {
+            case IdentifierResolution::Kind::Global: {
+                const auto global = resolution.as.global;
                 auto type = function.getLLVMType(identifier.getType());
-                GlobalResolution *global = static_cast<GlobalResolution *>(identifier.getResolution());
-
-                auto value = function.getGlobal(global->getBinding());
+                auto value = function.getGlobal(global.binding);
                 if (value.getInt()) {
                     return value.getPointer();
                 } else {
                     return function.builder.CreateLoad(type, value.getPointer());
                 }
             }
-
-            case IdentifierResolution::IRK_Type:
+            case IdentifierResolution::Kind::Function:
+                return &function.getFunction(*resolution.as.function.function);
+            case IdentifierResolution::Kind::Parameter:
+                return &function.getArgument(resolution.as.parameter.parameterIndex);
+            case IdentifierResolution::Kind::Type:
                 assert(false);
+                break;
+            case IdentifierResolution::Kind::UNRESOLVED:
+                llvm_unreachable("UNRESOLVED identifier resolution in codegen.");
         }
 
         return nullptr;
