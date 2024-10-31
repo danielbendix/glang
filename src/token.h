@@ -122,9 +122,10 @@ struct Token final {
     // Since we're storing the length (in bytes), we could compute the
     // string_view from a char * and the length;
     std::string_view chars;
+    uint64_t hash;
 
-    Token(TokenType type, std::string_view chars, uint32_t line, uint32_t column, uint32_t length) 
-        : type{type}, chars{chars}, line{line}, column{column}, length{length} {}
+    Token(TokenType type, std::string_view chars, uint32_t line, uint32_t column, uint32_t length, uint64_t hash = 0) 
+        : type{type}, chars{chars}, line{line}, column{column}, length{length}, hash{hash} {}
 };
 
 #endif // LANG_token_h

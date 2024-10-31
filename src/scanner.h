@@ -66,10 +66,10 @@ private:
     template <auto predicate> void munchMany();
     template <auto predicate> bool munchMany1();
     [[nodiscard]]
-    Token makeToken(TokenType type);
+    Token makeToken(TokenType type, uint64_t hash = 0);
     TokenType testTry(std::string::const_iterator it, std::string::const_iterator end);
     TokenType identifierType();
-    Token identifier();
+    Token identifier(char c);
     Token hashIdentifier();
     Token escapedIdentifier();
     Token character();

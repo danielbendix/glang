@@ -1,4 +1,5 @@
 #include "scanner.h"
+#include "containers/hash.h"
 
 #include <iostream>
 #include <format>
@@ -96,11 +97,11 @@ void Scanner::skipWhitespace() {
     }
 }
 
-Token Scanner::makeToken(TokenType type)
+Token Scanner::makeToken(TokenType type, uint64_t hash)
 {
     std::string_view chars = std::string_view(start, current);
     uint32_t length = current - start;
-    return Token(type, chars, startLine, startColumn, current - start);
+    return Token(type, chars, startLine, startColumn, current - start, hash);
 }
 
 [[nodiscard]]
@@ -199,12 +200,16 @@ TokenType Scanner::identifierType()
     return TokenType::Identifier;
 }
 
-Token Scanner::identifier()
+Token Scanner::identifier(char c)
 {
-    char c;
-    while (isAlpha(c = peek()) || isDigit(c)) advance();
+    StringHasher hasher;
+    hasher.add(c);
+    while (isAlpha(c = peek()) || isDigit(c)) {
+        hasher.add(c);
+        advance();
+    }
 
-    return makeToken(identifierType());
+    return makeToken(identifierType(), hasher.hash());
 }
 
 Token Scanner::hashIdentifier()
@@ -382,7 +387,7 @@ Token Scanner::next() noexcept {
 
         char c = advance();
 
-        if (isAlpha(c)) return identifier();
+        if (isAlpha(c)) return identifier(c);
         if (isDigit(c)) return number(c);
 
         switch (c) {

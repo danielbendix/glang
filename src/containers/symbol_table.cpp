@@ -91,6 +91,10 @@ Symbol *SymbolTable::insertSymbol(const std::string_view string, uint64_t hash) 
 Symbol& SymbolTable::getSymbol(const std::string_view string) {
     uint64_t hash = hashString(string);
 
+    return getSymbol(string, hash);
+}
+
+Symbol& SymbolTable::getSymbol(const std::string_view string, uint64_t hash) {
     Symbol *symbol = findSymbol(string, hash);
 
     if (symbol) {

@@ -39,7 +39,7 @@ AST::Block Parser::block()
 AST::TypeNode *Parser::type(bool hasIdentifier) 
 {
     Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
-    Symbol& name = symbols.getSymbol(nameToken.chars);
+    Symbol& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     AST::vector<AST::TypeModifier::Modifier> modifiers{allocator<AST::TypeModifier::Modifier>()};
 
@@ -90,7 +90,7 @@ AST::Binding *Parser::binding()
 {
     auto token = consume(TokenType::Identifier);
 
-    auto& identifier = symbols.getSymbol(token.chars);
+    auto& identifier = symbols.getSymbol(token.chars, token.hash);
 
     return AST::IdentifierBinding::create(context.nodeAllocator, token, identifier);
 }
@@ -111,7 +111,7 @@ AST::Declaration *Parser::declaration()
 AST::FunctionParameter Parser::parameter()
 {
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
     consume(TokenType::Colon);
     auto tp = type();
 
@@ -121,7 +121,7 @@ AST::FunctionParameter Parser::parameter()
 AST::FunctionDeclaration *Parser::functionDeclaration()
 {
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     consume(TokenType::LeftParenthesis);
 
@@ -177,7 +177,7 @@ AST::StructDeclaration *Parser::structDeclaration()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     consume(TokenType::LeftBracket);
     AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
@@ -192,7 +192,7 @@ AST::EnumDeclaration *Parser::enumDeclaration()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     consume(TokenType::LeftBracket);
   
@@ -219,7 +219,7 @@ AST::EnumDeclaration::Case Parser::enumCase()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     if (match(TokenType::LeftParenthesis)) {
         AST::vector<AST::EnumDeclaration::Case::Member> members{allocator<AST::EnumDeclaration::Case::Member>()};
@@ -240,7 +240,7 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
 {
     if (match(TokenType::Identifier)) {
         Token identifierToken = previous;
-        auto& identifier = symbols.getSymbol(identifierToken.chars);
+        auto& identifier = symbols.getSymbol(identifierToken.chars, identifierToken.hash);
         if (match(TokenType::Colon)) {
             auto memberType = type();
             return AST::EnumDeclaration::Case::Member(&identifier, memberType);
@@ -585,7 +585,7 @@ AST::Expression *Parser::member(AST::Expression *left)
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     return AST::MemberAccessExpression::create(context.nodeAllocator, token, std::move(left), name);
 }
@@ -594,7 +594,7 @@ AST::Expression *Parser::inferredMember()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
 
     return AST::InferredMemberAccessExpression::create(context.nodeAllocator, token, name);
 }
@@ -870,7 +870,7 @@ AST::Expression *Parser::postfixUnary(AST::Expression *expression)
 AST::Expression *Parser::identifier()
 {
     auto token = previous;
-    auto& name = symbols.getSymbol(token.chars);
+    auto& name = symbols.getSymbol(token.chars, token.hash);
     auto identifier = AST::Identifier::create(context.nodeAllocator, token, name);
     if (expressionRules.allowInitializer && match(TokenType::LeftBracket)) {
         return initializer(std::move(identifier));
@@ -945,7 +945,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
     AST::vector<AST::InitializerExpression::Pair> pairs{allocator<AST::InitializerExpression::Pair>()};
     while (!match(TokenType::RightBracket)) {
         auto nameToken = consume(TokenType::Identifier);
-        auto& name = symbols.getSymbol(nameToken.chars);
+        auto& name = symbols.getSymbol(nameToken.chars, nameToken.hash);
         consume(TokenType::Equal);
         auto member = AST::InferredMemberAccessExpression::create(context.nodeAllocator, nameToken, name);
         auto value = expression({});

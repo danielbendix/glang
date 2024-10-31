@@ -79,6 +79,7 @@ public:
     SymbolTable() {}
 
     Symbol& getSymbol(const std::string_view string);
+    Symbol& getSymbol(const std::string_view string, uint64_t hash);
     Symbol *getSymbolIfExists(const std::string_view string);
 };
 
