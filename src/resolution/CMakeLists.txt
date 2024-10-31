@@ -1,3 +1,1 @@
-target_sources(glang PRIVATE
-    member.cpp
-)
+target_sources(glang PRIVATE)

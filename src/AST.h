@@ -722,7 +722,7 @@ namespace AST {
     class MemberAccessExpression : public Expression {
         Expression *NONNULL target;
         Symbol& memberName;
-        unique_ptr_t<MemberResolution> resolution = nullptr;
+        MemberResolution resolution;
 
     protected:
         MemberAccessExpression(Token token, Expression *NONNULL target, Symbol& member) 
@@ -747,12 +747,12 @@ namespace AST {
             return memberName;
         }
 
-        const MemberResolution& getResolution() const {
-            return *resolution;
+        MemberResolution getResolution() const {
+            return resolution;
         }
 
-        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
-            this->resolution = std::move(resolution);
+        void setResolution(MemberResolution resolution) {
+            this->resolution = resolution;
         }
 
         static bool classof(const Node *NONNULL node) {
@@ -762,7 +762,7 @@ namespace AST {
 
     class InferredMemberAccessExpression : public Expression {
         Symbol& memberName;
-        unique_ptr_t<MemberResolution> resolution = nullptr;
+        MemberResolution resolution;
         Type *NULLABLE inferredTarget = nullptr;
 
     protected:
@@ -783,11 +783,11 @@ namespace AST {
             return memberName;
         }
 
-        const MemberResolution& getResolution() const {
-            return *resolution;
+        const MemberResolution getResolution() const {
+            return resolution;
         }
 
-        void setResolution(unique_ptr_t<MemberResolution>&& resolution) {
+        void setResolution(MemberResolution resolution) {
             this->resolution = std::move(resolution);
         }
 
@@ -1098,6 +1098,8 @@ namespace AST {
             return node->getKind() == NK_Binding_Identifier;
         }
     };
+
+    class VariableDeclaration;
 
     using Condition = llvm::PointerUnion<VariableDeclaration *NONNULL, Expression *NONNULL>;
 

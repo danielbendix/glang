@@ -3,79 +3,73 @@
 
 #include "resolution.h"
 
+struct MemberResolution {
 
-namespace AST {
-    class VariableDeclaration;
-    class FunctionDeclaration;
-};
-
-class MemberResolution {
-public:
-    enum Kind {
-        MRK_Struct_Field,
-        MRK_Struct_Method,
-        MRK_Enum_Kind,
+    enum class Kind : uint8_t {
+        UNRESOLVED,
+        StructField,
+        StructMethod,
+        EnumCase,
     };
-private:
-    Kind kind;
-protected:
-    MemberResolution(Kind kind) : kind{kind} {}
-public:
+
+    struct Unresolved {
+        Kind kind = Kind::UNRESOLVED;
+    };
+
+    struct StructField {
+        Kind kind = Kind::StructField;
+        uint32_t index;
+
+        StructField(uint32_t index) : index{index} {}
+    };
+
+    struct StructMethod {
+        Kind kind = Kind::StructMethod;
+        uint32_t index;
+
+        StructMethod(uint32_t index) : index{index} {}
+    };
+
+    struct EnumCase {
+        Kind kind = Kind::EnumCase;
+        uint32_t index;
+
+        EnumCase(uint32_t index) : index{index} {}
+    };
+
+    union AS {
+        Unresolved unresolved;
+        StructField structField;
+        StructMethod structMethod;
+        EnumCase enumCase;
+    } as;
+
     Kind getKind() const {
-        return kind;
+        return as.unresolved.kind;
     }
 
-    static void deleteValue(MemberResolution *value);
-};
-
-class StructFieldResolution : public MemberResolution {
-    int index;
-    AST::VariableDeclaration *variable;
-
-    StructFieldResolution(AST::VariableDeclaration& variable, int index) : MemberResolution{MRK_Struct_Field}, variable{&variable}, index{index} {}
-public:
-    static unique_ptr_t<StructFieldResolution> create(AST::VariableDeclaration& variable, int index) {
-        return unique_ptr_t<StructFieldResolution>{new StructFieldResolution(variable, index)};
+    operator bool() const {
+        return getKind() != Kind::UNRESOLVED;
     }
 
-    int getIndex() const {
-        return index;
+    MemberResolution() : as{Unresolved()} {}
+    MemberResolution(StructField structField) : as{.structField = structField} {}
+    MemberResolution(StructMethod structMethod) : as{.structMethod = structMethod} {}
+    MemberResolution(EnumCase enumCase) : as{.enumCase = enumCase} {}
+
+    static MemberResolution structField(uint32_t index) {
+        return StructField(index);
     }
 
-    static bool classof(const MemberResolution *resolution) {
-        return resolution->getKind() == MRK_Struct_Field;
-    }
-};
-
-class StructMethodResolution : public MemberResolution {
-    AST::FunctionDeclaration *method;
-
-    StructMethodResolution(AST::FunctionDeclaration& method) : MemberResolution{MRK_Struct_Method}, method{&method} {}
-public:
-    static unique_ptr_t<StructMethodResolution> create(AST::FunctionDeclaration& method) {
-        return unique_ptr_t<StructMethodResolution>{new StructMethodResolution(method)};
+    static MemberResolution structMethod(uint32_t index) {
+        return StructMethod(index);
     }
 
-    static bool classof(const MemberResolution *resolution) {
-        return resolution->getKind() == MRK_Struct_Method;
+    static MemberResolution enumCase(uint32_t index) {
+        return EnumCase(index);
     }
 };
 
-class EnumType;
-
-class EnumCaseResolution : public MemberResolution {
-    EnumType *type;
-    size_t index;
-
-    EnumCaseResolution(EnumType *type, size_t index) : MemberResolution{MRK_Enum_Kind}, type{type}, index{index} {}
-public:
-    static unique_ptr_t<EnumCaseResolution> create(EnumType *type, size_t index) {
-        return unique_ptr_t<EnumCaseResolution>{new EnumCaseResolution{type, index}};
-    }
-
-    static bool classof(const MemberResolution *resolution) {
-        return resolution->getKind() == MRK_Enum_Kind;
-    }
-};
+static_assert(sizeof(MemberResolution) <= 8);
 
 #endif // LANG_resolution_member_h

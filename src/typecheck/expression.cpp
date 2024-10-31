@@ -271,9 +271,8 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 Diagnostic::error(*pair.first, "Unable to resolve member in initializer expression.");
                 return {};
             }
-            auto resolutionPtr = resolution.get();
-            pair.first->setResolution(std::move(resolution));
-            if (!isa<StructFieldResolution>(resolutionPtr)) {
+            pair.first->setResolution(resolution);
+            if (resolution.getKind() != MemberResolution::Kind::StructField) {
                 Diagnostic::error(*pair.first, "Cannot assign to [GET FIELD TYPE] in struct initializer expression.");
                 return {};
             }
@@ -293,7 +292,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 pair.second = wrapped;
             }
 
-            auto fieldIndex = llvm::cast<StructFieldResolution>(resolutionPtr)->getIndex();
+            auto fieldIndex = resolution.as.structField.index;
             if (!definedFields.set(fieldIndex)) {
                 Diagnostic::error(*pair.first, "Duplicate definition of field in struct initializer.");
                 result |= ERROR;
@@ -356,7 +355,7 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
         auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
         if (memberResolution) {
             memberAccess.setType(memberType.getPointer());
-            memberAccess.setResolution(std::move(memberResolution));
+            memberAccess.setResolution(memberResolution);
             return {memberType.getPointer(), target.canAssign() && memberType.getInt()};
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
@@ -374,7 +373,7 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
         return {};
     }
 
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolution;
+    std::pair<MemberResolution, Type *> resolution;
     llvm::TypeSwitch<Type *, void>(declaredType)
         .Case<EnumType>([&](auto enumType) {
             resolution = enumType->resolveStaticMember(inferredMemberAccess.getMemberName());

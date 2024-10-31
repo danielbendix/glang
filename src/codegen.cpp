@@ -545,14 +545,18 @@ public:
             },
             [&](AST::MemberAccessExpression& memberAccess) {
                 llvm::Value *target = getAssignmentTarget(memberAccess.getTarget());
-                switch (memberAccess.getResolution().getKind()) {
-                    case MemberResolution::MRK_Struct_Field: {
+                const auto resolution = memberAccess.getResolution();
+                switch (resolution.getKind()) {
+                    break;
+                    case MemberResolution::Kind::StructField: {
                         auto targetType = memberAccess.getTarget().getType();
-                        return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, static_cast<const StructFieldResolution&>(memberAccess.getResolution()).getIndex());
+                        return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, resolution.as.structField.index);
                     }
-                    case MemberResolution::MRK_Struct_Method:
-                    case MemberResolution::MRK_Enum_Kind:
+                    case MemberResolution::Kind::StructMethod:
+                    case MemberResolution::Kind::EnumCase:
                         llvm_unreachable("Invalid assignment target");
+                    case MemberResolution::Kind::UNRESOLVED:
+                        llvm_unreachable("UNRESOLVED member resolution in codegen.");
                 }
             },
             [&](AST::UnaryExpression& unary) {
@@ -1657,9 +1661,11 @@ public:
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
-            auto fieldResolution = cast<StructFieldResolution>(pair.first->getResolution());
+            auto resolution = pair.first->getResolution();
+            assert(resolution.getKind() == MemberResolution::Kind::StructField);
+
             auto value = pair.second->acceptVisitor(*this);
-            unsigned index = fieldResolution.getIndex();
+            unsigned index = resolution.as.structField.index;
             undefined.set(index);
 
             structValue = function.builder.CreateInsertValue(structValue, value, {index});
@@ -1679,41 +1685,41 @@ public:
         auto target = memberAccess.getTarget().acceptVisitor(*this);
         auto targetType = memberAccess.getTarget().getType();
 
-        auto& resolution = memberAccess.getResolution();
+        auto resolution = memberAccess.getResolution();
 
-        llvm::Value *value = llvm::TypeSwitch<const MemberResolution *, llvm::Value *>(&resolution)
-            .Case<StructFieldResolution>([&](auto field) {
-                int index = field->getIndex();
-
-//                llvm::Value *indices[2];
-//                indices[0] = function.getIntegerConstant(64, 0);
-//                indices[1] = function.getIntegerConstant(64, index);
-
-//                auto gep = function.builder.CreateGEP(function.getLLVMType(targetType), target, {indices, 2});
-//                return function.builder.CreateLoad(function.getLLVMType(memberAccess.getType()), gep);
-                return function.builder.CreateExtractValue(target, {(unsigned int) index});
-            })
-        ;
-
-        return value;
+        switch (resolution.getKind()) {
+            case MemberResolution::Kind::StructField: {
+                return function.builder.CreateExtractValue(target, {resolution.as.structField.index});
+            }
+            case MemberResolution::Kind::StructMethod:
+            case MemberResolution::Kind::EnumCase:
+                llvm_unreachable("[TODO] Unsupported member access types.");
+            case MemberResolution::Kind::UNRESOLVED:
+                llvm_unreachable("UNRESOLVED member access in codegen.");
+        }
     }
 
     llvm::Value *visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
         // This can only be a static member access or enum case
         
-        auto& resolution = inferredMemberAccess.getResolution();
+        auto resolution = inferredMemberAccess.getResolution();
 
-        if (auto *enumCaseResolution = llvm::dyn_cast<EnumCaseResolution>(&resolution)) {
-
-            
-
-
+        switch (resolution.getKind()) {
+            case MemberResolution::Kind::StructField:
+                break;
+            case MemberResolution::Kind::StructMethod:
+                break;
+            case MemberResolution::Kind::EnumCase:
+                break;
+            case MemberResolution::Kind::UNRESOLVED:
+                llvm_unreachable("UNRESOLVED member access in codegen.");
         }
+
 
         // TODO: Implement static members
 
         assert(false);
-        llvm_unreachable("TODO");
+        llvm_unreachable("[TODO] Implement static members");
     }
 };
 

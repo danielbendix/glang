@@ -59,8 +59,8 @@ public:
         result.append(name.string_view());
     }
 
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveMember(const Symbol& name);
-    std::pair<unique_ptr_t<MemberResolution>, Type *> resolveStaticMember(const Symbol& name);
+    std::pair<MemberResolution, Type *> resolveMember(const Symbol& name);
+    std::pair<MemberResolution, Type *> resolveStaticMember(const Symbol& name);
 
     AST::EnumDeclaration *getDeclaration() const {
         return declaration;

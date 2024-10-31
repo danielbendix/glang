@@ -4,29 +4,30 @@
 
 #include "llvm/Support/Casting.h"
 
-std::pair<unique_ptr_t<MemberResolution>, StructType::MemberType> StructType::resolveMember(const Symbol& name) 
+std::pair<MemberResolution, StructType::MemberType> StructType::resolveMember(const Symbol& name) 
 {
     if (auto property = properties.lookup(name)) {
         if (auto field = llvm::dyn_cast<AST::VariableDeclaration *>(*property)) {
             int index = std::find(fields.begin(), fields.end(), field) - fields.begin();
             MemberType memberType{field->getType(), field->getIsMutable()};
-            return {StructFieldResolution::create(*field, index), memberType};
+            return {MemberResolution::structField(index), memberType};
 
         }
         if (auto method = llvm::dyn_cast<AST::FunctionDeclaration *>(*property)) {
             MemberType memberType{method->getType(), false};
-            return {StructMethodResolution::create(*method), memberType};
+            llvm_unreachable("");
+            //return {MemberResolution::structMethod(
         }
         llvm_unreachable("Unsupported property type in struct.");
     }
-    return {nullptr, MemberType{nullptr}};
+    return {{}, MemberType{nullptr}};
 }
 
-std::pair<unique_ptr_t<MemberResolution>, StructType::MemberType> StructType::resolveStaticMember(const Symbol& name)
+std::pair<MemberResolution, StructType::MemberType> StructType::resolveStaticMember(const Symbol& name)
 {
     assert(false);
 
-    return {nullptr, MemberType{nullptr}};
+    return {{}, MemberType{nullptr}};
 }
 
 llvm::StructType *StructType::getStructType(llvm::LLVMContext& context) const

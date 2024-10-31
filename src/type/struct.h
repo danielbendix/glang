@@ -92,8 +92,8 @@ public:
 
     using MemberType = llvm::PointerIntPair<Type *, 1, bool>;
 
-    std::pair<unique_ptr_t<MemberResolution>, MemberType> resolveMember(const Symbol& name);
-    std::pair<unique_ptr_t<MemberResolution>, MemberType> resolveStaticMember(const Symbol& name);
+    std::pair<MemberResolution, MemberType> resolveMember(const Symbol& name);
+    std::pair<MemberResolution, MemberType> resolveStaticMember(const Symbol& name);
 
     llvm::StructType *getStructType(llvm::LLVMContext& context) const;
 
