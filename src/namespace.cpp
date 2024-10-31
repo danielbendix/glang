@@ -152,8 +152,7 @@ std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::Declaration *
 class ScopeManager {
     
     struct Local {
-        const Symbol& identifier;
-        const int scopeLevel;
+        const Symbol* identifier;
         bool isParameter;
         union {
             struct {
@@ -163,13 +162,20 @@ class ScopeManager {
             AST::IdentifierBinding *binding;
         } as;
 
-        Local(const Symbol& identifier, int scopeLevel, AST::FunctionDeclaration& function, int index) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
+        [[noreturn]]
+        Local() {
+            llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
+        }
 
-        Local(const Symbol& identifier, int scopeLevel, AST::IdentifierBinding& binding) : identifier{identifier}, scopeLevel{scopeLevel}, isParameter{false}, as{.binding = &binding} {}
+        Local(const Symbol& identifier, AST::FunctionDeclaration& function, int index) : identifier{&identifier}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
+
+        Local(const Symbol& identifier, AST::IdentifierBinding& binding) : identifier{&identifier}, isParameter{false}, as{.binding = &binding} {}
     };
 
-    int scopeLevel = -1;
+    static_assert(sizeof(Local) <= 32);
+
     std::vector<Local> locals = {};
+    std::vector<uint32_t> scopes = {0};
 
     ModuleDef& moduleDefinition;
 
@@ -178,8 +184,9 @@ public:
     ScopeManager(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition} {}
 
     void reset() {
-        scopeLevel = -1;
         locals.clear();
+        scopes.clear();
+        scopes.push_back(0);
     }
 
     void pushOuterScope() {
@@ -191,47 +198,49 @@ public:
     }
 
     void pushInnerScope() {
-        scopeLevel++;
+        scopes.push_back(locals.size());
     }
 
     void popInnerScope() {
-        // TODO: Use resize()
-        for (int i = locals.size() - 1; i >= 0; --i) {
-            if (locals[i].scopeLevel == scopeLevel) {
-                locals.pop_back();
-            }
-        }
-        scopeLevel--;
+        uint32_t scope = scopes.back();
+        scopes.pop_back();
+
+        locals.resize(scope);
     }
 
     Result pushParameter(const Symbol& identifier, AST::FunctionDeclaration& function, int index) {
-        for (int i = locals.size() - 1; i >= 0 && locals[i].scopeLevel == scopeLevel; --i) {
-            if (locals[i].identifier == identifier) {
+        assert(!scopes.empty());
+        int64_t maxIndex = scopes.back();
+        
+        for (int i = locals.size() - 1; i >= maxIndex; --i) {
+            if (*locals[i].identifier == identifier) {
                 Diagnostic::error(function, "Invalid redeclaration of parameter " + identifier.string());
                 return ERROR;
             }
         }
-        locals.emplace_back(identifier, scopeLevel, function, index);
-
+        locals.emplace_back(identifier, function, index);
         return OK;
     }
 
     Result pushBinding(const Symbol& identifier, AST::IdentifierBinding& binding) {
-        for (int i = locals.size() - 1; i >= 0 && locals[i].scopeLevel == scopeLevel; --i) {
-            if (locals[i].identifier == identifier) {
+        assert(!scopes.empty());
+        int64_t maxIndex = scopes.back();
+
+        for (int i = locals.size() - 1; i >= maxIndex; --i) {
+            if (*locals[i].identifier == identifier) {
                 Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
                 Diagnostic::note(*locals[i].as.binding, identifier.string() + " previously declared here.");
                 return ERROR;
             }
         }
-        locals.emplace_back(identifier, scopeLevel, binding);
+        locals.emplace_back(identifier, binding);
         return OK;
     }
 
     IdentifierResolution getResolution(const Symbol& identifier) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             Local& local = locals[i];
-            if (local.identifier == identifier) {
+            if (*local.identifier == identifier) {
                 if (local.isParameter) {
                     return IdentifierResolution::parameter(local.as.parameter.function, local.as.parameter.index);
                 } else {
