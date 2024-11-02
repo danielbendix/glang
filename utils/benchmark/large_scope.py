@@ -40,8 +40,22 @@ def create_binding(variable: str, function: str) -> str:
 
 
 def create_return_value(variables: list[str]) -> str:
-    return f"    let result: i64 = {" + ".join(variables)};\n    return result;"
+    def chunks(array, chunk_size):
+        for i in range(0, len(array), chunk_size):
+            yield array[i : i + chunk_size]
 
+    def chunkify(array: list[str], chunk_size: int):
+        while len(array) > 1:
+            array = ['(' +  " + ".join(c) + ')' for c in chunks(array, chunk_size)]
+        return array[0]
+
+    terms = chunkify(variables, 100)
+
+    #adds = ["result = result + " + " + ".join(c) + ";" for c in chunks(variables, 100)]
+
+    return f"    return {terms};\n"
+    #return f"    let result: i64 = 0;\n{"\n".join(adds)}\n    return result;"
+    
 
 def create_program(function_names: list[str], variables: list[str]) -> str:
     functions = [create_function(f) for f in function_names]
