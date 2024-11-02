@@ -1,4 +1,5 @@
 #include "typecheck/aggregate.h"
+#include "typecheck/scope.h"
 #include "typecheck/resolver.h"
 #include "typecheck/expression.h"
 #include "typecheck/coerce.h"
@@ -42,6 +43,8 @@ class AggregateTypeChecker {
     TypeResolver& typeResolver;
     AggregateType current = nullptr;
 
+    ScopeManager scopeManager;
+
     llvm::SmallVector<AggregateType, 4> checkStack;
     llvm::SmallVector<AST::Node *NONNULL, 4> diagnosticLocationStack;
 
@@ -70,7 +73,8 @@ class AggregateTypeChecker {
     }
 
 public:
-    AggregateTypeChecker(TypeResolver& typeResolver) : typeResolver{typeResolver} {}
+    AggregateTypeChecker(ModuleDef& moduleDefinition, TypeResolver& typeResolver) 
+        : scopeManager{moduleDefinition}, typeResolver{typeResolver} {}
 
     Result typeCheckStructField(AST::VariableDeclaration& field) {
         Type *declaredType = nullptr;
@@ -83,7 +87,7 @@ public:
 
         Type *type = nullptr;
         if (AST::Expression *initial = field.getInitialValue()) {
-            ExpressionTypeChecker checker{typeResolver};
+            ExpressionTypeChecker checker{scopeManager, typeResolver};
             if (declaredType) {
                 type = checker.typeCheckExpression(*initial, declaredType);
             } else {
@@ -207,8 +211,8 @@ public:
     }
 };
 
-Result typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, TypeResolver& typeResolver) {
-    AggregateTypeChecker checker{typeResolver};
+Result typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, ModuleDef& moduleDefinition, TypeResolver& typeResolver) {
+    AggregateTypeChecker checker{moduleDefinition, typeResolver};
 
     Result result = OK;
 

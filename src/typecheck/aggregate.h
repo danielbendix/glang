@@ -10,6 +10,6 @@
 
 #include "containers/string_map.h"
 
-PassResult typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, TypeResolver& typeResolver);
+PassResult typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, ModuleDef& moduleDefinition, TypeResolver& typeResolver);
 
 #endif // LANG_typecheck_aggregate_h

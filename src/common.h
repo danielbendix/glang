@@ -12,7 +12,7 @@
     #define NONNULL
 #endif
 
-enum class PassResultKind {
+enum class PassResultKind : uint8_t {
     OK = 0,
     ERROR = 1,
 };
@@ -49,17 +49,6 @@ public:
     friend PassResult operator|(PassResult lhs, PassResult rhs);
     friend PassResult& operator|=(PassResult& lhs, PassResult rhs);
 };
-
-template <typename T, void (*deleter)(T*) = T::deleteValue>
-struct Deleter {
-    void operator()(T *value) const {
-        deleter(value);
-    }
-};
-
-
-template <typename T, typename Base = Templates::DeleteValueArgType_t<T>>
-using unique_ptr_t = std::unique_ptr<T, Deleter<Base>>;
 
 template <typename T>
 class Iterable {

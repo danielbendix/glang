@@ -472,7 +472,15 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
 }
 
 TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
-    auto resolution = identifier.getResolution();
+    auto resolution = scopeManager.getResolution(identifier.getName());
+
+    if (resolution) {
+        identifier.setResolution(resolution);
+    } else {
+        Diagnostic::error(identifier, "Unable to resolve identifier.");
+        return {};
+    }
+
     auto nested = [this, resolution] () -> TypeResult {
         switch (resolution.getKind()) {
             case IdentifierResolution::Kind::UNRESOLVED:

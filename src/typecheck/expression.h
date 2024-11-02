@@ -2,6 +2,7 @@
 #define LANG_typecheck_expression_h
 
 #include "typecheck.h"
+#include "typecheck/scope.h"
 #include "typecheck/internal.h"
 #include "typecheck/resolver.h"
 
@@ -15,11 +16,14 @@ class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeCheck
 public:
     using GlobalHandler = std::function<Result(AST::IdentifierBinding&)>;
 private:
+    ScopeManager& scopeManager;
     TypeResolver& typeResolver;
     GlobalHandler *globalHandler = nullptr;
 public:
-    ExpressionTypeChecker(TypeResolver& typeResolver) : typeResolver{typeResolver} {}
-    ExpressionTypeChecker(TypeResolver& typeResolver, GlobalHandler& globalHandler) : typeResolver{typeResolver}, globalHandler{&globalHandler} {}
+    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver) 
+        : scopeManager{scopeManager}, typeResolver{typeResolver} {}
+    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler) 
+        : scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
 
     Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *declaredType) {
         if (declaredType) {

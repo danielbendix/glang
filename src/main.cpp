@@ -15,6 +15,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 
+#include "util/stopwatch.h"
+
 void initialize(SymbolTable& symbols)
 {
     auto cpu = detectCPU();
@@ -24,8 +26,11 @@ void initialize(SymbolTable& symbols)
 
 ParsedFile parse(SymbolTable& symbols, std::string&& string) {
     try {
+        Stopwatch watch;
         auto parser = Parser{symbols, std::move(string)};
-        return parser.parse();
+        auto result = parser.parse();
+        watch.lap("Parsed file.");
+        return result;
     } catch (ParserException exception) {
         Diagnostic::writer().error(exception);
         exit(-1);
@@ -33,20 +38,20 @@ ParsedFile parse(SymbolTable& symbols, std::string&& string) {
 }
 
 std::unique_ptr<ModuleDef> validate(ParsedFile&& parsed, bool verbose = false) {
+    Stopwatch watch;
     auto moduleDef = createModuleDefinition(parsed.declarations);
-    if (resolveNamesInModuleDefinition(*moduleDef).failed()) {
-        exit(1);
-    }
-    if (verbose) std::cout << "Name resolution succeeded.\n";
+    watch.lap("Created module definition");
     if (typecheckModuleDefinition(*moduleDef).failed()) {
-        if (verbose) std::cout << "Type checking failed. Exiting...\n";
+        if (verbose) std::cout << "Sema phase failed. Exiting...\n";
         exit(1);
     }
+    watch.lap("Typechecked.");
     if (verbose) std::cout << "Type check succeeded.\n";
     if (analyzeControlFlow(*moduleDef).failed()) {
         if (verbose) std::cout << "Control flow analysis failed. Exiting...\n";
         exit(1);
     }
+    watch.lap("Checked control flow.");
     if (verbose) std::cout << "Control flow analysis succeeded\n";
 
     return moduleDef;
@@ -65,6 +70,7 @@ std::unique_ptr<llvm::Module> codegen(ModuleDef& moduleDef, bool verbose = false
 
 int main(int argc, char **argv)
 {
+    Stopwatch totalWatch;
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
     SymbolTable symbols;
@@ -72,12 +78,16 @@ int main(int argc, char **argv)
 
     initialize(symbols);
 
+    Stopwatch watch;
+
     std::string filename = options.files[0];
     std::ifstream file(filename, std::ios::in | std::ios::binary);
     if (file.fail()) {
         std::cout << "File " << filename << " does not exist. Exiting...\n";
         return 1;
     }
+
+    watch.lap("Opened file.");
 
     std::unique_ptr<DiagnosticWriter> writer;
     if (options.flags.json) {
@@ -92,9 +102,14 @@ int main(int argc, char **argv)
     size_t file_size = file.tellg();
     file.seekg(0, file.beg);
 
+    watch.lap("Searched file.");
+
     std::string contents(file_size, '\0');
 
+    watch.lap("Allocated memory.");
+
     file.read(contents.data(), file_size);
+    watch.lap("Read file.");
 
     auto parsed = parse(symbols, std::move(contents));
 
@@ -131,4 +146,6 @@ int main(int argc, char **argv)
             static_assert(always_false_v<T>, "Switch falls through.");
         }
     }, options.mode);
+
+    totalWatch.lap("Total");
 }

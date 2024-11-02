@@ -1,0 +1,15 @@
+fn unwrapIf(a: i64????) -> i64 {
+    if let a = a, let a = a, let a = a, let a = a {
+        return a;
+    }
+
+    return 0;
+}
+
+fn unwrapGuard(a: i64????) -> i64 {
+    guard let a = a, let a = a, let a = a, let a = a else {
+        return 0;
+    }
+
+    return a;
+}

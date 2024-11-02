@@ -1038,7 +1038,7 @@ namespace AST {
 
     // Bindings
     class Binding : public Node {
-        Type *NULLABLE type;
+        Type *NULLABLE type = nullptr;
 
         // TODO: Binding visitor
     protected:
@@ -1648,16 +1648,16 @@ namespace AST {
         vector<FunctionParameter> parameters;
         int arity;
         TypeNode *NULLABLE returnTypeDeclaration;
-        FunctionType *NULLABLE type;
-        Type *NULLABLE returnType;
+        FunctionType *NULLABLE type = nullptr;
+        Type *NULLABLE returnType = nullptr;
         Block code;
 
         FunctionDeclaration(Token token, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
             : Declaration{NK_Decl_Function, Location{token}}
             , name{name}
-            , parameters{std::move(parameters)}
+            , parameters{parameters}
             , arity{int(this->parameters.size())}
-            , returnTypeDeclaration{std::move(returnType)}
+            , returnTypeDeclaration{returnType}
             , code{std::move(code)} {}
 
     public:

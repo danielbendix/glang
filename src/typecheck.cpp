@@ -3,6 +3,7 @@
 #include "builtins.h"
 #include "diagnostic.h"
 #include "typecheck.h"
+#include "typecheck/scope.h"
 #include "typecheck/coerce.h"
 #include "typecheck/resolver.h"
 #include "typecheck/expression.h"
@@ -30,12 +31,13 @@ class GlobalVariableTypeChecker {
     TypeResolver& typeResolver;
     PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *> ancestors;
     llvm::SmallVector<AST::VariableDeclaration *, 4> checkStack;
+    ScopeManager& scopeManager;
     ExpressionTypeChecker::GlobalHandler globalHandler;
 
     std::vector<AST::VariableDeclaration *> orderedGlobals;
 public:
-    GlobalVariableTypeChecker(TypeResolver& typeResolver) 
-        : typeResolver{typeResolver}
+    GlobalVariableTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver) 
+        : scopeManager{scopeManager}, typeResolver{typeResolver}
     {
         auto globalHandlerLambda = [this](AST::IdentifierBinding& binding) -> Result {
             auto global = this->ancestors[&binding];
@@ -64,7 +66,7 @@ public:
         Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
             checkStack.push_back(&variable);
-            ExpressionTypeChecker typeChecker{typeResolver, globalHandler};
+            ExpressionTypeChecker typeChecker{scopeManager, typeResolver, globalHandler};
             type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
             checkStack.pop_back();
             variable.markAsChecked();
@@ -127,83 +129,86 @@ public:
 
 class GlobalDeclarationTypeChecker {
     ModuleDef& moduleDefinition;
+    ScopeManager scopeManager;
     TypeResolver typeResolver;
 
     const PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors;
     llvm::SmallVector<AST::VariableDeclaration *, 4> checkStack;
-    ExpressionTypeChecker::GlobalHandler globalHandler;
+//    ExpressionTypeChecker::GlobalHandler globalHandler;
 
 public:
     GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins, PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors) 
         : moduleDefinition{moduleDefinition}
+        , scopeManager{moduleDefinition}
         , typeResolver{moduleDefinition, builtins}
         , ancestors{ancestors}
     {
-        auto globalHandlerLambda = [this](AST::IdentifierBinding& binding) -> Result {
-            auto global = this->ancestors[&binding];
-            return typeCheckGlobal(*global);
-        };
-        static_assert(sizeof(globalHandlerLambda) <= 8);
-        globalHandler = globalHandlerLambda;
+//        auto globalHandlerLambda = [this](AST::IdentifierBinding& binding) -> Result {
+//            auto global = this->ancestors[&binding];
+//            return typeCheckGlobal(*global);
+//        };
+//        static_assert(sizeof(globalHandlerLambda) <= 8);
+//        globalHandler = globalHandlerLambda;
     }
 
     Result typeCheckGlobals(std::vector<AST::VariableDeclaration *>& globals) {
-        GlobalVariableTypeChecker typeChecker{typeResolver};
+        scopeManager.reset();
+        GlobalVariableTypeChecker typeChecker{scopeManager, typeResolver};
         return typeChecker.typeCheckGlobals(globals);
     }
 
-    Result typeCheckGlobal(AST::VariableDeclaration& variable) {
-        if (auto it = std::ranges::find(checkStack, &variable); it != checkStack.end()) {
-            for (auto global : checkStack) {
-                Diagnostic::error(*global, "Cycle detected in globals.");
-            }
-            return ERROR;
-        }
-
-        Type *declaredType = nullptr;
-        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
-            declaredType = typeResolver.resolveType(*typeDeclaration);
-            if (!declaredType) {
-                return ERROR;
-            }
-        }
-
-        Type *type = nullptr;
-        if (AST::Expression *initial = variable.getInitialValue()) {
-            checkStack.push_back(&variable);
-            ExpressionTypeChecker typeChecker{typeResolver, globalHandler};
-            type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
-            checkStack.pop_back();
-
-            if (!type) {
-                return ERROR;
-            }
-
-            if (declaredType && type != declaredType) {
-                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
-                if (wrapped) {
-                    variable.setWrappedInitialValue(std::move(wrapped));
-                }
-                if (coerceResult.failed()) {
-                    return ERROR;
-                }
-                type = declaredType;
-            }
-        } else {
-            Diagnostic::error(variable, "Global variable declaration has no initial value.");
-            return ERROR;
-        }
-
-        if (type) {
-            auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
-            binding.setType(type);
-            binding.setIsMutable(variable.getIsMutable());
-            variable.setType(*type);
-            return OK;
-        } else {
-            return ERROR;
-        }
-    }
+//    Result typeCheckGlobal(AST::VariableDeclaration& variable) {
+//        if (auto it = std::ranges::find(checkStack, &variable); it != checkStack.end()) {
+//            for (auto global : checkStack) {
+//                Diagnostic::error(*global, "Cycle detected in globals.");
+//            }
+//            return ERROR;
+//        }
+//
+//        Type *declaredType = nullptr;
+//        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
+//            declaredType = typeResolver.resolveType(*typeDeclaration);
+//            if (!declaredType) {
+//                return ERROR;
+//            }
+//        }
+//
+//        Type *type = nullptr;
+//        if (AST::Expression *initial = variable.getInitialValue()) {
+//            checkStack.push_back(&variable);
+//            ExpressionTypeChecker typeChecker{typeResolver, globalHandler};
+//            type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
+//            checkStack.pop_back();
+//
+//            if (!type) {
+//                return ERROR;
+//            }
+//
+//            if (declaredType && type != declaredType) {
+//                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
+//                if (wrapped) {
+//                    variable.setWrappedInitialValue(std::move(wrapped));
+//                }
+//                if (coerceResult.failed()) {
+//                    return ERROR;
+//                }
+//                type = declaredType;
+//            }
+//        } else {
+//            Diagnostic::error(variable, "Global variable declaration has no initial value.");
+//            return ERROR;
+//        }
+//
+//        if (type) {
+//            auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+//            binding.setType(type);
+//            binding.setIsMutable(variable.getIsMutable());
+//            variable.setType(*type);
+//            return OK;
+//        } else {
+//            return ERROR;
+//        }
+//    }
 
     Result typeCheckFunction(AST::FunctionDeclaration& function) {
         Result result = OK;
@@ -247,27 +252,43 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
 
     Result result = OK;
     AST::FunctionDeclaration *currentFunction;
+    ScopeManager scopeManager;
     TypeResolver typeResolver;
 
     void visitBlock(const AST::Block& block) {
+        scopeManager.pushInnerScope();
         for (int bi = 0; bi < block.size(); bi++) {
             block[bi].acceptVisitor(*this);
         }
+        scopeManager.popInnerScope();
     }
 
 public:
     FunctionTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins) 
-        : typeResolver{moduleDefinition, builtins} 
+        : scopeManager{moduleDefinition}, typeResolver{moduleDefinition, builtins} 
     {}
 
     Result typeCheckFunctionBody(AST::FunctionDeclaration& function) {
+        scopeManager.reset();
+
         result = OK;
         currentFunction = &function;
+
+        scopeManager.pushOuterScope();
+        for (int pi = 0; pi < function.getParameterCount(); ++pi) {
+            auto& parameter = function.getParameter(pi);
+            result |= scopeManager.pushParameter(parameter.name, function, pi);
+        }
+        if (result.failed()) return result;
+
+        scopeManager.pushInnerScope();
         for (auto& declaration : function.getCode()) {
             declaration.acceptVisitor(*this);
             // TODO: If a declaration fails, we end, but if a statement fails, we can continue.
             if (result.failed()) break;
         }
+        scopeManager.popInnerScope();
+        scopeManager.popOuterScope();
         return result;
     }
 
@@ -285,7 +306,7 @@ public:
 
         Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
-            ExpressionTypeChecker checker{typeResolver};
+            ExpressionTypeChecker checker{scopeManager, typeResolver};
             type = checker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
 
             if (!type) {
@@ -309,6 +330,8 @@ public:
         binding.setType(type);
         binding.setIsMutable(variable.getIsMutable());
         variable.setType(*type);
+
+        result |= scopeManager.pushBinding(binding.getIdentifier(), binding);
     }
 
     void visitFunctionDeclaration(AST::FunctionDeclaration& function) {
@@ -335,7 +358,7 @@ public:
     // Statements
     
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        ExpressionTypeChecker typeChecker{typeResolver};
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
         if (!target) {
             result = ERROR;
@@ -369,7 +392,7 @@ public:
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
         // TODO: This needs to type check the binary operation between the target and the operand.
-        ExpressionTypeChecker typeChecker{typeResolver};
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
         if (!target) {
             result = ERROR;
@@ -405,7 +428,14 @@ public:
         }
     }
 
-    void handleConditionalBinding(AST::VariableDeclaration& variable) {
+    [[nodiscard]]
+    Result handleConditionalBinding(AST::VariableDeclaration& variable) {
+        auto *initial = variable.getInitialValue();
+        if (!initial) {
+            Diagnostic::error(variable, "Conditional binding must have a value specified.");
+            return ERROR;
+        }
+
         Type *declaredType = nullptr;
         Type *propagatedType = nullptr;
         if (auto *typeDeclaration = variable.getTypeDeclaration()) {
@@ -413,17 +443,14 @@ public:
 
             if (!declaredType) {
                 Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
-                result = ERROR;
-                return;
+                return ERROR;
             }
 
             propagatedType = declaredType->getOptionalType();
         }
 
         Type *type = nullptr;
-        AST::Expression *initial = variable.getInitialValue();
-        assert(initial);
-        ExpressionTypeChecker checker{typeResolver};
+        ExpressionTypeChecker checker{scopeManager, typeResolver};
         if (declaredType) {
             type = checker.typeCheckExpression(*initial, propagatedType);
         } else {
@@ -431,13 +458,11 @@ public:
         }
 
         if (!type) {
-            result = ERROR;
-            return;
+            return ERROR;
         }
         if (!isa<OptionalType>(type)) {
             Diagnostic::error(*initial, "Expected optional type in conditional binding.");
-            result = ERROR;
-            return;
+            return ERROR;
         }
         auto optionalType = cast<OptionalType>(type);
         type = optionalType->getContained();
@@ -452,34 +477,42 @@ public:
         binding.setType(type);
         binding.setIsMutable(variable.getIsMutable());
         variable.setType(*type);
+
+        scopeManager.pushInnerScope();
+        return scopeManager.pushBinding(binding.getIdentifier(), binding);
     }
 
-    void handleCondition(AST::Condition condition) {
-        TypeSwitch<AST::Condition>(condition)
+    [[nodiscard]]
+    Result handleCondition(AST::Condition condition) {
+        return TypeSwitch<AST::Condition, Result>(condition)
             .Case<AST::VariableDeclaration *>([&](auto variable) {
-                handleConditionalBinding(*variable);
+                return handleConditionalBinding(*variable);
             })
             .Case<AST::Expression *>([&](auto expression) {
-                ExpressionTypeChecker typeChecker{typeResolver};
+                ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
                 Type *type = typeChecker.typeCheckExpression(*expression, typeResolver.booleanType());
                 if (!type) {
                     if (!type) {
-                        result = ERROR;
+                        return ERROR;
                     } else if (type != typeResolver.booleanType()) {
                         Diagnostic::error(*expression, "Condition in if statement is not a boolean");
-                        result = ERROR;
+                        return ERROR;
                     }
                 }
+                return OK;
             });
     }
 
     void visitIfStatement(AST::IfStatement& ifStatement) {
         for (int bi = 0; bi < ifStatement.getConditionCount(); ++bi) {
-            auto& branch = ifStatement.getCondition(bi);
-            for (auto condition : branch.getConditions()) {
-                handleCondition(condition);
-            }
-            visitBlock(branch.getBlock());
+            scopeManager.withAutoResetScope([&] {
+                auto& branch = ifStatement.getCondition(bi);
+                for (auto condition : branch.getConditions()) {
+                    result |= handleCondition(condition);
+                    if (result.failed()) return;
+                }
+                visitBlock(branch.getBlock());
+            });
         }
         if (auto* fallback = ifStatement.getFallback()) {
             visitBlock(*fallback);
@@ -487,12 +520,15 @@ public:
     }
 
     void visitGuardStatement(AST::GuardStatement& guardStatement) {
-        ExpressionTypeChecker typeChecker{typeResolver};
-
-        for (auto condition : guardStatement.getConditions()) {
-            handleCondition(condition);
-        }
+        // TODO: This does not check in program order,
+        // but is the easiest way to deal with guard scopes.
         visitBlock(guardStatement.getBlock());
+        scopeManager.withAutoMergingScopes([&] {
+            for (auto condition : guardStatement.getConditions()) {
+                result |= handleCondition(condition);
+                if (result.failed()) return;
+            }
+        });
     }
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
@@ -502,7 +538,7 @@ public:
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
             }
-            ExpressionTypeChecker typeChecker{typeResolver};
+            ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
             Type *type = typeChecker.typeCheckExpression(*value, currentFunction->getReturnType());
             if (!type) {
                 result = ERROR;
@@ -527,15 +563,17 @@ public:
     }
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
-        for (int ci = 0; ci < whileStatement.getNumConditions(); ++ci) {
-            AST::Condition condition = whileStatement.getCondition(ci);
-            handleCondition(condition);
-        }
-        visitBlock(whileStatement.getBlock());
+        scopeManager.withAutoResetScope([&] {
+            for (auto condition : whileStatement.getConditions()) {
+                result |= handleCondition(condition);
+                if (result.failed()) return;
+            }
+            visitBlock(whileStatement.getBlock());
+        });
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
-        ExpressionTypeChecker typeChecker{typeResolver};
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
 
         // TODO: Make a version that discards constraints and returns nullptr.
         Type *type = typeChecker.typeCheckExpression(forStatement.getIterable());
@@ -566,16 +604,23 @@ public:
             return;
         }
 
-        forStatement.getBinding().setType(elementType);
+        auto& binding = forStatement.getBinding();
+        binding.setType(elementType);
 
+        scopeManager.pushInnerScope();
+
+        auto& identifierBinding = cast<AST::IdentifierBinding>(binding);
+        scopeManager.pushBinding(identifierBinding.getIdentifier(), identifierBinding);
         visitBlock(forStatement.getBlock());
+
+        scopeManager.popInnerScope();
     }
 
     void visitBreakStatement(AST::BreakStatement&) {}
     void visitContinueStatement(AST::ContinueStatement&) {}
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
-        ExpressionTypeChecker typeChecker{typeResolver};
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         Type *type = typeChecker.typeCheckExpression(expression.getExpression());
         if (!type) {
             result = ERROR;
@@ -612,7 +657,7 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 
     // Types are populated after here.
 
-    result |= typeCheckStructs(moduleDefinition.structs, resolver);
+    result |= typeCheckStructs(moduleDefinition.structs, moduleDefinition, resolver);
 
     result |= typeChecker.typeCheckGlobals(moduleDefinition.globals);
 

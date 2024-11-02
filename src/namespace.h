@@ -30,6 +30,4 @@ struct ModuleDef {
 
 std::unique_ptr<ModuleDef> createModuleDefinition(std::vector<AST::Declaration *>& declarations);
 
-PassResult resolveNamesInModuleDefinition(ModuleDef& moduleDefinition);
-
 #endif // LANG_namespace_h
