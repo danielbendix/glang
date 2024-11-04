@@ -129,7 +129,11 @@ TokenType Scanner::identifierType()
         case 'c': 
             switch (*it++) {
                 case 'a': return testKeyword(it, current, "se", 2, TokenType::Case);
-                case 'o': return testKeyword(it, current, "ntinue", 6, TokenType::Continue);
+                case 'o': 
+                    switch (*it++) {
+                        case 'm': return testKeyword(it, current, "pact", 4, TokenType::Compact);
+                        case 'n': return testKeyword(it, current, "tinue", 5, TokenType::Continue);
+                    }
             }
             break;
         case 'e':
@@ -160,6 +164,11 @@ TokenType Scanner::identifierType()
             }
             break;
         case 'o': return testKeyword(it, current, "r", 1, TokenType::Or);
+        case 'p':
+            switch (*it++) {
+                case 'r': return testKeyword(it, current, "ivate", 5, TokenType::Private);
+                case 'u': return testKeyword(it, current, "blic", 4, TokenType::Public);
+            }
         case 'r':
             if (*it++ == 'e') {
                 switch (*it++) {
@@ -171,7 +180,11 @@ TokenType Scanner::identifierType()
         case 's': 
             switch (*it++) {
                 case 'e': return testKeyword(it, current, "lf", 2, TokenType::Self);
-                case 't': return testKeyword(it, current, "ruct", 4, TokenType::Struct);
+                case 't': 
+                    switch (*it++) {
+                        case 'a': return testKeyword(it, current, "tic", 3, TokenType::Static);
+                        case 'r': return testKeyword(it, current, "uct", 3, TokenType::Struct);
+                    }
             }
             break;
         case 't':

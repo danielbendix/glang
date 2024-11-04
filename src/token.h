@@ -73,6 +73,13 @@ enum class TokenType : uint8_t {
     Struct,
     Let,
     Var,
+
+    Static,
+    Public,
+    Private,
+    Unpadded,
+    Compact,
+
     Case,
     If,
     Else,
@@ -112,6 +119,7 @@ enum class TokenType : uint8_t {
     EndOfFile,
 };
 
+const char *tokenTypeToString(TokenType tokenType);
 std::ostream& operator<<(std::ostream& os, TokenType tokenType);
 
 struct Token final {

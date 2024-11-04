@@ -2,10 +2,11 @@
 
 #include <iostream>
 
-#define TOKEN_TYPE_CASE(t) case t: return #t;
+#define TOKEN_TYPE_CASE(t)                                                                                             \
+    case t:                                                                                                            \
+        return #t;
 
-const char *tokenTypeToString(TokenType tokenType)
-{
+const char *tokenTypeToString(TokenType tokenType) {
     using enum TokenType;
     switch (tokenType) {
         TOKEN_TYPE_CASE(LeftBrace)
@@ -37,9 +38,9 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(Ampersand)
         TOKEN_TYPE_CASE(Caret)
         TOKEN_TYPE_CASE(Pipe)
-        TOKEN_TYPE_CASE(PlusEqual) 
+        TOKEN_TYPE_CASE(PlusEqual)
         TOKEN_TYPE_CASE(MinusEqual)
-        TOKEN_TYPE_CASE(StarEqual) 
+        TOKEN_TYPE_CASE(StarEqual)
         TOKEN_TYPE_CASE(SlashEqual)
         TOKEN_TYPE_CASE(PercentEqual)
         TOKEN_TYPE_CASE(AmpersandEqual)
@@ -61,6 +62,11 @@ const char *tokenTypeToString(TokenType tokenType)
         TOKEN_TYPE_CASE(Struct)
         TOKEN_TYPE_CASE(Let)
         TOKEN_TYPE_CASE(Var)
+        TOKEN_TYPE_CASE(Static)
+        TOKEN_TYPE_CASE(Public)
+        TOKEN_TYPE_CASE(Private)
+        TOKEN_TYPE_CASE(Unpadded)
+        TOKEN_TYPE_CASE(Compact)
         TOKEN_TYPE_CASE(Case)
         TOKEN_TYPE_CASE(If)
         TOKEN_TYPE_CASE(Else)
@@ -94,7 +100,6 @@ const char *tokenTypeToString(TokenType tokenType)
     }
 }
 
-std::ostream& operator<<(std::ostream& os, TokenType tokenType)
-{
+std::ostream &operator<<(std::ostream &os, TokenType tokenType) {
     return os << tokenTypeToString(tokenType);
 }

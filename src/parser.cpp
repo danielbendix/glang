@@ -8,6 +8,7 @@
  * - Implement error recovery to parse entire file.
  */
 
+
 ParsedFile Parser::parse() 
 {
     std::vector<AST::Declaration *NONNULL> declarations;
@@ -20,6 +21,56 @@ ParsedFile Parser::parse()
 }
 
 // Utilities
+Parser::Modifiers Parser::parseModifiers()
+{
+    Modifiers result = {
+        .line = current.line,
+        .column = current.column,
+        .length = 0,
+        .modifiers = {},
+    };
+
+    using enum AST::Modifiers::Modifier;
+    // TODO: Error on repeated modifiers
+    for (;;) {
+        switch (current.type) {
+            case TokenType::Static:
+                advance();
+                result.modifiers.set(Static);
+                break;
+            case TokenType::Public:
+                advance();
+                result.modifiers.set(Public);
+                break;
+            case TokenType::Private:
+                advance();
+                result.modifiers.set(Private);
+                break;
+            case TokenType::Compact:
+                advance();
+                result.modifiers.set(Compact);
+                break;
+            case TokenType::Unpadded:
+                advance();
+                result.modifiers.set(Unpadded);
+                break;
+            default: return result;
+        }
+    }
+}
+
+void Parser::checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed)
+{
+    AST::Modifiers notAllowed = modifiers.disablingAllIn(allowed);
+
+    if (notAllowed.isNonEmpty()) {
+        throw ParserException(previous, ParserException::Cause::InvalidModifier);
+    }
+
+    if (auto accessModifiers = modifiers.maskedBy(AST::accessModifiers); accessModifiers.count() > 1) {
+        throw ParserException(previous, ParserException::Cause::ConflictingAccessModifiers);
+    }
+}
 
 AST::Block Parser::block() 
 {
@@ -41,34 +92,34 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
     Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
     Symbol& name = symbols.getSymbol(nameToken.chars);
 
-    AST::vector<AST::TypeModifier::Modifier> modifiers{allocator<AST::TypeModifier::Modifier>()};
+    AST::vector<AST::TypeModifier::Modifier> typeModifiers{allocator<AST::TypeModifier::Modifier>()};
 
     using enum AST::TypeModifier::Modifier;
 
     for (;;) {
         if (match(TokenType::Star)) {
-            modifiers.push_back(Pointer);
+            typeModifiers.push_back(Pointer);
             continue;
         }
 
         if (match(TokenType::Question)) {
-            modifiers.push_back(Optional);
+            typeModifiers.push_back(Optional);
             continue;
         }
 
         if (match(TokenType::Ampersand)) {
-            modifiers.push_back(Location);
+            typeModifiers.push_back(Location);
             continue;
         }
         if (match(TokenType::LeftBrace)) {
             if (match(TokenType::Bang)) {
-                modifiers.push_back(UnboundedArray);
+                typeModifiers.push_back(UnboundedArray);
             } else if (match(TokenType::Identifier)) {
                 assert(false && "TODO: Support binding to size");
             } else if (match(TokenType::Integer)) {
                 assert(false && "TODO: Support binding to size");
             } else {
-                modifiers.push_back(Array);
+                typeModifiers.push_back(Array);
             }
             consume(TokenType::RightBrace);
             continue;
@@ -76,11 +127,11 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
         break;
     }
 
-    if (modifiers.empty()) {
+    if (typeModifiers.empty()) {
         return AST::TypeLiteral::create(context.nodeAllocator, nameToken, name);
     } else {
         auto type = AST::TypeLiteral::create(context.nodeAllocator, nameToken, name);
-        return AST::TypeModifier::create(context.nodeAllocator, type, modifiers);
+        return AST::TypeModifier::create(context.nodeAllocator, type, typeModifiers);
     }
 }
 
@@ -99,13 +150,18 @@ AST::Binding *Parser::binding()
 
 AST::Declaration *Parser::declaration() 
 {
-    if (match(TokenType::Fn)) return functionDeclaration();
-    if (match(TokenType::Struct)) return structDeclaration();
-    if (match(TokenType::Var)) return variableDeclaration();
-    if (match(TokenType::Let)) return variableDeclaration();
-    if (match(TokenType::Enum)) return enumDeclaration();
+    auto modifiers = parseModifiers();
+    if (match(TokenType::Fn)) return functionDeclaration(modifiers);
+    if (match(TokenType::Struct)) return structDeclaration(modifiers);
+    if (match(TokenType::Var)) return variableDeclaration(modifiers);
+    if (match(TokenType::Let)) return variableDeclaration(modifiers);
+    if (match(TokenType::Enum)) return enumDeclaration(modifiers);
 
-    return statementDeclaration();
+    if (modifiers.modifiers.isEmpty()) {
+        return statementDeclaration();
+    } else {
+        throw ParserException(current, ParserException::Cause::StatementModifiers);
+    }
 }
 
 AST::FunctionParameter Parser::parameter()
@@ -118,8 +174,10 @@ AST::FunctionParameter Parser::parameter()
     return AST::FunctionParameter(name, tp);
 }
 
-AST::FunctionDeclaration *Parser::functionDeclaration()
+AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 {
+    checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers);
+
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(nameToken.chars);
 
@@ -141,11 +199,14 @@ AST::FunctionDeclaration *Parser::functionDeclaration()
 
     auto code = block();
 
-    return AST::FunctionDeclaration::create(context.nodeAllocator, nameToken, name, std::move(parameters), returnType, std::move(code));
+    return AST::FunctionDeclaration::create(
+        context.nodeAllocator, nameToken, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
+    );
 }
 
-AST::FunctionDeclaration *Parser::initializerDeclaration()
+AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
 {
+    checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers);
     if (match(TokenType::Question)) {
         assert(false && "TODO: Implement failable initializers");
     }
@@ -173,8 +234,9 @@ AST::FunctionDeclaration *Parser::initializerDeclaration()
     llvm_unreachable("TODO: Implement this, or reconsider");
 }
 
-AST::StructDeclaration *Parser::structDeclaration()
+AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
 {
+    checkModifiers(modifiers.modifiers, AST::StructDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(nameToken.chars);
@@ -185,11 +247,14 @@ AST::StructDeclaration *Parser::structDeclaration()
         declarations.push_back(declaration());
     }
 
-    return AST::StructDeclaration::create(context.nodeAllocator, token, name, std::move(declarations));
+    return AST::StructDeclaration::create(
+        context.nodeAllocator, token, modifiers.modifiers, name, std::move(declarations)
+    );
 }
 
-AST::EnumDeclaration *Parser::enumDeclaration()
+AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
 {
+    checkModifiers(modifiers.modifiers, AST::EnumDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(nameToken.chars);
@@ -212,7 +277,9 @@ AST::EnumDeclaration *Parser::enumDeclaration()
         }
     }
 
-    return AST::EnumDeclaration::create(context.nodeAllocator, token, name, rawType, std::move(cases), std::move(declarations));
+    return AST::EnumDeclaration::create(
+        context.nodeAllocator, token, modifiers.modifiers, name, rawType, std::move(cases), std::move(declarations)
+    );
 }
 
 AST::EnumDeclaration::Case Parser::enumCase()
@@ -254,8 +321,9 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
     }
 }
 
-AST::VariableDeclaration *Parser::variableDeclaration(bool isPattern)
+AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool isPattern)
 {
+    checkModifiers(modifiers.modifiers, AST::VariableDeclaration::allowedModifiers);
     auto token = previous;
     bool isMutable = token.type == TokenType::Var;
 
@@ -274,7 +342,7 @@ AST::VariableDeclaration *Parser::variableDeclaration(bool isPattern)
         consume(TokenType::Semicolon);
     }
 
-    return AST::VariableDeclaration::create(context.nodeAllocator, token, isMutable, std::move(variableBinding), std::move(tp), std::move(initial));
+    return AST::VariableDeclaration::create(context.nodeAllocator, token, modifiers.modifiers, isMutable, variableBinding, tp, initial);
 }
 
 AST::StatementDeclaration *Parser::statementDeclaration()
@@ -319,7 +387,7 @@ AST::vector<AST::Condition> Parser::conditions()
     AST::vector<AST::Condition> conditions{allocator<AST::Condition>()};
     while (true) {
         if (match(TokenType::Var) || match(TokenType::Let)) {
-            conditions.emplace_back(variableDeclaration(true));
+            conditions.emplace_back(variableDeclaration({}, true));
         } else {
             conditions.emplace_back(expression({.allowInitializer = false}));
         }
@@ -815,7 +883,7 @@ AST::Expression *Parser::literal()
 
         case Nil: return NilLiteral::create(context.nodeAllocator, previous);
 
-        default: throw ParserException(previous, ParserException::Cause::ExpectedLiteral);
+        default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
     }
 
     return nullptr;

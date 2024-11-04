@@ -16,6 +16,7 @@
 #include <string>
 #include <vector>
 #include <cassert>
+#include <climits>
 
 #include "llvm/ADT/PointerUnion.h"
 #include "llvm/ADT/APInt.h"
@@ -38,14 +39,101 @@
 
 using llvm::APInt;
 
-struct DeclarationAttributes {
-    bool static_ : 1;
-    bool private_ : 1;
+namespace AST {
+    struct Modifiers final {
+        using BITS_TYPE = uint32_t;
+        static constexpr size_t BIT_COUNT = sizeof(BITS_TYPE) * CHAR_BIT;
+    private:
+        BITS_TYPE bits = 0;
+    public:
+        enum class Modifier {
+            Static,
+            Public,
+            Private,
+            Unpadded,
+            Compact,
 
-    void zero() {
-        memset(this, 0, sizeof(DeclarationAttributes));
-    }
-};
+            COUNT
+        };
+
+        static constexpr uint8_t MODIFIER_COUNT = uint8_t(Modifier::COUNT);
+
+        static_assert(uint8_t(Modifier::COUNT) <= BIT_COUNT);
+
+        constexpr Modifiers() {}
+
+        constexpr Modifiers(std::initializer_list<Modifier> modifiers) {
+            for (auto modifier : modifiers) {
+                set(modifier);
+            }
+        }
+
+        constexpr void reset() {
+            bits = 0;
+        }
+
+        constexpr bool isEmpty() const {
+            return bits == 0;
+        }
+
+        constexpr bool isNonEmpty() const {
+            return bits != 0;
+        }
+
+        constexpr bool has(Modifier modifier) const {
+            return bits & (1 << uint8_t(modifier));
+        }
+
+        constexpr void set(Modifier modifier) {
+            bits |= 1 << uint8_t(modifier);
+        }
+
+        constexpr void invert() {
+            bits = ~bits & ~(-1 << MODIFIER_COUNT);
+        }
+
+        constexpr uint8_t count() {
+            return __builtin_popcount(bits);
+        }
+
+        constexpr Modifiers maskedBy(Modifiers other) const {
+            Modifiers result = *this;
+            result.bits &= other.bits;
+            return result;
+        }
+
+        constexpr Modifiers disablingAllIn(Modifiers other) const {
+            Modifiers result = *this;
+            result.bits &= ~other.bits;
+            return result;
+        }
+
+        constexpr BITS_TYPE get() const {
+            return bits;
+        }
+
+        static constexpr const char *modifierName(Modifier modifier) {
+            using enum Modifier;
+            switch (modifier) {
+                case Modifier::Static:
+                    return "static";
+                case Modifier::Public:
+                    return "public";
+                case Modifier::Private:
+                    return "private";
+                case Modifier::Unpadded:
+                    return "unpadded";
+                case Modifier::Compact:
+                    return "compact";
+                case Modifier::COUNT:
+                    llvm_unreachable("[PROGRAMMER ERROR]: Modifier::COUNT value should never be used.");
+            }
+        }
+        
+    };
+    using Modifier = Modifiers::Modifier;
+    static constexpr Modifiers accessModifiers = {Modifier::Public, Modifier::Private};
+}
 
 namespace AST {
     template <typename T>
@@ -1520,7 +1608,14 @@ namespace AST {
         template <typename Subclass, typename ReturnType, typename... Args>
         ReturnType acceptVisitor(DeclarationVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args);
     protected:
-        using Node::Node;
+        Modifiers modifiers;
+
+        Declaration(Node::Kind kind, Location location, Modifiers modifiers)
+            : Node{kind, location}, modifiers{modifiers} {}
+    public:
+        Modifiers getModifiers() const {
+            return modifiers;
+        }
 
         static bool classof(const Node *NONNULL node) {
             // TODO: Ensure starting kind is correct
@@ -1539,11 +1634,12 @@ namespace AST {
 
         VariableDeclaration(
             Token token, 
+            Modifiers modifiers,
             bool isMutable,
             Binding *NONNULL binding,
             TypeNode *NULLABLE type, 
             Expression *NULLABLE initial
-        ) : Declaration{NK_Decl_Variable, token}
+        ) : Declaration{NK_Decl_Variable, token, modifiers}
           , isMutable{isMutable}
           , binding{binding}
           , typeDeclaration{type}
@@ -1556,13 +1652,14 @@ namespace AST {
         static VariableDeclaration *NONNULL create(
             Allocator& allocator,
             Token token, 
+            Modifiers modifiers,
             bool isMutable,
             Binding *NONNULL binding,
             TypeNode *NULLABLE type, 
             Expression *NULLABLE initial
         ) {
             return allocate(allocator, [&](void *space) {
-                return new(space) VariableDeclaration{token, isMutable, binding, type, initial};
+                return new(space) VariableDeclaration{token, modifiers, isMutable, binding, type, initial};
             });
         }
 
@@ -1610,6 +1707,12 @@ namespace AST {
         static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Variable;
         }
+
+        using enum Modifiers::Modifier;
+        static constexpr Modifiers allowedModifiers = {Static, Public, Private};
+        static constexpr Modifiers allowedModifersInFunction = {};
+        static constexpr Modifiers allowedModifersInGlobal = {Public, Private};
+        static constexpr Modifiers allowedModifersInStruct = {Static,Public, Private};
     };
 
     class FunctionParameter {
@@ -1652,8 +1755,8 @@ namespace AST {
         Type *NULLABLE returnType = nullptr;
         Block code;
 
-        FunctionDeclaration(Token token, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
-            : Declaration{NK_Decl_Function, Location{token}}
+        FunctionDeclaration(Token token, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
+            : Declaration{NK_Decl_Function, Location{token}, modifiers}
             , name{name}
             , parameters{parameters}
             , arity{int(this->parameters.size())}
@@ -1664,9 +1767,9 @@ namespace AST {
         void print(PrintContext& pc) const;
 
         template <Allocator A>
-        static FunctionDeclaration *NONNULL create(A& allocator, Token token, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) {
+        static FunctionDeclaration *NONNULL create(A& allocator, Token token, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) FunctionDeclaration(token, name, std::move(parameters), returnType, std::move(code));
+                return new(space) FunctionDeclaration(token, modifiers, name, std::move(parameters), returnType, std::move(code));
 
             });
         }
@@ -1714,6 +1817,11 @@ namespace AST {
         static bool classof(const Node *NONNULL node) {
             return node->getKind() == NK_Decl_Function;
         }
+
+        using enum Modifiers::Modifier;
+        static constexpr Modifiers allowedModifiers = {Static,Public, Private};
+        static constexpr Modifiers allowedModifiersInGlobal = {Public, Private};
+        static constexpr Modifiers allowedModifiersInStruct = {Static,Public, Private};
     };
 
     class StructDeclaration : public Declaration {
@@ -1721,17 +1829,17 @@ namespace AST {
         Symbol& name;
         vector<Declaration *NONNULL> declarations;
 
-        StructDeclaration(Token token, Symbol& name, vector<Declaration *NONNULL>&& declarations)
-            : Declaration{NK_Decl_Struct, Location{token}}
+        StructDeclaration(Token token, Modifiers modifiers, Symbol& name, vector<Declaration *NONNULL>&& declarations)
+            : Declaration{NK_Decl_Struct, Location{token}, modifiers}
             , name{name}
             , declarations{std::move(declarations)} {}
     public:
         void print(PrintContext& pc) const;
 
         template <Allocator Allocator>
-        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Symbol& name, vector<Declaration *NONNULL>&& declarations) {
+        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Modifiers modifiers, Symbol& name, vector<Declaration *NONNULL>&& declarations) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StructDeclaration{token, name, std::move(declarations)};
+                return new(space) StructDeclaration{token, modifiers, name, std::move(declarations)};
             });
         }
 
@@ -1758,6 +1866,9 @@ namespace AST {
         const_iterator<Declaration> cend() const {
             return const_iterator<Declaration>(declarations.cend());
         }
+
+        using enum Modifiers::Modifier;
+        static constexpr Modifiers allowedModifiers = {Compact, Unpadded, Private, Public};
     };
 
     class EnumDeclaration : public Declaration {
@@ -1824,8 +1935,15 @@ namespace AST {
         vector<Case> cases;
         vector<Declaration *NONNULL> declarations;
 
-        EnumDeclaration(Token token, Symbol& name, TypeNode *NULLABLE rawType, vector<Case>&& cases, vector<Declaration *NONNULL>&& declarations) 
-            : Declaration{NK_Decl_Enum, token}
+        EnumDeclaration(
+            Token token, 
+            Modifiers modifiers,
+            Symbol& name, 
+            TypeNode *NULLABLE rawType, 
+            vector<Case>&& cases, 
+            vector<Declaration *NONNULL>&& declarations
+        ) 
+            : Declaration{NK_Decl_Enum, token, modifiers}
             , name{name}
             , cases{std::move(cases)}
             , declarations{std::move(declarations)}
@@ -1835,9 +1953,17 @@ namespace AST {
         void print(PrintContext& pc) const;
 
         template <Allocator A>
-        static EnumDeclaration *NONNULL create(A& allocator, Token token, Symbol& name, TypeNode *NULLABLE rawType, vector<Case>&& cases, vector<Declaration *NONNULL>&& declarations) {
+        static EnumDeclaration *NONNULL create(
+            A& allocator, 
+            Token token, 
+            Modifiers modifiers,
+            Symbol& name, 
+            TypeNode *NULLABLE rawType, 
+            vector<Case>&& cases, 
+            vector<Declaration *NONNULL>&& declarations
+        ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) EnumDeclaration{token, name, rawType, std::move(cases), std::move(declarations)};
+                return new(space) EnumDeclaration{token, modifiers, name, rawType, std::move(cases), std::move(declarations)};
             });
         }
 
@@ -1864,13 +1990,17 @@ namespace AST {
         const Symbol& getName() const {
             return name;
         }
+
+        static constexpr Modifiers allowedModifiers = {};
     };
     
     class StatementDeclaration : public Declaration {
     protected:
         Statement *NONNULL statement;
 
-        StatementDeclaration(Statement *NONNULL statement) : Declaration{NK_Decl_Statement, statement->getLocation()}, statement{statement} {}
+        StatementDeclaration(Statement *NONNULL statement) 
+            : Declaration{NK_Decl_Statement, statement->getLocation(), {}}
+            , statement{statement} {}
 
     public:
         void print(PrintContext& pc) const; 
@@ -1895,7 +2025,9 @@ namespace AST {
     protected:
         Symbol& name;
 
-        ProtocolDeclaration(Token token, Symbol& name) : Declaration{NK_Decl_Protocol, token}, name{name} {}
+        ProtocolDeclaration(Token token, Modifiers modifiers, Symbol& name) 
+            : Declaration{NK_Decl_Protocol, token, modifiers}
+            , name{name} {}
 
     public:
         void print(PrintContext& pc) const;

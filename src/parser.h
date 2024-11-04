@@ -12,7 +12,8 @@ struct ParsedFile {
 public:
     std::vector<AST::Declaration *> declarations;
 
-    ParsedFile(std::vector<AST::Declaration *> declarations) : declarations{std::move(declarations)} {}
+    ParsedFile(std::vector<AST::Declaration *> declarations)
+        : declarations{std::move(declarations)} {}
 };
 
 struct ParserState {
@@ -39,48 +40,67 @@ public:
         Expression,
     };
     enum class Cause {
+        FailedExpectation,
         ExpectedExpression,
         ExpectedFunctionName,
-        ExpectedClassName,
-        ExpectedLiteral,
-        InvalidBinaryOperator,
         InvalidInteger,
         InvalidFloating,
         InvalidCharacterLiteral,
         InvalidEscapeSequence,
+        InvalidModifier,
+        StatementModifiers,
+        ConflictingAccessModifiers,
     };
 //private:
     Cause cause;
     Token token;
+    union Data {
+        struct {} nothing;
+        TokenType expected;
+    } data;
 
     std::string description() const {
         switch (cause) {
-        case ParserException::Cause::ExpectedExpression:
-            return "Expected expression.";
-        case ParserException::Cause::ExpectedFunctionName:
-            return "Expected function name.";
-        case ParserException::Cause::ExpectedClassName:
-            return "Expected class name.";
-        case ParserException::Cause::ExpectedLiteral:
-            return "Expected literal.";
-        case ParserException::Cause::InvalidBinaryOperator:
-            return "Invalid binary operator.";
-        case ParserException::Cause::InvalidInteger:
-            return "Invalid integer.";
-        case ParserException::Cause::InvalidFloating:
-            return "Invalid floating-point number.";
-        case ParserException::Cause::InvalidCharacterLiteral:
-            return "Invalid character literal.";
-        case ParserException::Cause::InvalidEscapeSequence:
-            return "Invalid escape sequence in string.";
+            case Cause::FailedExpectation:
+                return std::string{"Expected '"} + tokenTypeToString(data.expected) + "', found '" + std::string{token.chars} + "'.";
+            case Cause::ExpectedExpression:
+                return "Expected expression.";
+            case Cause::ExpectedFunctionName:
+                return "Expected function name.";
+            case Cause::InvalidInteger:
+                return "Invalid integer.";
+            case Cause::InvalidFloating:
+                return "Invalid floating-point number.";
+            case Cause::InvalidCharacterLiteral:
+                return "Invalid character literal.";
+            case Cause::InvalidEscapeSequence:
+                return "Invalid escape sequence in string.";
+            case Cause::InvalidModifier:
+                return "Invalid modifier for declaration.";
+            case Cause::StatementModifiers:
+                return "Statements cannot be preceded by modifiers.";
+            case Cause::ConflictingAccessModifiers:
+                return "Conflicting access modifiers.";
         }
     }
 
+    ParserException(Token token, Cause cause, Data data) : cause{cause}, token{token}, data{data}  {}
 public:
-    ParserException(Token token, Cause cause) : cause{cause}, token{token}  {}
+    ParserException(Token token, Cause cause) : cause{cause}, token{token}, data{.nothing = {}}  {}
+
+    static ParserException failedExpectation(Token token, TokenType expected) {
+        return ParserException(token, Cause::FailedExpectation, {.expected = expected});
+    }
 };
 
 class Parser {
+    struct Modifiers {
+        uint32_t line = 0;
+        uint32_t column = 0;
+        uint32_t length = 0;
+        AST::Modifiers modifiers; 
+    };
+
     SymbolTable& symbols;
     ThreadContext& context = *ThreadContext::get();
 
@@ -92,8 +112,10 @@ class Parser {
         bool allowInitializer = true;
     } expressionRules;
 
-public:
     // Utilities
+    [[nodiscard]]
+    Modifiers parseModifiers();
+    void checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
     [[nodiscard]]
     AST::Block block();
     [[nodiscard]]
@@ -111,19 +133,19 @@ public:
     [[nodiscard]]
     AST::Declaration *declaration();
     [[nodiscard]]
-    AST::FunctionDeclaration *functionDeclaration();
+    AST::FunctionDeclaration *functionDeclaration(Modifiers modifiers);
     [[nodiscard]]
-    AST::StructDeclaration *structDeclaration();
+    AST::StructDeclaration *structDeclaration(Modifiers modifiers);
     [[nodiscard]]
-    AST::FunctionDeclaration *initializerDeclaration();
+    AST::FunctionDeclaration *initializerDeclaration(Modifiers modifiers);
     [[nodiscard]]
-    AST::EnumDeclaration *enumDeclaration();
+    AST::EnumDeclaration *enumDeclaration(Modifiers modifiers);
     [[nodiscard]]
     AST::EnumDeclaration::Case enumCase();
     [[nodiscard]]
     AST::EnumDeclaration::Case::Member enumCaseMember();
     [[nodiscard]]
-    AST::VariableDeclaration *variableDeclaration(bool isPattern = false);
+    AST::VariableDeclaration *variableDeclaration(Modifiers modifiers, bool isPattern = false);
     [[nodiscard]]
     AST::StatementDeclaration *statementDeclaration();
 
@@ -210,10 +232,13 @@ public:
     }
    
     Token consume(TokenType type) {
-        if (!match(type)) throw ParserException(current, ParserException::Cause::ExpectedClassName);
+        if (!match(type)) {
+            throw ParserException::failedExpectation(current, type);
+        }
         return previous;
     }
 
+    friend class ParseRule;
 public:
     Parser(SymbolTable& symbols, std::string&& string) 
         : symbols{symbols}
