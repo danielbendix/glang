@@ -5,30 +5,28 @@
 using Result = PassResult;
 using enum PassResultKind;
 
+using Modifier = AST::Modifiers::Modifier;
+
 struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     using Property = llvm::PointerUnion<AST::VariableDeclaration *, AST::FunctionDeclaration *>;
     AST::StructDeclaration& visiting;
     SymbolMap<Property> properties;
     std::vector<AST::VariableDeclaration *> fields;
     std::vector<AST::FunctionDeclaration *> methods;
-
-    // Bitmap for storing which fields have a default initial value.
-    uint64_t currentInitialized = 0;
-    llvm::SmallVector<uint64_t, 1> areInitialized;
+    std::vector<AST::VariableDeclaration *> staticFields;
+    std::vector<AST::FunctionDeclaration *> staticMethods;
 
     StructVisitor(AST::StructDeclaration& visiting) : visiting{visiting} {}
-
-    void finalize() {
-        if (fields.size() & 0x3F) {
-            areInitialized.push_back(currentInitialized);
-        }
-    }
 
     // Declaration visitor
 
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
-        // TODO: To keep structs simple, we need to error on any bindings other than IdentifierBinding here.
-        auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
+        auto *identifierBinding = llvm::dyn_cast<AST::IdentifierBinding>(&variable.getBinding());
+        if (!identifierBinding) {
+            Diagnostic::error(variable.getBinding(), "Only identifier bindings are allowed in struct fields.");
+            return ERROR;
+        }
+        auto& binding = *identifierBinding;
         if (!properties.insert(binding.getIdentifier(), &variable)) {
             Diagnostic::error(binding, "Duplicate declaration of struct field.");
             auto& existing = *static_cast<AST::Node *>(properties[binding.getIdentifier()].getOpaqueValue());
@@ -36,15 +34,10 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
             return ERROR;
         }
 
-        if (variable.getInitialValue()) {
-            currentInitialized |= 1 << (fields.size() & 0x3F);
-        }
-
-        fields.push_back(&variable);
-
-        if ((fields.size() & 0x3F) == 0) {
-            areInitialized.push_back(currentInitialized);
-            currentInitialized = 0;
+        if (variable.getModifiers().has(AST::Modifier::Static)) {
+            staticFields.push_back(&variable);
+        } else {
+            fields.push_back(&variable);
         }
 
         return OK;
@@ -57,7 +50,11 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
             Diagnostic::note(existing, "Previously declared here.");
             return ERROR;
         }
-        methods.push_back(&function);
+        if (function.getModifiers().has(AST::Modifier::Static)) {
+
+        } else {
+            methods.push_back(&function);
+        }
 
         return OK;
     }
@@ -92,7 +89,17 @@ StructType *resolveStructType(AST::StructDeclaration& structDeclaration) {
         result |= declaration.acceptVisitor(visitor);
     }
 
-    visitor.finalize();
+    auto modifiers = structDeclaration.getModifiers();
+    bool isCompact = modifiers.has(AST::Modifier::Compact);
+    bool isUnpadded = modifiers.has(AST::Modifier::Unpadded);
     
-    return StructType::create(structDeclaration.getName(), result.ok(), std::move(visitor.properties), std::move(visitor.fields), std::move(visitor.methods), visitor.areInitialized);
+    return StructType::create(
+        structDeclaration.getName(), 
+        result.ok(),
+        isCompact,
+        isUnpadded,
+        std::move(visitor.properties), 
+        std::move(visitor.fields), 
+        std::move(visitor.methods)
+    );
 }

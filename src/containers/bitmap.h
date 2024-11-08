@@ -74,6 +74,14 @@ public:
         }
     }
 
+    uint32_t count() const {
+        return size;
+    }
+
+    void copyInto(uint64_t *buffer) const {
+        memcpy(buffer, data, blocks * sizeof(uint64_t));
+    }
+
     bool set(size_t index) {
         size_t block = index >> 6;
         size_t offset = index & 0x3F;

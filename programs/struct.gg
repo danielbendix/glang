@@ -1,16 +1,69 @@
-struct Test {
+compact struct Compact {
     var a: i64 = 0;
-
-    var b: i32;
-    var c: i32;
+    var b: bool;
+    var c: i64 = 0;
     var d: bool;
+    var e: i64 = 0;
+    var f: bool;
+    var g: i64 = 0;
+    var h: bool;
+    var i: i64 = 0;
+    var j: bool;
+    var k: i64 = 0;
+    var l: bool;
+    var m: i64 = 0;
+    var n: bool;
+    var last: bool = true;
 }
 
-fn test() -> Test {
+struct Waste {
+    var a: i64 = 0;
+    var b: bool;
+    var c: i64 = 0;
+    var d: bool;
+    var e: i64 = 0;
+    var f: bool;
+    var g: i64 = 0;
+    var h: bool;
+    var i: i64 = 0;
+    var j: bool;
+    var k: i64 = 0;
+    var l: bool;
+    var m: i64 = 0;
+    var n: bool;
+    var last: bool = true;
+}
+
+fn test2() -> Waste {
+    return Waste {
+        a = 0,
+        b = true,
+        d = true,
+        f = true, 
+        h = true,
+        j = true,
+        l = true,
+        n = true,
+    };
+}
+
+fn test() -> Compact {
     return {
         a = 0,
-        b = 2,
-        c = 3,
+        b = true,
         d = true,
+        f = true, 
+        h = true,
+        j = true,
+        l = true,
+        n = true,
     };
+}
+
+fn main() -> i64 {
+    var a = test();
+    #print(a);
+    var b = test2();
+    #print(b);
+    return 0;
 }

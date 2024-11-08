@@ -9,6 +9,7 @@
 
 #include "llvm/ADT/PointerUnion.h"
 
+#include "containers/bitmap.h"
 #include "containers/symbol_map.h"
 
 #include "resolution/member.h"
@@ -24,7 +25,17 @@ public:
     // - Contained invalid nested declaration types.
     // - Contained duplicate declaration names.
     const bool wellFormed;
+    const bool isCompact;
+    const bool isUnpadded;
+    uint32_t fieldCount;
 private:
+
+    struct Field {
+        Type *type;
+        Symbol *name;
+        uint32_t offset;
+        Align alignment;
+    };
 
     Layout layout = {0, 0};
     const Symbol& name;
@@ -32,6 +43,8 @@ private:
     SymbolMap<Property> properties;
 
     std::vector<AST::VariableDeclaration *> fields;
+    // TODO: Put into collective array with fields.
+    std::vector<uint32_t> offsets = {};
     std::vector<AST::FunctionDeclaration *> methods;
 
     union {
@@ -39,33 +52,24 @@ private:
         uint64_t *multiple;
     } initializedFields;
 
-    StructType(const Symbol& name, 
-               bool wellFormed, 
-               SymbolMap<Property>&& properties, 
-               std::vector<AST::VariableDeclaration *>&& fields, 
-               std::vector<AST::FunctionDeclaration *>&& methods,
-               std::span<uint64_t> initializedFields) 
+    StructType(
+        const Symbol& name, 
+        bool wellFormed, 
+        bool isCompact,
+        bool isUnpadded,
+        SymbolMap<Property>&& properties, 
+        std::vector<AST::VariableDeclaration *>&& fields, 
+        std::vector<AST::FunctionDeclaration *>&& methods
+    ) 
         : Type{TK_Struct}
         , wellFormed{wellFormed}
+        , isCompact{isCompact}
+        , isUnpadded{isUnpadded}
         , name{name}
         , properties{std::move(properties)}
         , fields{std::move(fields)}
-        , methods{std::move(methods)} {
-            switch (initializedFields.size()) {
-                case 0:
-                    this->initializedFields.single = 0;
-                    break;
-                case 1:
-                    this->initializedFields.single = initializedFields[0];
-                    break;
-                default: {
-                    auto& allocator = typeAllocator();
-                    this->initializedFields.multiple = (uint64_t *) allocator.allocate(sizeof(uint64_t) * initializedFields.size(), alignof(uint64_t));
-                    std::memcpy(this->initializedFields.multiple, initializedFields.data(), sizeof(uint64_t) * initializedFields.size());
-                    break;
-                }
-            }
-
+        , methods{std::move(methods)}
+        , initializedFields{0} {
         }
 public:
 
@@ -75,14 +79,18 @@ public:
         }
     }
 
-    static StructType *NONNULL create(const Symbol& name, 
-                                           bool wellFormed, 
-                                           SymbolMap<Property>&& properties, 
-                                           std::vector<AST::VariableDeclaration *>&& fields, 
-                                           std::vector<AST::FunctionDeclaration *>&& methods,
-                                           std::span<uint64_t> initializedFields) {
+    static StructType *NONNULL create(
+        const Symbol& name, 
+        bool wellFormed, 
+        bool isCompact,
+        bool isUnpadded,
+        SymbolMap<Property>&& properties, 
+        std::vector<AST::VariableDeclaration *>&& fields, 
+        std::vector<AST::FunctionDeclaration *>&& methods
+    ) 
+    {
         return allocate(typeAllocator(), [&](void *space) {
-            return new (space) StructType{name, wellFormed, std::move(properties), std::move(fields), std::move(methods), initializedFields};
+            return new (space) StructType{name, wellFormed, isCompact, isUnpadded, std::move(properties), std::move(fields), std::move(methods)};
         });
     }
 
@@ -110,6 +118,18 @@ public:
             return &initializedFields.single;
         } else {
             return initializedFields.multiple;
+        }
+    }
+
+    void setInitializedFields(const Bitmap& initializedFields) {
+        assert(initializedFields.count() == fields.size());
+
+        if (initializedFields.count() > 64) {
+            auto& allocator = typeAllocator();
+            this->initializedFields.multiple = (uint64_t *) allocator.allocate(sizeof(uint64_t) * initializedFields.count() / 64, alignof(uint64_t));
+            initializedFields.copyInto(this->initializedFields.multiple);
+        } else {
+            initializedFields.copyInto(&this->initializedFields.single);
         }
     }
 

@@ -4,10 +4,12 @@
 #include "typecheck/expression.h"
 #include "typecheck/coerce.h"
 #include "type/visitor.h"
+#include "containers/bitmap.h"
 
 #include "llvm/ADT/TypeSwitch.h"
 
 #include <ranges>
+#include <algorithm>
 
 using namespace TypeVisitor;
 
@@ -159,18 +161,42 @@ public:
 
         push(&structType);
 
-        Layout layout{0, 0};
-
         for (auto field : structType.getFields()) {
             result |= typeCheckStructField(*field);
-            if (result.ok()) {
-                auto [newLayout, offset] = incorporateLayoutAsField_C_ABI(layout, field->getType()->getLayout());
-                layout = newLayout;
-                // TODO: Set offset for field.
+        }
+
+        Layout layout{0, 0};
+
+        if (result.ok()) {
+            if (structType.isCompact) {
+                std::sort(structType.fields.begin(), structType.fields.end(), [](AST::VariableDeclaration *left, AST::VariableDeclaration* right) {
+                    Layout leftLayout = left->getType()->getLayout();
+                    Layout rightLayout = right->getType()->getLayout();
+                    
+                    return leftLayout.alignment() > rightLayout.alignment() || leftLayout.size() > rightLayout.size();
+                });
+            }
+
+            Bitmap initialized(structType.fields.size());
+
+            for (auto [i, field] : llvm::enumerate(structType.getFields())) {
+                if (field->getInitialValue()) {
+                    initialized.set(i);
+                }
+                if (result.ok()) {
+                    auto [newLayout, offset] = incorporateLayoutAsField_C_ABI(layout, field->getType()->getLayout());
+                    layout = newLayout;
+                    structType.offsets.push_back(offset);
+                }
+            }
+
+            structType.setInitializedFields(initialized);
+
+            if (!structType.isUnpadded) {
+                layout = addPaddingToLayout_C_ABI(layout);
             }
         }
 
-        layout = addPaddingToLayout_C_ABI(layout);
         structType.layout = layout;
 
         for (auto method : structType.getMethods()) {
