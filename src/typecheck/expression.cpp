@@ -232,7 +232,8 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
     auto elementType = arrayType->getContained();
     subscript.setType(elementType);
 
-    return elementType;
+    // TODO: When arrays can be be const, this needs to reflect that.
+    return {elementType, true};
 
     assert(false);
 }

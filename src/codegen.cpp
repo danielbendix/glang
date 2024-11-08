@@ -25,6 +25,45 @@ using llvm::enumerate;
 using Result = PassResult;
 using enum PassResultKind;
 
+/// A wrapper to represent the different types of LLVM values dealt with during codegen.
+class Value {
+public:
+    enum class Kind : unsigned {
+        Value,
+        Memory,
+        COUNT,
+    };
+
+private:
+    static constexpr unsigned BITS = 1;
+    static_assert(unsigned(Kind::COUNT) <= 1 << BITS);
+    llvm::PointerIntPair<llvm::Value *, BITS> _value;
+
+    Value(llvm::Value *value, unsigned kind) : _value{value, kind} {
+        assert(kind < (1 << BITS));
+    }
+public:
+    static Value value(llvm::Value *value) {
+        return Value(value, unsigned(Kind::Value));
+    }
+
+    static Value memory(llvm::Value *value) {
+        return Value(value, unsigned(Kind::Memory));
+    }
+
+    llvm::Value *get() const {
+        return _value.getPointer();
+    }
+
+    Kind getKind() const {
+        return Kind{_value.getInt()};
+    }
+
+    bool isMemory() const {
+        return getKind() == Kind::Memory;
+    }
+};
+
 class Context {
 public:
     llvm::Module& llvmModule;
@@ -486,7 +525,7 @@ llvm::Function *Context::createPrintFunction(Type& type) {
 
 class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenerator, void>
                             , public AST::StatementVisitorT<FunctionCodeGenerator, void>
-                            , public AST::ExpressionVisitorT<FunctionCodeGenerator, llvm::Value *> 
+                            , public AST::ExpressionVisitorT<FunctionCodeGenerator, Value>
 {
     struct LoopInfo {
         llvm::BasicBlock& continueBlock;
@@ -514,99 +553,37 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
         currentLoop = previous;
     }
 
+    llvm::Value *convertToValueIfNecessary(Type *type, Value value) {
+        switch (value.getKind()) {
+            case Value::Kind::Value:
+                return value.get();
+            case Value::Kind::Memory:
+                return function.builder.CreateLoad(function.getLLVMType(type), value.get());
+            case Value::Kind::COUNT:
+                llvm_unreachable("[PROGRAMMER ERROR]: Value::Kind::COUNT should never be used.");
+        }
+    }
+
+    Value visitExpression(AST::Expression& expression) {
+        return expression.acceptVisitor(*this);
+    }
+
+    Value visitExpression(AST::Expression *expression) {
+        return expression->acceptVisitor(*this);
+    }
+
+    llvm::Value *visitExpressionAsValue(AST::Expression& expression) {
+        auto value = visitExpression(expression);
+        return convertToValueIfNecessary(expression.getType(), value);
+    }
+
+    llvm::Value *visitExpressionAsValue(AST::Expression *expression) {
+        return visitExpressionAsValue(*expression);
+    }
+
 public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
     
-    llvm::Value *getAssignmentTarget(AST::Expression& expression) {
-        // TODO: Consider adding a special visit for subtrees of Node.
-        return AST::visit(expression, overloaded {
-            [&](AST::Identifier& identifier) {
-                const auto resolution = identifier.getResolution();
-                switch (resolution.getKind()) {
-                    case IdentifierResolution::Kind::Local: {
-                        const auto local = resolution.as.local;
-                        auto value = function.getVariable(local.binding);
-                        assert(value.getInt() == 0);
-                        return value.getPointer();
-                    }
-                    case IdentifierResolution::Kind::Global: {
-                        const auto global = resolution.as.global;
-                        auto value = function.getGlobal(global.binding);
-                        assert(value.getInt() == 0);
-                        return value.getPointer();
-                    }
-                    case IdentifierResolution::Kind::UNRESOLVED:
-                        llvm_unreachable("UNRESOLVED identifier resolution in codegen.");
-                    case IdentifierResolution::Kind::Parameter:
-                    case IdentifierResolution::Kind::Function:
-                    case IdentifierResolution::Kind::Type:
-                        llvm_unreachable("Invalid assignment target.");
-                }
-            },
-            [&](AST::MemberAccessExpression& memberAccess) {
-                llvm::Value *target = getAssignmentTarget(memberAccess.getTarget());
-                const auto resolution = memberAccess.getResolution();
-                switch (resolution.getKind()) {
-                    break;
-                    case MemberResolution::Kind::StructField: {
-                        auto targetType = memberAccess.getTarget().getType();
-                        return function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target, 0, resolution.as.structField.index);
-                    }
-                    case MemberResolution::Kind::StructMethod:
-                    case MemberResolution::Kind::EnumCase:
-                        llvm_unreachable("Invalid assignment target");
-                    case MemberResolution::Kind::UNRESOLVED:
-                        llvm_unreachable("UNRESOLVED member resolution in codegen.");
-                }
-            },
-            [&](AST::UnaryExpression& unary) {
-                switch (unary.getOp()) {
-                    case AST::UnaryOperator::PrefixDereference:
-                    case AST::UnaryOperator::PostfixDereference:
-                        return unary.getTarget().acceptVisitor(*this);
-                    case AST::UnaryOperator::ForceUnwrap: {
-                        // The pointer part of this is likely unnecessary, as we can always assign to an
-                        // optional pointer, and dereferencing will use the r-value path of !.
-                        auto target = getAssignmentTarget(unary.getTarget());
-                        auto optionalType = cast<OptionalType>(unary.getTarget().getType());
-                        auto targetType = function.getLLVMType(optionalType);
-
-                        llvm::Value *isNil;
-                        if (isa<PointerType>(optionalType->getContained())) {
-                            auto pointer = function.builder.CreateLoad(targetType, target);
-                            auto null = llvm::Constant::getNullValue(targetType);
-                            isNil = function.builder.CreateICmpEQ(pointer, null);
-                        } else {
-                            auto structType = cast<llvm::StructType>(targetType);
-                            auto flagType = structType->getTypeAtIndex(0U);
-                            auto flagPointer = function.builder.CreateConstGEP2_32(structType, target, 0, 0);
-                            auto flag = function.builder.CreateLoad(flagType, flagPointer);
-                            isNil = function.builder.CreateICmpEQ(flag, function.getIntegerConstant(1, 0));
-                        }
-
-                        auto& trap = function.createTrapBlock();
-                        auto& success = function.createOrphanedBlock();
-
-                        function.builder.CreateCondBr(isNil, &trap, &success);
-                        function.patchOrphanedBlock(success);
-
-                        if (isa<PointerType>(optionalType->getContained())) {
-                            return target;
-                        } else {
-                            return function.builder.CreateConstGEP2_32(targetType, target, 0, 1);
-                        }
-
-                        return unary.getTarget().acceptVisitor(*this);
-                    }
-                    default: llvm_unreachable("Unable to get unary expression as l-value");
-                }
-            },
-            [&](auto&) -> llvm::Value * {
-                llvm_unreachable("Invalid assignment target.");
-            }
-        });
-    }
-
     void visitBlock(const AST::Block& block) {
         function.pushScope();
         for (int bi = 0; bi < block.size(); bi++) {
@@ -634,7 +611,7 @@ public:
 
     void generateGlobalCode(AST::VariableDeclaration& global) {
         auto& binding = cast<AST::IdentifierBinding>(global.getBinding());
-        auto value = global.getInitialValue()->acceptVisitor(*this);
+        auto value = visitExpressionAsValue(global.getInitialValue());
         auto llvmGlobal = function.getGlobal(binding).getPointer();
         function.builder.CreateStore(value, llvmGlobal);
         function.builder.CreateRetVoid();
@@ -645,7 +622,7 @@ public:
     void visitVariableDeclaration(AST::VariableDeclaration& variable) {
         auto& alloca = function.addVariable(variable.getBinding());
         if (auto *initial = variable.getInitialValue()) {
-            auto *value = initial->acceptVisitor(*this);
+            auto *value = visitExpressionAsValue(initial);
             function.builder.CreateStore(value, &alloca);
         }
     }
@@ -673,17 +650,19 @@ public:
     // Statements
 
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        auto value = assignment.getValue().acceptVisitor(*this);
-        auto target = getAssignmentTarget(assignment.getTarget());
-        function.builder.CreateStore(value, target, false);
+        auto value = visitExpressionAsValue(assignment.getValue());
+        auto target = visitExpression(assignment.getTarget());
+        assert(target.getKind() == Value::Kind::Memory);
+        function.builder.CreateStore(value, target.get(), false);
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
         AST::BinaryOperator op = assignment.getOp();
 
         llvm::Value *value;
-        auto *targetValue = assignment.getTarget().acceptVisitor(*this);
-        auto *rhs = assignment.getOperand().acceptVisitor(*this);
+        auto target = visitExpression(assignment.getTarget());
+        auto targetValue = convertToValueIfNecessary(assignment.getTarget().getType(), target);
+        auto rhs = visitExpressionAsValue(assignment.getOperand());
         using enum AST::BinaryOperator;
         switch (op) {
             case Add:
@@ -734,8 +713,8 @@ public:
                 llvm_unreachable("Unsupported assignment operator type.");
         }
 
-        auto *target = getAssignmentTarget(assignment.getTarget());
-        auto *alloca = static_cast<llvm::AllocaInst *>(target);
+        assert(target.isMemory());
+        auto *alloca = static_cast<llvm::AllocaInst *>(target.get());
         function.builder.CreateStore(value, alloca, false);
     }
 
@@ -743,7 +722,7 @@ public:
         auto initial = declaration.getInitialValue();
         assert(initial);
 
-        auto optionalValue = initial->acceptVisitor(*this);
+        auto optionalValue = visitExpressionAsValue(initial);
         auto optionalType = cast<OptionalType>(initial->getType());
 
         llvm::Value *test;
@@ -782,7 +761,7 @@ public:
                     return codegenConditionalBinding(*variable, onFalse);
                 })
                 .Case<AST::Expression *>([&](AST::Expression *expression) {
-                    auto condition =  expression->acceptVisitor(*this);
+                    auto condition = visitExpressionAsValue(expression);
                     auto& onTrue = function.createOrphanedBlock();
                     function.builder.CreateCondBr(condition, &onTrue, &onFalse);
                     function.patchOrphanedBlock(onTrue);
@@ -848,7 +827,7 @@ public:
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         if (auto* value = returnStatement.getValue()) {
-            auto *returnValue = value->acceptVisitor(*this);
+            auto *returnValue = visitExpressionAsValue(value);
             function.builder.CreateRet(returnValue);
         } else {
             function.builder.CreateRetVoid();
@@ -877,7 +856,7 @@ public:
     }
 
     void visitForStatement(AST::ForStatement& forStatement) {
-        auto iterable = forStatement.getIterable().acceptVisitor(*this);
+        auto *iterable = visitExpressionAsValue(forStatement.getIterable());
         auto iterableType = forStatement.getIterable().getType();
         if (auto arrayType = dyn_cast<ArrayType>(iterableType)) {
             auto elementType = function.getLLVMType(arrayType->getContained());
@@ -886,8 +865,6 @@ public:
             auto& header = function.createOrphanedBlock();
             auto& loop = function.createOrphanedBlock();
             auto& end = function.createOrphanedBlock();
-
-            auto iterable = forStatement.getIterable().acceptVisitor(*this);
 
             auto initialPointer = function.builder.CreateExtractValue(iterable, {0});
             auto size = function.builder.CreateExtractValue(iterable, 1);
@@ -937,7 +914,7 @@ public:
             auto& loop = function.createOrphanedBlock();
             auto& end = function.createOrphanedBlock();
 
-            auto range = forStatement.getIterable().acceptVisitor(*this);
+            auto *range = iterable;
 
             auto startValue = function.builder.CreateExtractValue(range, {0});
             auto endValue = function.builder.CreateExtractValue(range, {1});
@@ -1003,7 +980,7 @@ public:
 
     // Expressions
 
-    llvm::Value *visitIdentifier(AST::Identifier& identifier) {
+    Value visitIdentifier(AST::Identifier& identifier) {
         const auto resolution = identifier.getResolution();
 
         switch (resolution.getKind()) {
@@ -1014,9 +991,9 @@ public:
 
                 auto value = function.getVariable(binding);
                 if (value.getInt()) {
-                    return value.getPointer();
+                    return Value::value(value.getPointer());
                 } else {
-                    return function.builder.CreateLoad(type, value.getPointer());
+                    return Value::memory(value.getPointer());
                 }
             }
             case IdentifierResolution::Kind::Global: {
@@ -1024,26 +1001,25 @@ public:
                 auto type = function.getLLVMType(identifier.getType());
                 auto value = function.getGlobal(global.binding);
                 if (value.getInt()) {
-                    return value.getPointer();
+                    return Value::value(value.getPointer());
                 } else {
-                    return function.builder.CreateLoad(type, value.getPointer());
+                    return Value::memory(value.getPointer());
                 }
             }
             case IdentifierResolution::Kind::Function:
-                return &function.getFunction(*resolution.as.function.function);
+                return Value::value(&function.getFunction(*resolution.as.function.function));
             case IdentifierResolution::Kind::Parameter:
-                return &function.getArgument(resolution.as.parameter.parameterIndex);
+                return Value::value(&function.getArgument(resolution.as.parameter.parameterIndex));
             case IdentifierResolution::Kind::Type:
-                assert(false);
-                break;
+                llvm_unreachable("[PROGRAMMER ERROR]: Type resolution in codegen.");
             case IdentifierResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNRESOLVED identifier resolution in codegen.");
         }
 
-        return nullptr;
+        llvm_unreachable("[PROGRAMMER ERROR]: Bad identifier resolution in codegen.");
     }
 
-    llvm::Value *visitLiteral(AST::Literal& literal) {
+    llvm::Value *codegenLiteral(AST::Literal& literal) {
         using namespace AST;
         using llvm::Value;
         return AST::visitLiteral(literal, overloaded {
@@ -1108,9 +1084,11 @@ public:
         });
     }
 
-    llvm::Value *visitUnaryExpression(AST::UnaryExpression& unary) {
-        auto target = unary.getTarget().acceptVisitor(*this);
+    Value visitLiteral(AST::Literal& literal) {
+        return Value::value(codegenLiteral(literal));
+    }
 
+    llvm::Value *codegenUnary(AST::UnaryExpression& unary, llvm::Value *target) {
         using enum AST::UnaryOperator;
         switch (unary.getOp()) {
             case Not:
@@ -1128,14 +1106,10 @@ public:
                 return function.builder.CreateXor(target, function.getIntegerConstant(integerType.bitWidth, -1));
             }
 
-            case AddressOf: {
-                return getAssignmentTarget(unary.getTarget());
-            }
+            case AddressOf: llvm_unreachable("");
             case PrefixDereference:
-            case PostfixDereference: {
-                Type *dereferencedType = unary.getType();
-                return function.builder.CreateLoad(function.getLLVMType(dereferencedType), target);
-            }
+            case PostfixDereference:
+                llvm_unreachable("");
             case ForceUnwrap: {
                 auto optionalType = cast<OptionalType>(unary.getTarget().getType());
                 llvm::Value *isZero;
@@ -1194,9 +1168,23 @@ public:
                 }
             }
         }
+    }
 
-        assert(false);
-        return nullptr;
+    Value visitUnaryExpression(AST::UnaryExpression& unary) {
+        Value target = visitExpression(unary.getTarget());
+
+        auto op = unary.getOp();
+        if (op == AST::UnaryOperator::AddressOf) {
+            assert(target.getKind() == Value::Kind::Memory);
+            // TODO: Ensure that this is right.
+            return Value::value(target.get());
+        } 
+        llvm::Value *targetValue = convertToValueIfNecessary(unary.getTarget().getType(), target);
+        if (op == AST::UnaryOperator::PrefixDereference || op == AST::UnaryOperator::PostfixDereference) {
+            return Value::memory(targetValue);
+        }
+
+        return Value::value(codegenUnary(unary, targetValue));
     }
 
     llvm::Value *codegenLogicalOperator(AST::BinaryExpression& binary) {
@@ -1204,7 +1192,7 @@ public:
         auto booleanType = function.getLLVMType(binary.getType());
         switch (binary.getOp()) {
             case LogicalAnd: {
-                auto left = binary.getLeft().acceptVisitor(*this);
+                auto left = visitExpressionAsValue(binary.getLeft());
                 auto& leftExit = function.currentBlock();
 
                 auto& rightEntry = function.createOrphanedBlock();
@@ -1213,7 +1201,7 @@ public:
                 function.builder.CreateCondBr(left, &rightEntry, &endBlock);
 
                 function.patchOrphanedBlock(rightEntry);
-                auto right = binary.getRight().acceptVisitor(*this);
+                auto right = visitExpressionAsValue(binary.getRight());
                 auto& rightExit = function.currentBlock();
                 function.builder.CreateBr(&endBlock);
 
@@ -1225,7 +1213,7 @@ public:
                 return phi;
             }
             case LogicalOr: {
-                auto left = binary.getLeft().acceptVisitor(*this);
+                auto left = visitExpressionAsValue(binary.getLeft());
                 auto& leftExit = function.currentBlock();
 
                 auto& rightEntry = function.createOrphanedBlock();
@@ -1234,7 +1222,7 @@ public:
                 function.builder.CreateCondBr(left, &endBlock, &rightEntry);
 
                 function.patchOrphanedBlock(rightEntry);
-                auto right = binary.getRight().acceptVisitor(*this);
+                auto right = visitExpressionAsValue(binary.getRight());
                 auto& rightExit = function.currentBlock();
                 function.builder.CreateBr(&endBlock);
 
@@ -1319,15 +1307,11 @@ public:
         }
     }
 
-    llvm::Value *visitBinaryExpression(AST::BinaryExpression& binary) {
+    llvm::Value *codegenBinary(AST::BinaryExpression& binary) {
+        auto left = visitExpressionAsValue(binary.getLeft());
+        auto right = visitExpressionAsValue(binary.getRight());
+
         using enum AST::BinaryOperator;
-        if (binary.getOp() == LogicalAnd || binary.getOp() == LogicalOr) {
-            return codegenLogicalOperator(binary);
-        }
-
-        auto left = binary.getLeft().acceptVisitor(*this);
-        auto right = binary.getRight().acceptVisitor(*this);
-
         switch (binary.getOp()) {
             case Add: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
                 .Case([&](IntegerType *_) {
@@ -1505,6 +1489,14 @@ public:
         llvm_unreachable("[PROGRAMMER ERROR]");
     }
 
+    Value visitBinaryExpression(AST::BinaryExpression& binary) {
+        using enum AST::BinaryOperator;
+        if (binary.getOp() == LogicalAnd || binary.getOp() == LogicalOr) {
+            return Value::value(codegenLogicalOperator(binary));
+        }
+        return Value::value(codegenBinary(binary));
+    }
+
     llvm::Value *createPrint(AST::IntrinsicExpression& printIntrinsic) {
         auto argument = printIntrinsic.getArguments()[0];
         auto printf = function.getPrintf();
@@ -1549,7 +1541,7 @@ public:
             });
         } else {
             auto printFunction = function.getPrintFunction(*argument->getType());
-            llvm::Value *value = argument->acceptVisitor(*this);
+            llvm::Value *value = visitExpressionAsValue(argument);
             auto returnValue = function.builder.CreateCall(printFunction, {value});
         }
         auto putchar = function.getPutchar();
@@ -1557,10 +1549,10 @@ public:
         return returnValue;
     }
 
-    llvm::Value *visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
+    llvm::Value *codegenIntrinsic(AST::IntrinsicExpression& intrinsic) {
         switch (intrinsic.getIntrinsic()) {
             case IntrinsicKind::Truncate: {
-                auto value = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                auto value = visitExpressionAsValue(intrinsic.getArguments()[0]);
                 auto destination = function.getLLVMType(intrinsic.getType());
                 return function.builder.CreateTrunc(value, destination);
             }
@@ -1572,13 +1564,13 @@ public:
                 auto& trap = function.createTrapBlock();
                 auto& next = function.createOrphanedBlock();
 
-                auto condition = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                auto condition = visitExpressionAsValue(intrinsic.getArguments()[0]);
                 function.builder.CreateCondBr(condition, &next, &trap);
                 function.patchOrphanedBlock(next);
                 return nullptr;
             }
             case IntrinsicKind::Bitcast: {
-                auto from = intrinsic.getArguments()[0]->acceptVisitor(*this);
+                auto from = visitExpressionAsValue(intrinsic.getArguments()[0]);
                 auto type = function.getLLVMType(intrinsic.getType());
                 return function.builder.CreateBitCast(from, type);
             }
@@ -1587,27 +1579,33 @@ public:
         return nullptr;
     }
 
-    llvm::Value *visitCallExpression(AST::CallExpression& call) {
-        auto callee = call.getTarget().acceptVisitor(*this);
+    Value visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
+        return Value::value(codegenIntrinsic(intrinsic));
+    }
+
+    Value visitCallExpression(AST::CallExpression& call) {
+        // TODO: We need to handle stack & pack returns here, once they're implemented.
+        auto callee = visitExpressionAsValue(call);
         llvm::Function *llvmFunction = llvm::cast<llvm::Function>(callee);
         llvmFunction->getFunctionType();
         if (call.argumentCount()) {
             llvm::Value *arguments[call.argumentCount()];
             for (int i = 0; i < call.argumentCount(); ++i) {
-                arguments[i] = call.getArgument(i).acceptVisitor(*this);
+                arguments[i] = visitExpressionAsValue(call.getArgument(i));
             }
-            return function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction, llvm::ArrayRef(arguments, call.argumentCount()));
+            return Value::value(function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction, llvm::ArrayRef(arguments, call.argumentCount())));
         } else {
-            return function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction);
+            return Value::value(function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction));
         }
     }
 
-    llvm::Value *visitSubscriptExpression(AST::SubscriptExpression& subscript) {
+    Value visitSubscriptExpression(AST::SubscriptExpression& subscript) {
         auto& arrayType = cast<ArrayType>(*subscript.getTarget().getType());
         auto elementType = function.getLLVMType(arrayType.getContained());
 
-        auto target = subscript.getTarget().acceptVisitor(*this);
-        auto index = subscript.getIndex().acceptVisitor(*this);
+        // TODO: See if we can handle the memory case directly, instead of struct load.
+        auto target = visitExpressionAsValue(subscript.getTarget());
+        auto index = visitExpressionAsValue(subscript.getIndex());
 
         auto base = function.builder.CreateExtractValue(target, {0});
 
@@ -1641,18 +1639,18 @@ public:
             function.patchOrphanedBlock(next);
 
             auto address = function.builder.CreateGEP(elementType, base, {index});
-            return function.builder.CreateLoad(elementType, address);
+            return Value::memory(address);
 
             auto size = function.builder.CreateExtractValue(target, {1});
 
             assert(false && "TODO: Implement array bounds checking.");
         } else {
             auto address = function.builder.CreateGEP(elementType, base, {index});
-            return function.builder.CreateLoad(elementType, address);
+            return Value::memory(address);
         }
     }
 
-    llvm::Value *visitInitializerExpression(AST::InitializerExpression& initializer) {
+    Value visitInitializerExpression(AST::InitializerExpression& initializer) {
         auto structType = cast<StructType>(initializer.getType());
         llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));
 
@@ -1664,7 +1662,7 @@ public:
             auto resolution = pair.first->getResolution();
             assert(resolution.getKind() == MemberResolution::Kind::StructField);
 
-            auto value = pair.second->acceptVisitor(*this);
+            auto value = visitExpressionAsValue(pair.second);
             unsigned index = resolution.as.structField.index;
             undefined.set(index);
 
@@ -1674,23 +1672,32 @@ public:
         undefined.iterate_zeros([&](uint32_t index) {
             auto initial = structType->getFields()[index]->getInitialValue();
             assert(initial);
-            auto value = initial->acceptVisitor(*this);
+            auto value = visitExpressionAsValue(initial);
             structValue = function.builder.CreateInsertValue(structValue, value, {index});
         });
 
-        return structValue;
+        return Value::value(structValue);
     }
 
-    llvm::Value *visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
-        auto target = memberAccess.getTarget().acceptVisitor(*this);
+    Value visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
+        auto _target = memberAccess.getTarget().acceptVisitor(*this);
+        auto target = Value::value(nullptr);
         auto targetType = memberAccess.getTarget().getType();
 
         auto resolution = memberAccess.getResolution();
 
         switch (resolution.getKind()) {
             case MemberResolution::Kind::StructField: {
-                return function.builder.CreateExtractValue(target, {resolution.as.structField.index});
-            }
+                switch (target.getKind()) {
+                    case Value::Kind::Value:
+                        return Value::value(function.builder.CreateExtractValue(target.get(), {resolution.as.structField.index}));
+                    case Value::Kind::Memory:
+                        return Value::memory(function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target.get(), 0, resolution.as.structField.index));
+                    case Value::Kind::COUNT:
+                        llvm_unreachable("");
+                    }
+                }
+                llvm_unreachable("");
             case MemberResolution::Kind::StructMethod:
             case MemberResolution::Kind::EnumCase:
                 llvm_unreachable("[TODO] Unsupported member access types.");
@@ -1699,7 +1706,7 @@ public:
         }
     }
 
-    llvm::Value *visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
+    Value visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
         // This can only be a static member access or enum case
         
         auto resolution = inferredMemberAccess.getResolution();
