@@ -6,11 +6,33 @@
 #include "typecheck/internal.h"
 #include "typecheck/resolver.h"
 
-extern VoidType *void_;
-extern BooleanType *boolean;
-extern IntegerType *signed64;
+#include "sema/fold.h"
 
 using Result = PassResult;
+
+struct TypeCheckResult {
+    llvm::PointerIntPair<Type *, 1> _type;
+    AST::Expression *_folded;
+
+    TypeCheckResult(Type *type, AST::Expression *folded, bool canAssign) 
+        : _type{type, canAssign}, _folded{folded} {}
+    TypeCheckResult(std::nullptr_t, AST::Expression *folded) 
+        : _type{nullptr, false}, _folded{folded} {}
+    TypeCheckResult(TypeResult typeResult, AST::Expression *folded) 
+        : _type{typeResult.type(), typeResult.canAssign()}, _folded{folded} {}
+
+    Type *type() const {
+        return _type.getPointer();
+    }
+
+    AST::Expression *folded() const {
+        return _folded;
+    }
+
+    bool canAssign() const {
+        return _type.getInt();
+    }
+};
 
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
 public:
@@ -24,6 +46,56 @@ public:
         : scopeManager{scopeManager}, typeResolver{typeResolver} {}
     ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler) 
         : scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
+
+    TypeCheckResult typeCheckExpressionRequiringInferredType(AST::Expression *NONNULL expression) {
+        if (auto folded = foldConstantsUntyped(*expression)) {
+            expression = folded;
+        }
+
+        TypeResult typeResult = typeCheckExpression(*expression);
+        if (typeResult && typeResult.isConstraint()) {
+            Diagnostic::error(*expression, "Cannot determine type of expression.");
+            return TypeCheckResult(nullptr, expression);
+        }
+        return TypeCheckResult(typeResult, expression);
+    }
+
+    TypeCheckResult typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
+        if (auto folded = foldConstantsUntyped(*expression)) {
+            expression = folded;
+        }
+
+        TypeResult typeResult = typeCheckExpression(*expression, declaredType);
+        if (typeResult && typeResult.isConstraint()) {
+            Diagnostic::error(*expression, "Cannot determine type of expression.");
+            return TypeCheckResult(nullptr, expression);
+        }
+        return TypeCheckResult(typeResult, expression);
+    }
+
+    TypeCheckResult typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression *NONNULL expression, Type *NULLABLE declaredType) {
+        if (auto folded = foldConstantsUntyped(*expression)) {
+            expression = folded;
+        }
+
+        if (declaredType) {
+            return TypeCheckResult(typeCheckExpression(*expression, declaredType), expression);
+        } else {
+            TypeResult typeResult = typeCheckExpression(*expression);
+            if (typeResult && typeResult.isConstraint()) {
+                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                if (defaultType) {
+                    if (auto typeResult= typeCheckExpression(*expression, defaultType); typeResult.isType()) {
+                        return TypeCheckResult(typeResult, expression);
+                    }
+                }
+
+                Diagnostic::error(*expression, "Cannot determine type of expression.");
+                return TypeCheckResult(nullptr, expression);
+            }
+            return TypeCheckResult(typeResult, expression);
+        }
+    }
 
     Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *declaredType) {
         if (declaredType) {

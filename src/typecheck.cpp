@@ -359,25 +359,22 @@ public:
     
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
         ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-        TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
-        if (!target) {
+        TypeCheckResult targetResult = typeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        assignment.setTarget(targetResult.folded());
+        if (!targetResult.type()) {
             result = ERROR;
             return;
         }
-        if (target.isConstraint()) {
-            result = ERROR;
-            // TODO; get cause of r-value-ness.
-            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
-            return;
-        }
-        if (!target.canAssign()) { 
+        if (!targetResult.canAssign()) { 
             result = ERROR;
             // TODO; get cause of r-value-ness.
             Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
             return;
         }
-        Type *targetType = target.asType();
-        Type *valueType = typeChecker.typeCheckExpression(assignment.getValue(), targetType);
+        Type *targetType = targetResult.type();
+        auto valueResult = typeChecker.typeCheckExpressionUsingDeclaredType(&assignment.getValue(), targetType);
+        assignment.setValue(valueResult.folded());
+        Type *valueType = valueResult.type();
         if (!valueType) {
             result = ERROR;
             return;
@@ -393,24 +390,22 @@ public:
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
         // TODO: This needs to type check the binary operation between the target and the operand.
         ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-        TypeResult target = typeChecker.typeCheckExpression(assignment.getTarget());
-        if (!target) {
+        TypeCheckResult targetResult = typeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        assignment.setTarget(targetResult.folded());
+        if (!targetResult.type()) {
             result = ERROR;
             return;
         }
-        if (target.isConstraint()) {
-            result = ERROR;
-            Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
-            return;
-        }
-        if (!target.canAssign()) { 
+        if (!targetResult.canAssign()) { 
             result = ERROR;
             // TODO; get cause of r-value-ness.
-            Diagnostic::error(assignment.getTarget(), "Cannot compound assign, target is not assignable");
+            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
             return;
         }
-        Type *targetType = target.asType();
-        Type *valueType = typeChecker.typeCheckExpression(assignment.getOperand(), targetType);
+        Type *targetType = targetResult.type();
+        auto valueResult = typeChecker.typeCheckExpressionUsingDeclaredType(&assignment.getOperand(), targetType);
+        assignment.setOperand(valueResult.folded());
+        Type *valueType = valueResult.type();
         if (!valueType) {
             result = ERROR;
             return;
@@ -449,13 +444,12 @@ public:
             propagatedType = declaredType->getOptionalType();
         }
 
-        Type *type = nullptr;
         ExpressionTypeChecker checker{scopeManager, typeResolver};
-        if (declaredType) {
-            type = checker.typeCheckExpression(*initial, propagatedType);
-        } else {
-            type = checker.typeCheckExpression(*initial);
-        }
+        TypeCheckResult initialResult = propagatedType 
+            ? checker.typeCheckExpressionUsingDeclaredType(initial, propagatedType) 
+            : checker.typeCheckExpressionRequiringInferredType(initial);
+        variable.setInitialValue(initialResult.folded());
+        Type *type = initialResult.type();
 
         if (!type) {
             return ERROR;
@@ -483,14 +477,16 @@ public:
     }
 
     [[nodiscard]]
-    Result handleCondition(AST::Condition condition) {
-        return TypeSwitch<AST::Condition, Result>(condition)
+    Result handleCondition(AST::Condition *condition) {
+        return TypeSwitch<AST::Condition, Result>(*condition)
             .Case<AST::VariableDeclaration *>([&](auto variable) {
                 return handleConditionalBinding(*variable);
             })
             .Case<AST::Expression *>([&](auto expression) {
                 ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-                Type *type = typeChecker.typeCheckExpression(*expression, typeResolver.booleanType());
+                TypeCheckResult typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(expression, typeResolver.booleanType());
+                *condition = typeResult.folded();
+                Type *type = typeResult.type();
                 if (!type) {
                     if (!type) {
                         return ERROR;
@@ -507,8 +503,8 @@ public:
         for (int bi = 0; bi < ifStatement.getConditionCount(); ++bi) {
             scopeManager.withAutoResetScope([&] {
                 auto& branch = ifStatement.getCondition(bi);
-                for (auto condition : branch.getConditions()) {
-                    result |= handleCondition(condition);
+                for (AST::Condition& condition : branch.getConditions()) {
+                    result |= handleCondition(&condition);
                     if (result.failed()) return;
                 }
                 visitBlock(branch.getBlock());
@@ -524,8 +520,8 @@ public:
         // but is the easiest way to deal with guard scopes.
         visitBlock(guardStatement.getBlock());
         scopeManager.withAutoMergingScopes([&] {
-            for (auto condition : guardStatement.getConditions()) {
-                result |= handleCondition(condition);
+            for (AST::Condition& condition : guardStatement.getConditions()) {
+                result |= handleCondition(&condition);
                 if (result.failed()) return;
             }
         });
@@ -539,8 +535,11 @@ public:
                 result = ERROR;
             }
             ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-            Type *type = typeChecker.typeCheckExpression(*value, currentFunction->getReturnType());
-            if (!type) {
+            auto typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(value, currentFunction->getReturnType());
+            value = typeResult.folded();
+            returnStatement.setValue(value);
+            auto type = typeResult.type();
+            if (!typeResult.type()) {
                 result = ERROR;
                 return;
             }
@@ -564,8 +563,8 @@ public:
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
         scopeManager.withAutoResetScope([&] {
-            for (auto condition : whileStatement.getConditions()) {
-                result |= handleCondition(condition);
+            for (AST::Condition& condition : whileStatement.getConditions()) {
+                result |= handleCondition(&condition);
                 if (result.failed()) return;
             }
             visitBlock(whileStatement.getBlock());
@@ -575,8 +574,9 @@ public:
     void visitForStatement(AST::ForStatement& forStatement) {
         ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
 
-        // TODO: Make a version that discards constraints and returns nullptr.
-        Type *type = typeChecker.typeCheckExpression(forStatement.getIterable());
+        TypeCheckResult typeResult = typeChecker.typeCheckExpressionRequiringInferredType(&forStatement.getIterable());
+        forStatement.setIterable(typeResult.folded());
+        Type *type = typeResult.type();
 
         if (!type) {
             result = ERROR;
@@ -621,7 +621,8 @@ public:
 
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-        Type *type = typeChecker.typeCheckExpression(expression.getExpression());
+        TypeCheckResult typeResult = typeChecker.typeCheckExpressionRequiringInferredType(&expression.getExpression());
+        Type *type = typeResult.type();
         if (!type) {
             result = ERROR;
         } else if (type != typeResolver.voidType()) {

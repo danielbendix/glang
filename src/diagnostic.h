@@ -10,11 +10,11 @@ class DiagnosticWriter {
 public:
     virtual void error(ParserException& parserException) = 0;
 
-    virtual void error(AST::Node& node, std::string& message) = 0;
+    virtual void error(const AST::Node& node, std::string& message) = 0;
 
-    virtual void warning(AST::Node& node, std::string& message) = 0;
+    virtual void warning(const AST::Node& node, std::string& message) = 0;
 
-    virtual void note(AST::Node& node, std::string& message) = 0;
+    virtual void note(const AST::Node& node, std::string& message) = 0;
 
     virtual ~DiagnosticWriter() = default;
 };
@@ -31,15 +31,15 @@ public:
         out << "Parser error: " << AST::Location{parserException.token} << ' ' << parserException.description() << '\n';
     }
 
-    virtual void error(AST::Node& node, std::string& message) override {
+    virtual void error(const AST::Node& node, std::string& message) override {
         out << "Error: " << node.getLocation() << ' ' << message << "\n";
     }
 
-    virtual void warning(AST::Node& node, std::string& message) override {
+    virtual void warning(const AST::Node& node, std::string& message) override {
         out << "Warning: " << node.getLocation() << ' ' << message << "\n";
     }
 
-    virtual void note(AST::Node& node, std::string& message) override {
+    virtual void note(const AST::Node& node, std::string& message) override {
         out << "Note: " << node.getLocation() << ' ' << message << "\n";
     }
 };
@@ -60,19 +60,19 @@ public:
         out << R"(})" << '\n';
     }
 
-    virtual void error(AST::Node& node, std::string& message) override {
+    virtual void error(const AST::Node& node, std::string& message) override {
         out << R"({"kind": "error", "message": ")" << message << R"(", "location": )";
         printLocation(node.getLocation());
         out << R"(})" << '\n';
     }
 
-    virtual void warning(AST::Node& node, std::string& message) override {
+    virtual void warning(const AST::Node& node, std::string& message) override {
         out << R"({"kind": "warning", "message": ")" << message << R"(", "location": )";
         printLocation(node.getLocation());
         out << R"(})" << '\n';
     }
 
-    virtual void note(AST::Node& node, std::string& message) override {
+    virtual void note(const AST::Node& node, std::string& message) override {
         out << R"({"kind": "note", "message": ")" << message << R"(", "location": )";
         printLocation(node.getLocation());
         out << R"(})" << '\n';
@@ -91,15 +91,15 @@ public:
         current = &writer;
     }
 
-    static void error(AST::Node& node, std::string&& message) {
+    static void error(const AST::Node& node, std::string&& message) {
         writer().error(node, message);
     }
 
-    static void warning(AST::Node& node, std::string&& message) {
+    static void warning(const AST::Node& node, std::string&& message) {
         writer().warning(node, message);
     }
 
-    static void note(AST::Node& node, std::string&& message) {
+    static void note(const AST::Node& node, std::string&& message) {
         writer().note(node, message);
     }
 };

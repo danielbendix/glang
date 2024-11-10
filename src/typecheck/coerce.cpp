@@ -106,9 +106,8 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
             Diagnostic::error(expression, "Cannot coerce floating-point type " + source.makeName() + " to integer type " + destination.makeName() + ", as this would discard the fractional component. TODO: Add note about intrinsics to use.");
             return {ERROR, nullptr};
         }
-
-        // TODO: Check if we can widen the types.
-        assert(false && "TODO");
+        Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to integer type.");
+        return {ERROR, nullptr};
     }
     case TK_Num_FP: {
         auto& fpDestination = cast<FPType>(destination);

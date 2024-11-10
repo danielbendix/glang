@@ -717,11 +717,11 @@ template <int skip, int base>
 unsigned bitCount(unsigned length) {
     if constexpr (__builtin_popcount(base) == 1) {
         int digits = length - skip;
-        unsigned bits = ceil(__builtin_ctz(base) * digits);
+        unsigned bits = ceil(__builtin_ctz(base) * digits) + 1;
         return bits;
     } else {
         int digits = length - skip;
-        unsigned bits = ceil(log2(base) * digits);
+        unsigned bits = ceil(log2(base) * digits) + 1;
         return bits;
     }
 }

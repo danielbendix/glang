@@ -24,6 +24,7 @@ add_subdirectory(namespace)
 add_subdirectory(resolution)
 add_subdirectory(type)
 add_subdirectory(typecheck)
+add_subdirectory(sema)
 add_subdirectory(containers)
 add_subdirectory(target)
 

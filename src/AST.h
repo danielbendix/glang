@@ -212,6 +212,7 @@ namespace AST {
         ~Node() = default;
 
         Kind getKind() const { return kind; }
+        Location& getLocation() { return location; }
         const Location& getLocation() const { return location; }
 
         void print(std::ostream& os) const;
@@ -595,6 +596,7 @@ namespace AST {
     class BooleanLiteral : public Literal {
     protected:
         BooleanLiteral(Token token, bool value) : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, token} {}
+        BooleanLiteral(Location location, bool value) : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, location} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -604,6 +606,16 @@ namespace AST {
             return allocate(allocator, [&](auto space) {
                 return new(space) BooleanLiteral{token, value};
             });
+        }
+
+        template <typename NodeInstance>
+        requires std::derived_from<NodeInstance, Node>
+        static BooleanLiteral *NONNULL createDestroyingOther(NodeInstance& node, bool value) {
+            auto location = node.getLocation();
+            static_assert(sizeof(BooleanLiteral) <= sizeof(NodeInstance));
+            node.~NodeInstance();
+            void *space = &node;
+            return new(space) BooleanLiteral{location, value};
         }
 
         bool getValue() const {
@@ -626,24 +638,47 @@ namespace AST {
 
         // A hack to put data inside the padding of APInt
         class Value : public llvm::APInt {
-            bool isSigned;
+        public:
             Type type;
+            bool isSigned;
+            // To represent arbitrary precision  values like ~0 without infinite bits.
+            bool extendWithOnes;
+            Value(llvm::APInt&& value, Type type, bool isSigned, bool extendWithOnes) : APInt{value}, isSigned{isSigned}, type{type} {}
 
-            Value(llvm::APInt&& value, bool isSigned, Type type) : APInt{value}, isSigned{isSigned}, type{type} {}
+//            Value& operator=(APInt&& rhs) {
+//                APInt::operator=(rhs);
+//                return *this;
+//            }
 
-            Value& operator=(APInt&& rhs) {
-                APInt::operator=(rhs);
+            Value& operator=(Value&& rhs) {
+                type = rhs.type;
+                isSigned = rhs.isSigned;
+                extendWithOnes = rhs.extendWithOnes;
+                APInt::operator=(std::move(rhs));
                 return *this;
             }
 
+            void signExtendInPlace(unsigned width) {
+                APInt::operator=(sext(width));
+            }
+
+            void signExtendOrTruncateInPlace(unsigned width) {
+                APInt::operator=(sextOrTrunc(width));
+            }
+
+            void setValue(llvm::APInt&& other) {
+                APInt::operator=(std::move(other));
+            }
+
             friend class IntegerLiteral;
+            friend class IntegerFold;
         };
     private:
         Value value;
     protected:
-        IntegerLiteral(Token token, APInt&& value, Type integerType) 
+        IntegerLiteral(Token token, APInt&& value, Type integerType)
             : Literal{NK_Expr_Literal_Integer, token}
-            , value{std::move(value), false, integerType} {}
+            , value{std::move(value), integerType, false, false} {}
     public:
         void print(PrintContext& pc) const;
 
@@ -652,6 +687,10 @@ namespace AST {
             return allocate(allocator, [&](auto space) {
                 return new(space) IntegerLiteral{token, std::move(value), integerType};
             });
+        }
+
+        Value& getValue() {
+            return value;
         }
 
         const APInt& getValue() const {
@@ -765,6 +804,10 @@ namespace AST {
             return *arguments[i];
         }
 
+        void setArgument(size_t i, Expression *NONNULL argument) {
+            arguments[i] = argument;
+        }
+
         void setWrappedArgument(size_t i, Expression *NONNULL wrapped) {
             assert(wrapped);
             arguments[i] = wrapped;
@@ -800,6 +843,10 @@ namespace AST {
 
         Expression& getIndex() const {
             return *index;
+        }
+
+        void setIndex(Expression *NONNULL index) {
+            this->index = index;
         }
 
         static bool classof(const Node *NONNULL node) {
@@ -973,8 +1020,12 @@ namespace AST {
             return op;
         }
 
-        Expression &getTarget() const {
+        Expression& getTarget() const {
             return *target;
+        }
+
+        void setTarget(Expression *NONNULL target) {
+            this->target = target;
         }
 
         static bool classof(const Node *NONNULL node) {
@@ -1039,6 +1090,11 @@ namespace AST {
         Expression& getLeft() const {
             return *left;
         }
+
+        void setLeft(Expression *NONNULL left) {
+            this->left = left;
+        }
+
         void setWrappedLeft(Expression *NONNULL left) {
             this->left = left;
         }
@@ -1046,6 +1102,11 @@ namespace AST {
         Expression& getRight() const {
             return *right;
         }
+
+        void setRight(Expression *NONNULL right) {
+            this->right = right;
+        }
+
         void setWrappedRight(Expression *NONNULL right) {
             this->right = right;
         }
@@ -1117,6 +1178,10 @@ namespace AST {
 
         const vector<TypeNode *NONNULL>& getTypeArguments() const {
             return typeArguments;
+        }
+
+        vector<Expression *NONNULL>& getArguments() {
+            return arguments;
         }
 
         const vector<Expression *NONNULL>& getArguments() const {
@@ -1228,12 +1293,19 @@ namespace AST {
             return *target;
         }
 
+        void setTarget(Expression *NONNULL target) {
+            this->target = target;
+        }
+
         Expression& getValue() const {
             return *value;
         }
 
+        void setValue(Expression *NONNULL value) {
+            this->value = value;
+        }
+
         void setWrappedValue(Expression *NONNULL wrapped) {
-            assert(wrapped);
             value = wrapped;
         }
     };
@@ -1269,8 +1341,16 @@ namespace AST {
             return *target;
         }
 
+        void setTarget(Expression *NONNULL target) {
+            this->target = target;
+        }
+
         Expression& getOperand() const {
             return *operand;
+        }
+
+        void setOperand(Expression *NONNULL operand) {
+            this->operand = operand;
         }
 
         void setWrappedOperand(Expression *NONNULL wrapped) {
@@ -1293,6 +1373,10 @@ namespace AST {
 
             Condition getCondition(size_t i) const {
                 return conditions[i];
+            }
+
+            vector<Condition>& getConditions() {
+                return conditions;
             }
 
             const vector<Condition>& getConditions() const {
@@ -1393,6 +1477,10 @@ namespace AST {
             });
         }
 
+        vector<Condition>& getConditions() {
+            return conditions;
+        }
+
         const vector<Condition>& getConditions() const {
             return conditions;
         }
@@ -1427,8 +1515,11 @@ namespace AST {
             return value;
         }
 
+        void setValue(Expression *NONNULL value) {
+            this->value = value;
+        }
+
         void setWrappedValue(Expression *NONNULL wrapped) {
-            assert(wrapped);
             value = wrapped;
         }
 
@@ -1464,6 +1555,10 @@ namespace AST {
 
         Condition getCondition(size_t i) const {
             return conditions[i];
+        }
+
+        vector<Condition>& getConditions() {
+            return conditions;
         }
 
         const vector<Condition>& getConditions() const {
@@ -1520,6 +1615,10 @@ namespace AST {
 
         const Expression& getIterable() const {
             return *iterable;
+        }
+
+        void setIterable(AST::Expression *iterable) {
+            this->iterable = iterable;
         }
 
         Block& getBlock() {
@@ -1687,8 +1786,11 @@ namespace AST {
             return initial;
         }
 
+        void setInitialValue(Expression *NONNULL initial) {
+            initial = initial;
+        }
+
         void setWrappedInitialValue(Expression *NONNULL wrapped) {
-            assert(wrapped);
             initial = wrapped;
         }
 

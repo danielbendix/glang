@@ -4,6 +4,8 @@
 #include "type/struct.h"
 #include "type/enum.h"
 
+#include "sema/fold.h"
+
 #include "containers/bitmap.h"
 
 #include "llvm/Support/Casting.h"
@@ -212,7 +214,6 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
 
     // TODO: Add default integer type as declared type here:
     auto index = typeCheckExpression(subscript.getIndex());
-
     
     if (!index) {
         return {};
@@ -397,6 +398,23 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
     return {};
 }
 
+
+// TODO: Move somewhere else.
+bool canHold(const AST::IntegerLiteral& literal, IntegerType& type) {
+    auto isNegative = literal.getValue().isNegative();
+    auto significantBits = literal.getValue().getSignificantBits();
+
+    if (type.isSigned) {
+        return significantBits <= type.bitWidth;
+    } else {
+        if (isNegative) {
+            return false;
+        } else {
+            return (significantBits - 1) <= type.bitWidth;
+        }
+    }
+}
+
 TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *propagatedType) {
     // TODO: Validate against declaration type.
     
@@ -428,6 +446,13 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                 if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
                     auto& value = integer.getValue();
                     
+                    if (!canHold(integer, *integerType)) {
+                        llvm::SmallVector<char, 32> numberString;
+                        integer.getValue().toStringSigned(numberString, 10);
+                        Diagnostic::error(integer, "Integer value " + std::string{numberString.data(), numberString.size()} + " overflows when stored into " + integerType->makeName());
+                        return {};
+                    }
+
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
                     return propagatedType;
