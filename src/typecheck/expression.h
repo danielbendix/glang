@@ -14,6 +14,8 @@ struct TypeCheckResult {
     llvm::PointerIntPair<Type *, 1> _type;
     AST::Expression *_folded;
 
+    TypeCheckResult(Type *type, AST::Expression *folded) 
+        : _type{type, false}, _folded{folded} {}
     TypeCheckResult(Type *type, AST::Expression *folded, bool canAssign) 
         : _type{type, canAssign}, _folded{folded} {}
     TypeCheckResult(std::nullptr_t, AST::Expression *folded) 
@@ -32,6 +34,98 @@ struct TypeCheckResult {
     bool canAssign() const {
         return _type.getInt();
     }
+};
+
+struct LValueTypeResult {
+    Type *type;
+    bool isLValue;
+
+    LValueTypeResult(Type *type, bool isLValue) : type{type}, isLValue{isLValue} {}
+    LValueTypeResult(std::nullptr_t) : type{nullptr}, isLValue{false} {}
+    LValueTypeResult() : type{nullptr}, isLValue{false} {}
+
+    operator bool() const {
+        return type && isLValue;
+    }
+
+    operator Type *() const {
+        return type;
+    }
+};
+
+enum class LValueKind : uint8_t {
+    Assignment,
+    CompoundAssignment,
+    AddressOf,
+};
+
+class ExpressionLValueTypeChecker : public AST::ExpressionVisitorT<ExpressionLValueTypeChecker, LValueTypeResult, Type *> {
+public:
+    using GlobalHandler = std::function<Result(AST::IdentifierBinding&)>;
+private:
+    ScopeManager& scopeManager;
+    TypeResolver& typeResolver;
+    GlobalHandler *globalHandler = nullptr;
+    LValueKind kind;
+public:
+    ExpressionLValueTypeChecker(LValueKind kind, ScopeManager& scopeManager, TypeResolver& typeResolver) 
+        : kind{kind}, scopeManager{scopeManager}, typeResolver{typeResolver} {}
+    ExpressionLValueTypeChecker(LValueKind kind, ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler) 
+        : kind{kind}, scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
+
+    TypeCheckResult typeCheckExpressionRequiringInferredType(AST::Expression *NONNULL expression) {
+        if (auto folded = foldConstantsUntyped(*expression)) {
+            expression = folded;
+        }
+
+        LValueTypeResult typeResult = typeCheckExpression(*expression);
+        if (!typeResult) {
+            return TypeCheckResult(nullptr, expression);
+
+        }
+        return TypeCheckResult(typeResult.type, expression);
+    }
+
+    TypeCheckResult typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
+        if (auto folded = foldConstantsUntyped(*expression)) {
+            expression = folded;
+        }
+        LValueTypeResult typeResult = typeCheckExpression(*expression, declaredType);
+        if (!typeResult) {
+            return TypeCheckResult(nullptr, expression);
+        }
+        return TypeCheckResult(typeResult.type, expression);
+    }
+
+    LValueTypeResult typeCheckExpression(AST::Expression& expression) {
+        return expression.acceptVisitor(*this, {});
+    }
+
+    LValueTypeResult typeCheckExpression(AST::Expression& expression, Type *declaredType) {
+        assert(declaredType);
+        return expression.acceptVisitor(*this, declaredType);
+    }
+
+    Type *typeCheckToTypeOrError(AST::Expression& expression, Type *declaredType) {
+        LValueTypeResult result = typeCheckExpression(expression, declaredType);
+
+        if (!result) {
+            return {};
+        }
+
+        return result;
+    }
+
+    LValueTypeResult visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType);
+    LValueTypeResult visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType);
+    LValueTypeResult visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    LValueTypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);
+    LValueTypeResult visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType);
+    LValueTypeResult visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType);
+    LValueTypeResult visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType);
+    LValueTypeResult visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
+    LValueTypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
+    LValueTypeResult visitIdentifier(AST::Identifier& identifier, Type *declaredType);
 };
 
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {

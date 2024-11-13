@@ -90,29 +90,20 @@ Type *ExpressionTypeChecker::typeCheckAddressOfOperator(AST::UnaryExpression& un
     // This may not be necessary, as we should have an assignable value.
     Type *pointee = getPointeeTypeOrNull(propagatedType);
 
-    TypeResult target;
+    ExpressionLValueTypeChecker lvalueTypeChecker{LValueKind::AddressOf, scopeManager, typeResolver};
+
+    LValueTypeResult target;
     if (auto pointee = getPointeeTypeOrNull(propagatedType)) {
-        target = typeCheckExpression(unary.getTarget(), pointee);
+        target = lvalueTypeChecker.typeCheckExpression(unary.getTarget(), pointee);
     } else {
-        target = typeCheckExpression(unary.getTarget());
+        target = lvalueTypeChecker.typeCheckExpression(unary.getTarget());
     }
 
     if (!target) {
         return {};
     }
-    if (target.isConstraint()) {
-        // NOTE: This assumes that this is an r-value. Which unbound types should be
-        Diagnostic::error(unary.getTarget(), "Cannot get address of r-value. (Unbound type)");
-        return {};
-    }
 
-    if (!target.canAssign()) {
-        // TODO: Diagnose invalid assignment target with AddressOf
-        Diagnostic::error(unary.getTarget(), "Cannot get address of r-value.");
-        return {};
-    }
-
-    return target.asType()->getPointerType();
+    return target.type->getPointerType();
 }
 
 Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& unary) {
