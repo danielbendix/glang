@@ -16,10 +16,15 @@ using llvm::TypeSwitch;
 using llvm::cast;
 
 class ScopeManager {
+
     
     struct Local {
+        enum class Kind : uint8_t {
+            Parameter,
+            Constant,
+            Variable,
+        };
         const Symbol* identifier;
-        bool isParameter;
         union {
             struct {
                 AST::FunctionDeclaration *function;
@@ -27,15 +32,18 @@ class ScopeManager {
             } parameter;
             AST::IdentifierBinding *binding;
         } as;
+        Kind kind;
+        bool isWritten = false;
+        bool isRead = false;
 
         [[noreturn]]
         Local() {
             llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
         }
 
-        Local(const Symbol& identifier, AST::FunctionDeclaration& function, int index) : identifier{&identifier}, isParameter{true}, as{.parameter = {.function=&function, index = index}} {}
+        Local(const Symbol& identifier, AST::FunctionDeclaration& function, int index) : identifier{&identifier}, kind{Kind::Parameter}, as{.parameter = {.function=&function, index = index}} {}
 
-        Local(const Symbol& identifier, AST::IdentifierBinding& binding) : identifier{&identifier}, isParameter{false}, as{.binding = &binding} {}
+        Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, kind{isVariable ? Kind::Variable : Kind::Constant}, as{.binding = &binding} {}
     };
 
     static_assert(sizeof(Local) <= 32);
@@ -70,9 +78,44 @@ public:
         scopes.push_back(locals.size());
     }
 
+    void warnOnUnusedLocal(Local& local) {
+        switch (local.kind) {
+            case Local::Kind::Parameter:
+                if (!local.isRead) {
+                    // TODO: Get location of parameter
+                    Diagnostic::error(*local.as.parameter.function, "Unused parameter [TODO: Add name and location].");
+                }
+                break;
+            case Local::Kind::Constant:
+                if (!local.isRead) {
+                    Diagnostic::warning(*local.as.binding, "Unused immutable value.");
+                }
+                break;
+            case Local::Kind::Variable:
+                if (local.isWritten) {
+                    if (!local.isRead) {
+                        Diagnostic::warning(*local.as.binding, "Variable was written to, but never read.");
+                    }
+                } else if (local.isRead) {
+                    Diagnostic::warning(*local.as.binding, "Variable was never mutated.");
+                } else {
+                    Diagnostic::warning(*local.as.binding, "Unused variable.");
+                }
+                break;
+        }
+    }
+
     void popInnerScope() {
         uint32_t resetTo = scopes.back();
         scopes.pop_back();
+
+        resizeLocalsEmittingWarnings(resetTo);
+    }
+
+    void resizeLocalsEmittingWarnings(size_t resetTo) {
+        for (int i = resetTo; i < locals.size(); ++i) {
+            warnOnUnusedLocal(locals[i]);
+        }
 
         locals.resize(resetTo);
     }
@@ -99,14 +142,14 @@ public:
             handler();
 
             auto resetTo = scopes[index];
-            locals.resize(resetTo);
             scopes.resize(index);
+            resizeLocalsEmittingWarnings(resetTo);
         } else {
             auto value = handler();
 
             auto resetTo = scopes[index];
             locals.resize(resetTo);
-            scopes.resize(index);
+            resizeLocalsEmittingWarnings(resetTo);
 
             return value;
         }
@@ -120,10 +163,10 @@ public:
 
         if constexpr (returns_void<Lambda>) {
             handler();
-            scopes.resize(resetScopesTo);
+            resizeLocalsEmittingWarnings(resetScopesTo);
         } else {
             auto value = handler();
-            scopes.resize(resetScopesTo);
+            resizeLocalsEmittingWarnings(resetScopesTo);
             return value;
         }
     }
@@ -153,15 +196,21 @@ public:
                 return ERROR;
             }
         }
-        locals.emplace_back(identifier, binding);
+        locals.emplace_back(identifier, binding, binding.getIsMutable());
         return OK;
     }
 
-    IdentifierResolution getResolution(const Symbol& identifier) {
+    IdentifierResolution getResolution(const Symbol& identifier, bool isRead = true, bool isWrite = false) {
         for (int i = locals.size() - 1; i >= 0; --i) {
             Local& local = locals[i];
             if (*local.identifier == identifier) {
-                if (local.isParameter) {
+                if (isWrite) { 
+                    local.isWritten = true;
+                }
+                if (isRead) {
+                    local.isRead = true;
+                }
+                if (local.kind == Local::Kind::Parameter) {
                     return IdentifierResolution::parameter(local.as.parameter.function, local.as.parameter.index);
                 } else {
                     return IdentifierResolution::local(local.as.binding);

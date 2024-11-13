@@ -259,6 +259,9 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
         scopeManager.pushInnerScope();
         for (int bi = 0; bi < block.size(); bi++) {
             block[bi].acceptVisitor(*this);
+            if (result.failed()) {
+                return;
+            }
         }
         scopeManager.popInnerScope();
     }
@@ -285,10 +288,16 @@ public:
         for (auto& declaration : function.getCode()) {
             declaration.acceptVisitor(*this);
             // TODO: If a declaration fails, we end, but if a statement fails, we can continue.
-            if (result.failed()) break;
+            if (result.failed()) {
+                break;
+            }
         }
-        scopeManager.popInnerScope();
-        scopeManager.popOuterScope();
+        if (result.failed()) {
+            scopeManager.reset();
+        } else {
+            scopeManager.popInnerScope();
+            scopeManager.popOuterScope();
+        }
         return result;
     }
 
@@ -358,20 +367,15 @@ public:
     // Statements
     
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
-        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-        TypeCheckResult targetResult = typeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        ExpressionLValueTypeChecker lvalueTypeChecker{LValueKind::Assignment, scopeManager, typeResolver};
+        TypeCheckResult targetResult = lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
         assignment.setTarget(targetResult.folded());
         if (!targetResult.type()) {
             result = ERROR;
             return;
         }
-        if (!targetResult.canAssign()) { 
-            result = ERROR;
-            // TODO; get cause of r-value-ness.
-            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
-            return;
-        }
         Type *targetType = targetResult.type();
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         auto valueResult = typeChecker.typeCheckExpressionUsingDeclaredType(&assignment.getValue(), targetType);
         assignment.setValue(valueResult.folded());
         Type *valueType = valueResult.type();
@@ -388,21 +392,15 @@ public:
     }
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
-        // TODO: This needs to type check the binary operation between the target and the operand.
-        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-        TypeCheckResult targetResult = typeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        ExpressionLValueTypeChecker lvalueTypeChecker{LValueKind::CompoundAssignment, scopeManager, typeResolver};
+        TypeCheckResult targetResult = lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
         assignment.setTarget(targetResult.folded());
         if (!targetResult.type()) {
             result = ERROR;
             return;
         }
-        if (!targetResult.canAssign()) { 
-            result = ERROR;
-            // TODO; get cause of r-value-ness.
-            Diagnostic::error(assignment.getTarget(), "Cannot assign, target is not assignable");
-            return;
-        }
         Type *targetType = targetResult.type();
+        ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         auto valueResult = typeChecker.typeCheckExpressionUsingDeclaredType(&assignment.getOperand(), targetType);
         assignment.setOperand(valueResult.folded());
         Type *valueType = valueResult.type();

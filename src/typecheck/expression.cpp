@@ -67,9 +67,11 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
         case AST::UnaryOperator::FPExtend:
         case AST::UnaryOperator::OptionalWrap:
             llvm_unreachable("Synthetic operations should not be occurring during type checking.");
-}
+    }
 
-    unary.setType(type);
+    if (type) {
+        unary.setType(type);
+    }
     return type;
 }
 
@@ -212,8 +214,8 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
         return {};
     }
 
-    // TODO: Add default integer type as declared type here:
-    auto index = typeCheckExpression(subscript.getIndex());
+    // FIXME: This should be a default unsigned/index type, so we get free checking of negative literals.
+    auto index = typeCheckExpression(subscript.getIndex(), typeResolver.defaultIntegerType());
     
     if (!index) {
         return {};

@@ -34,6 +34,18 @@ fn add2(numbers: i64[]) -> i64 {
     return numbers[i0] * numbers[i1];
 }
 
+fn set0(numbers: i64[!], n: i64) {
+    for i in 0 ..< n {
+        numbers[i] = 0;
+    }
+}
+
+fn add1(numbers: i64[!], n: i64) {
+    for i in 0 ..< n {
+        numbers[i] += 1;
+    }
+}
+
 fn main() -> i64 {
     //let a = 100;
     var a: i64 = 100;
@@ -49,7 +61,11 @@ fn main() -> i64 {
     let d: i64*? = &a;
 
     let e: i8? = nil;
-    let f: i16? = 0b1;
+    let f: i16?? = 0b1;
+
+    if let f = f, let f = f, let e = e, let d = d {
+        return e + f * *d;
+    }
 
     return a2;
 }
