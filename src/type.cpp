@@ -127,14 +127,13 @@ OptionalType *Type::_getOptionalType() {
 
 llvm::FunctionType *FunctionType::getFunctionType(llvm::LLVMContext& context) const {
     auto llvmReturnType = returnType->getLLVMType(context);
-    if (parameters.size() > 0) {
-        llvm::Type *parameterTypes[parameters.size()];
-        int i = 0;
-        for (auto* type : parameters) {
+    if (parametersSize > 0) {
+        llvm::Type *parameterTypes[parametersSize];
+        for (int i = 0; i < parametersSize; ++i) {
+            Type *type = parameters[i];
             parameterTypes[i] = type->getLLVMType(context);
-            ++i;
         }
-        return llvm::FunctionType::get(llvmReturnType, llvm::ArrayRef(parameterTypes, parameters.size()), false);
+        return llvm::FunctionType::get(llvmReturnType, llvm::ArrayRef(parameterTypes, parametersSize), false);
     } else {
         return llvm::FunctionType::get(llvmReturnType, false);
     }
@@ -324,7 +323,7 @@ void FunctionType::getName(std::string& result) const {
     result += "fn (";
 
     bool needsSeparator = false;
-    for (auto parameter : parameters) {
+    for (auto *parameter : std::span(parameters, parametersSize)) {
         if (needsSeparator) {
             result += ", ";
         } else {

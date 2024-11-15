@@ -243,9 +243,11 @@ public:
 
 class FunctionType : public Type {
     Type *returnType;
-    std::vector<Type *> parameters;
+    Type **parameters;
+    size_t parametersSize;
 public:
-    FunctionType(Type *returnType, std::vector<Type *>&& parameters) : Type{TK_Function}, returnType{returnType}, parameters{std::move(parameters)} {}
+    FunctionType(Type *returnType, Type ** parameters, size_t parametersSize) 
+        : Type{TK_Function}, returnType{returnType}, parameters{parameters}, parametersSize{parametersSize} {}
 
     void getName(std::string& result) const;
 
@@ -254,7 +256,7 @@ public:
     }
 
     int parameterCount() const {
-        return parameters.size();
+        return parametersSize;
     }
 
     Type *getParameter(int i) {
@@ -266,14 +268,6 @@ public:
     }
 
     llvm::FunctionType *getFunctionType(llvm::LLVMContext& context) const;
-
-    Iterable<Type *> getParameters() {
-        return Iterable<Type *>(parameters);
-    }
-
-    ConstIterable<Type *> getParameters() const {
-        return ConstIterable<Type *>(parameters);
-    }
 
     static bool classof(const Type *type) {
         return type->getKind() == TK_Function;

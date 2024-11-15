@@ -128,7 +128,7 @@ public:
 };
 
 class GlobalDeclarationTypeChecker {
-    ModuleDef& moduleDefinition;
+    Module& module;
     ScopeManager scopeManager;
     TypeResolver typeResolver;
 
@@ -137,10 +137,10 @@ class GlobalDeclarationTypeChecker {
 //    ExpressionTypeChecker::GlobalHandler globalHandler;
 
 public:
-    GlobalDeclarationTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins, PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors) 
-        : moduleDefinition{moduleDefinition}
-        , scopeManager{moduleDefinition}
-        , typeResolver{moduleDefinition, builtins}
+    GlobalDeclarationTypeChecker(Module& module, const Builtins& builtins, PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors) 
+        : module{module}
+        , scopeManager{module}
+        , typeResolver{module, builtins}
         , ancestors{ancestors}
     {
 //        auto globalHandlerLambda = [this](AST::IdentifierBinding& binding) -> Result {
@@ -210,39 +210,37 @@ public:
 //        }
 //    }
 
-    Result typeCheckFunction(AST::FunctionDeclaration& function) {
+    Result typeCheckFunction(Function& function, AST::FunctionDeclaration *declaration) {
         Result result = OK;
         Type *returnType;
-        if (auto returnTypeNode = function.getReturnTypeDeclaration()) {
+
+        if (auto returnTypeNode = declaration->getReturnTypeDeclaration()) {
             returnType = typeResolver.resolveType(*returnTypeNode);
             if (!returnType) {
                 result = ERROR;
-                // TODO: Emit error
             }
         } else {
             returnType = typeResolver.voidType();
         }
+        
+        auto& allocator = typeAllocator();
+        auto *typeSpace = allocator.allocate<FunctionType>();
+        auto **parameters = (Type **) allocator.allocate(sizeof(Type *) * declaration->getParameterCount(), alignof(Type *));
 
-        std::vector<Type *> parameterTypes;
-        parameterTypes.reserve(function.getParameterCount());
 
-        for (int i = 0; i < function.getParameterCount(); ++i) {
-            auto& parameter = function.getParameter(i);
+        for (int i = 0; i < declaration->getParameterCount(); ++i) {
+            auto& parameter = declaration->getParameter(i);
             Type *type = typeResolver.resolveType(*parameter.typeDeclaration);
             if (!type) {
                 result = ERROR;
-                // TODO: Emit error
             }
-            parameter.type = type;
-            parameterTypes.push_back(type);
+            parameters[i] = type;
         }
         if (result.ok()) {
             auto& allocator = typeAllocator();
-            // TODO: Either put the parameter types in with the types, or in a destructible heap.
-            auto functionType = allocate(allocator, [&](void *space) {
-                return new(space) FunctionType{returnType, std::move(parameterTypes)};
-            });
-            function.setType(*functionType);
+            auto functionType = new(typeSpace) FunctionType{returnType, parameters, size_t(declaration->getParameterCount())};
+               
+            function.type = functionType;
         }
         return result;
     }
@@ -251,7 +249,8 @@ public:
 class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker, void>, public AST::StatementVisitorT<FunctionTypeChecker, void> {
 
     Result result = OK;
-    AST::FunctionDeclaration *currentFunction;
+    Function *currentFunction;
+    AST::FunctionDeclaration *currentDeclaration;
     ScopeManager scopeManager;
     TypeResolver typeResolver;
 
@@ -267,25 +266,33 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
     }
 
 public:
-    FunctionTypeChecker(ModuleDef& moduleDefinition, const Builtins& builtins) 
-        : scopeManager{moduleDefinition}, typeResolver{moduleDefinition, builtins} 
+    FunctionTypeChecker(Module& module, const Builtins& builtins) 
+        : scopeManager{module}, typeResolver{module, builtins} 
     {}
 
-    Result typeCheckFunctionBody(AST::FunctionDeclaration& function) {
+    Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, uint32_t index) {
         scopeManager.reset();
 
         result = OK;
         currentFunction = &function;
+        currentDeclaration = declaration;
+
+        auto functionType = function.type;
 
         scopeManager.pushOuterScope();
-        for (int pi = 0; pi < function.getParameterCount(); ++pi) {
-            auto& parameter = function.getParameter(pi);
-            result |= scopeManager.pushParameter(parameter.name, function, pi);
+        for (uint32_t parameterIndex = 0; parameterIndex < function.parameterCount; ++parameterIndex) {
+            auto& parameter = declaration->getParameter(parameterIndex);
+            result |= scopeManager.pushParameter(
+                parameter.name, 
+                index,
+                parameterIndex,
+                declaration
+            );
         }
         if (result.failed()) return result;
 
         scopeManager.pushInnerScope();
-        for (auto& declaration : function.getCode()) {
+        for (auto& declaration : declaration->getCode()) {
             declaration.acceptVisitor(*this);
             // TODO: If a declaration fails, we end, but if a statement fails, we can continue.
             if (result.failed()) {
@@ -526,14 +533,14 @@ public:
     }
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
-        Type *returnType = currentFunction->getReturnType();
+        Type *returnType = currentFunction->type->getReturnType();
         if (auto* value = returnStatement.getValue()) {
             if (returnType == typeResolver.voidType()) {
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
             }
             ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-            auto typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(value, currentFunction->getReturnType());
+            auto typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(value, returnType);
             value = typeResult.folded();
             returnStatement.setValue(value);
             auto type = typeResult.type();
@@ -552,7 +559,7 @@ public:
                 result |= coerceResult;
             }
         } else {
-            if (currentFunction->getReturnType() != typeResolver.voidType()) {
+            if (returnType != typeResolver.voidType()) {
                 Diagnostic::error(returnStatement, "No return value in function with non-void return type.");
                 result = ERROR;
             }
@@ -637,28 +644,28 @@ PassResult populateEnumCases(auto& enums, TypeResolver& typeResolver) {
     return result;
 }
 
-PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
+PassResult typecheckModule(Module& module)
 {
     PassResult result = OK;
 
     std::vector<Type *> _owner;
 
-    TypeResolver resolver{moduleDefinition, builtins};
+    TypeResolver resolver{module, builtins};
 
-    result |= populateEnumCases(moduleDefinition.enums, resolver);
+    result |= populateEnumCases(module.enums, resolver);
 
     PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *> globalAncestors;
-    GlobalDeclarationTypeChecker typeChecker{moduleDefinition, builtins, globalAncestors};
+    GlobalDeclarationTypeChecker typeChecker{module, builtins, globalAncestors};
 
-    for (const auto function : moduleDefinition.functions) {
-        result |= typeChecker.typeCheckFunction(*function);
+    for (auto [function, declaration] : llvm::zip(module.functions, module.functionDeclarations)) {
+        result |= typeChecker.typeCheckFunction(function, declaration);
     }
 
     // Types are populated after here.
 
-    result |= typeCheckStructs(moduleDefinition.structs, moduleDefinition, resolver);
+    result |= typeCheckStructs(module.structs, module, resolver);
 
-    result |= typeChecker.typeCheckGlobals(moduleDefinition.globals);
+    result |= typeChecker.typeCheckGlobals(module.globals);
 
     if (result.failed()) {
         return ERROR;
@@ -666,9 +673,12 @@ PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition)
 
     // All global types are known here.
 
-    FunctionTypeChecker bodyTypeChecker{moduleDefinition, builtins};
-    for (const auto function : moduleDefinition.functions) {
-        result |= bodyTypeChecker.typeCheckFunctionBody(*function);
+    FunctionTypeChecker bodyTypeChecker{module, builtins};
+    for (uint32_t functionIndex = 0; functionIndex < module.functions.size(); ++functionIndex) {
+        auto& function = module.functions[functionIndex];
+        auto *declaration = module.functionDeclarations[functionIndex];
+
+        result |= bodyTypeChecker.typeCheckFunctionBody(function, declaration, functionIndex);
     }
 
     return result;

@@ -3,6 +3,7 @@
 #include "AST_Visitor.h"
 #include "type.h"
 #include "type/visitor.h"
+#include "target/architecture.h"
 #include "containers/pointer_map.h"
 #include "containers/bitmap.h"
 
@@ -41,6 +42,7 @@ private:
 
     Value(llvm::Value *value, unsigned kind) : _value{value, kind} {
         assert(kind < (1 << BITS));
+        assert(value);
     }
 public:
     static Value value(llvm::Value *value) {
@@ -71,7 +73,7 @@ public:
     //llvm::StringMap<AST::Declaration *> globals;
 
     std::vector<AST::FunctionDeclaration *> functions;
-    PointerMap<AST::FunctionDeclaration *, llvm::Function *> llvmFunctions;
+    std::vector<llvm::Function *NONNULL> llvmFunctions;
     std::vector<AST::VariableDeclaration *> globals;
     PointerMap<AST::IdentifierBinding *, llvm::GlobalVariable *> llvmGlobals;
 
@@ -124,14 +126,12 @@ public:
         return initializer;
     }
 
-    void addFunction(AST::FunctionDeclaration& function) {
-        functions.push_back(&function);
-
-        auto functionType = function.getType();
+    void addFunction(Function& function, const Symbol& name) {
+        auto functionType = function.type;
         auto llvmFunctionType = functionType->getFunctionType(llvmContext);
 
-        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, function.getName().string_view(), llvmModule);
-        llvmFunctions.insert(&function, llvmFunction);
+        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, name.string_view(), llvmModule);
+        llvmFunctions.push_back(llvmFunction);
     }
 
     llvm::Function *createPrintFunction(Type& type);
@@ -148,14 +148,16 @@ public:
 
 };
 
-bool populateContext(Context& context, ModuleDef& moduleDefinition) {
-    for (auto global : moduleDefinition.globals) {
+bool populateContext(Context& context, Module& module) {
+    for (auto global : module.globals) {
         context.addGlobal(*global);
     }
 
-    for (auto function : moduleDefinition.functions) {
-        context.addFunction(*function);
+    for (auto [function, declaration] : llvm::zip(module.functions, module.functionDeclarations)) {
+        context.addFunction(function, declaration->getName());
     }
+
+    std::swap(context.functions, module.functionDeclarations);
     
     return false;
 }
@@ -266,12 +268,12 @@ public:
         return *alloca;
     }
 
-    llvm::Argument& getArgument(unsigned i) {
+    llvm::Argument& getArgument(uint32_t i) {
         return *function.getArg(i);
     }
 
-    llvm::Function& getFunction(AST::FunctionDeclaration& function) {
-        return *context.llvmFunctions[&function];
+    llvm::Function& getFunction(uint32_t functionIndex) {
+        return *context.llvmFunctions[functionIndex];
     }
 
     llvm::BasicBlock& createBlock() {
@@ -1007,9 +1009,10 @@ public:
                 }
             }
             case IdentifierResolution::Kind::Function:
-                return Value::value(&function.getFunction(*resolution.as.function.function));
+                return Value::value(&function.getFunction(resolution.as.function.index));
             case IdentifierResolution::Kind::Parameter:
-                return Value::value(&function.getArgument(resolution.as.parameter.parameterIndex));
+                // TODO: We need to make an array of arguments, as seen from the perspective of the function.
+                return Value::value(&function.getArgument(resolution.as.parameter.index));
             case IdentifierResolution::Kind::Type:
                 llvm_unreachable("[PROGRAMMER ERROR]: Type resolution in codegen.");
             case IdentifierResolution::Kind::UNRESOLVED:
@@ -1585,7 +1588,7 @@ public:
 
     Value visitCallExpression(AST::CallExpression& call) {
         // TODO: We need to handle stack & pack returns here, once they're implemented.
-        auto callee = visitExpressionAsValue(call);
+        auto callee = visitExpressionAsValue(call.getTarget());
         llvm::Function *llvmFunction = llvm::cast<llvm::Function>(callee);
         llvmFunction->getFunctionType();
         if (call.argumentCount()) {
@@ -1680,8 +1683,7 @@ public:
     }
 
     Value visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
-        auto _target = memberAccess.getTarget().acceptVisitor(*this);
-        auto target = Value::value(nullptr);
+        auto target = memberAccess.getTarget().acceptVisitor(*this);
         auto targetType = memberAccess.getTarget().getType();
 
         auto resolution = memberAccess.getResolution();
@@ -1756,8 +1758,7 @@ void codegenGlobals(Context& context) {
 }
 
 Result performCodegen(Context& context) {
-    for (const auto function : context.functions) {
-        llvm::Function *llvmFunction = context.llvmFunctions[function];
+    for (const auto [function, llvmFunction] : llvm::zip(context.functions, context.llvmFunctions)) {
         codeGenFunction(*function, *llvmFunction, context);
     }
 
@@ -1772,7 +1773,35 @@ llvm::LLVMContext llvmContext;
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Host.h>
 
-std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
+llvm::IntegerType *getRegisterType(size_t registerSize) {
+    switch (registerSize) {
+        case 4:
+            return llvm::IntegerType::get(llvmContext, 32);
+        case 8:
+            return llvm::IntegerType::get(llvmContext, 64);
+        default:
+            llvm_unreachable("Unsupported register size value.");
+    }
+}
+
+void initializeRegisterPackTypesInStructTypes(std::vector<StructType *>& structs) {
+    const Architecture& architecture = Architecture::current();
+
+    auto registerPackSize = architecture.registerSize * architecture.registerPackSize;
+    llvm::Type *registerType = getRegisterType(architecture.registerSize);
+    for (auto structType : structs) {
+        auto layout = structType->getLayout();
+
+        if (layout.size() <= registerPackSize) {
+            auto size = (layout.size() + architecture.registerSize - 1) / architecture.registerSize;
+            structType->setPackType(llvm::ArrayType::get(registerType, size));
+        } else {
+            structType->setPackType(nullptr);
+        }
+    }
+}
+
+std::unique_ptr<llvm::Module> generateCode(Module& module)
 {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
@@ -1781,20 +1810,22 @@ std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition)
     // Get the target triple for the host machine
     std::string targetTriple = llvm::sys::getDefaultTargetTriple();
 
-    auto module = std::make_unique<llvm::Module>("test", llvmContext);
-    module->setTargetTriple(targetTriple);
+    auto llvmModule = std::make_unique<llvm::Module>("test", llvmContext);
+    llvmModule->setTargetTriple(targetTriple);
 
-    Context context{llvmContext, *module};
+    Context context{llvmContext, *llvmModule};
 
-    populateContext(context, moduleDefinition);
+    initializeRegisterPackTypesInStructTypes(module.structs);
+
+    populateContext(context, module);
 
     performCodegen(context);
 
-    if (llvm::verifyModule(*module, &llvm::outs())) {
-        llvm::outs() << *module;
-        module.reset();
-        return module;
+    if (llvm::verifyModule(*llvmModule, &llvm::outs())) {
+        llvm::outs() << *llvmModule;
+        llvmModule.reset();
+        return llvmModule;
     }
 
-    return module;
+    return llvmModule;
 }

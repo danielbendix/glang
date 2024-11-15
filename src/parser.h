@@ -11,10 +11,14 @@ struct ParsedFile {
     //std::string path;
 public:
     std::vector<AST::Declaration *> declarations;
+    std::vector<uint32_t> lineBreaks;
+    std::unique_ptr<ASTHandle> astHandle;
 
-    ParsedFile(std::vector<AST::Declaration *> declarations)
-        : declarations{std::move(declarations)} {}
+    ParsedFile(std::vector<AST::Declaration *>&& declarations, std::vector<uint32_t>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
+        : declarations{std::move(declarations)}, lineBreaks{std::move(lineBreaks)}, astHandle{std::move(astHandle)} {}
 };
+
+ParsedFile parseString(std::string&& string);
 
 struct ParserState {
     enum class Kind {
@@ -102,8 +106,9 @@ class Parser {
     };
 
     SymbolTable& symbols;
-    ThreadContext& context = *ThreadContext::get();
 
+    BumpAllocator nodeAllocator;
+    Heap heap;
     Scanner scanner;
     Token previous;
     Token current;
@@ -236,6 +241,11 @@ class Parser {
             throw ParserException::failedExpectation(current, type);
         }
         return previous;
+    }
+
+    template <typename T>
+    ArrayAllocator<T> allocator() {
+        return heap.allocator<T>();
     }
 
     friend class ParseRule;

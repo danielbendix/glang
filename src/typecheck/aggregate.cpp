@@ -75,8 +75,8 @@ class AggregateTypeChecker {
     }
 
 public:
-    AggregateTypeChecker(ModuleDef& moduleDefinition, TypeResolver& typeResolver) 
-        : scopeManager{moduleDefinition}, typeResolver{typeResolver} {}
+    AggregateTypeChecker(Module& module, TypeResolver& typeResolver) 
+        : scopeManager{module}, typeResolver{typeResolver} {}
 
     Result typeCheckStructField(AST::VariableDeclaration& field) {
         Type *declaredType = nullptr;
@@ -237,8 +237,8 @@ public:
     }
 };
 
-Result typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, ModuleDef& moduleDefinition, TypeResolver& typeResolver) {
-    AggregateTypeChecker checker{moduleDefinition, typeResolver};
+Result typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, Module& module, TypeResolver& typeResolver) {
+    AggregateTypeChecker checker{module, typeResolver};
 
     Result result = OK;
 
