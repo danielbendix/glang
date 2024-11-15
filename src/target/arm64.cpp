@@ -15,7 +15,7 @@ void setupARM64() {
         .fpSingle = Layout{Align{2}, 4},
         .fpDouble = Layout{Align{3}, 8},
 
-
-        .allowsUnalignedLoads = true,
+        .registerSize = 8,
+        .registerPackSize = 4,
     };
 }

@@ -7,12 +7,12 @@
 #include "builtins.h"
 
 class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
-    ModuleDef& moduleDefinition;
+    Module& module;
     const Builtins& builtins;
 
 private:
     Type *resolveType(const Symbol& name) {
-        if (auto type = moduleDefinition.types.lookup(name)) {
+        if (auto type = module.types.lookup(name)) {
             return *type;
         } else if (auto builtin = builtins.types.lookup(name)) {
             return *builtin;
@@ -21,7 +21,7 @@ private:
     }
 
 public:
-    TypeResolver(ModuleDef& moduleDefinition, const Builtins& builtins) : moduleDefinition{moduleDefinition}, builtins{builtins} {};
+    TypeResolver(Module& module, const Builtins& builtins) : module{module}, builtins{builtins} {};
 
     Type *defaultTypeFromTypeConstraint(TypeConstraint *constraint) {
         switch (constraint->getKind()) {

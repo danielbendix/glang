@@ -1817,11 +1817,9 @@ namespace AST {
         static constexpr Modifiers allowedModifersInStruct = {Static,Public, Private};
     };
 
-    class FunctionParameter {
-    public:
+    struct FunctionParameter {
         Symbol& name;
         TypeNode *NONNULL typeDeclaration;
-        Type *NULLABLE type = nullptr;
         
         FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{name}, typeDeclaration{type} {}
         //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
@@ -1853,8 +1851,6 @@ namespace AST {
         vector<FunctionParameter> parameters;
         int arity;
         TypeNode *NULLABLE returnTypeDeclaration;
-        FunctionType *NULLABLE type = nullptr;
-        Type *NULLABLE returnType = nullptr;
         Block code;
 
         FunctionDeclaration(Token token, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
@@ -1882,18 +1878,6 @@ namespace AST {
 
         TypeNode *NULLABLE getReturnTypeDeclaration() const {
             return returnTypeDeclaration;
-        }
-
-        Type *NULLABLE getReturnType() const {
-            return type->getReturnType();
-        }
-
-        void setType(FunctionType& type) {
-            this->type = &type;
-        }
-
-        FunctionType *NULLABLE getType() const {
-            return type;
         }
 
         int getParameterCount() const {
@@ -1996,7 +1980,7 @@ namespace AST {
             Symbol& name;
             vector<Member> members;
         public:
-            Case(Token token, Symbol& name) : name{name}, members{allocator<Member>()} {}
+            Case(Token token, Symbol& name, ArrayAllocator<Member> allocator) : name{name}, members{allocator} {}
             Case(Token token, Symbol& name, vector<Member>&& members) : name{name}, members{std::move(members)} {}
             Case(Case&) = default;
             Case& operator=(Case&) = delete;

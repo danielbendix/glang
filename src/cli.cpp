@@ -6,9 +6,8 @@
 enum OptionValues {
     VALIDATE_ONLY = 0,
     JSON = 1,
-    PRINT_CODE = 2,
-    PRINT_IR = 3,
-    VERBOSE = 4,
+    PRINT_IR = 2,
+    VERBOSE = 3,
     OUTPUT = 'o',
     HELP = 'h',
 };
@@ -17,7 +16,6 @@ static const
 struct option options[] = {
     {"validate-only", no_argument,        NULL, VALIDATE_ONLY},
     {"json",          no_argument,        NULL, JSON},
-    {"print-code",    no_argument,        NULL, PRINT_CODE},
     {"print-ir",      no_argument,        NULL, PRINT_IR},
     {"verbose",       no_argument,        NULL, VERBOSE},
     {"output",        required_argument,  NULL, OUTPUT},
@@ -41,7 +39,6 @@ void printHelp() {
 
     os << "  --validate-only        Only validate code. Do not run codegen.\n";
     os << "  --json                 Output diagnostics in JSON format.\n";
-    os << "  --print-code           Write the parsed AST in code form to stdout.\n";
     os << "  --print-ir             Write the produced LLVM IR to stdout.\n";
     os << "  --verbose              Enable verbose mode.\n";
     os << "  -o or --output         Specify a file to write the produced LLVM bitcode to.\n";
@@ -73,9 +70,6 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
             case JSON:
                 flags.json = true;
                 break;
-            case PRINT_CODE:
-                printCode = true;
-                break;
             case PRINT_IR:
                 printIR = true;
                 break;
@@ -99,10 +93,6 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
     if (optind < args.size()) {
         int count = args.size() - optind;
 
-        if (count > 1) {
-            std::cerr << "Only one file is currently supported.";
-            exit(1);
-        }
         while (optind < args.size()) {
             files.push_back(args[optind++]);
         }

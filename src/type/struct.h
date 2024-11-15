@@ -42,6 +42,7 @@ private:
 
     SymbolMap<Property> properties;
 
+    llvm::Type *packType = nullptr;
     std::vector<AST::VariableDeclaration *> fields;
     // TODO: Put into collective array with fields.
     std::vector<uint32_t> offsets = {};
@@ -131,6 +132,14 @@ public:
         } else {
             initializedFields.copyInto(&this->initializedFields.single);
         }
+    }
+
+    llvm::Type *getPackType() const {
+        return packType;
+    }
+
+    void setPackType(llvm::Type *packType) {
+        this->packType = packType;
     }
 
     static bool classof(const Type *type) {

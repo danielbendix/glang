@@ -512,7 +512,7 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
     auto nested = [this, resolution] () -> TypeResult {
         switch (resolution.getKind()) {
             case IdentifierResolution::Kind::UNRESOLVED:
-                llvm_unreachable("UNDEFINED resolution in type check.");
+                llvm_unreachable("UNRESOLVED resolution in type check.");
                 break;
             case IdentifierResolution::Kind::Global: {
                 auto *binding = resolution.as.global.binding;
@@ -523,11 +523,11 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
                 }
             }
             case IdentifierResolution::Kind::Function: {
-                AST::FunctionDeclaration *function = resolution.as.function.function;
-                return function->getType();
+                Function *function = resolution.as.function.function;
+                return function->type;
             }
             case IdentifierResolution::Kind::Parameter: {
-                return resolution.as.parameter.function->getParameter(resolution.as.parameter.parameterIndex).type;
+                return resolution.as.parameter.function->type->getParameter(resolution.as.parameter.index);
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;

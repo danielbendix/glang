@@ -35,7 +35,8 @@ Architecture currentArchitecture = {
     .fpSingle = {0, 0},
     .fpDouble = {0, 0},
 
-    .allowsUnalignedLoads = true,
+    .registerSize = 0,
+    .registerPackSize = 0,
 };
 
 void setupARM64();

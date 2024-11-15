@@ -14,8 +14,8 @@ std::pair<MemberResolution, StructType::MemberType> StructType::resolveMember(co
 
         }
         if (auto method = llvm::dyn_cast<AST::FunctionDeclaration *>(*property)) {
-            MemberType memberType{method->getType(), false};
             llvm_unreachable("");
+            //MemberType memberType{method->getType(), false};
             //return {MemberResolution::structMethod(
         }
         llvm_unreachable("Unsupported property type in struct.");

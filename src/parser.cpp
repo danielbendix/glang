@@ -3,11 +3,16 @@
 #include <cstdlib>
 #include <charconv>
 
+ParsedFile parseString(std::string&& string) {
+    Parser parser{*ThreadContext::get()->symbols, std::move(string)};
+
+    return parser.parse();
+}
+
 /* TODO:
  * - Implement error messages
  * - Implement error recovery to parse entire file.
  */
-
 
 ParsedFile Parser::parse() 
 {
@@ -17,7 +22,8 @@ ParsedFile Parser::parse()
         declarations.emplace_back(declaration());
     }
 
-    return ParsedFile(std::move(declarations));
+    auto astHandle = std::make_unique<ASTHandle>(std::move(heap), std::move(nodeAllocator));
+    return ParsedFile(std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle));
 }
 
 // Utilities
@@ -128,10 +134,10 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
     }
 
     if (typeModifiers.empty()) {
-        return AST::TypeLiteral::create(context.nodeAllocator, nameToken, name);
+        return AST::TypeLiteral::create(nodeAllocator, nameToken, name);
     } else {
-        auto type = AST::TypeLiteral::create(context.nodeAllocator, nameToken, name);
-        return AST::TypeModifier::create(context.nodeAllocator, type, typeModifiers);
+        auto type = AST::TypeLiteral::create(nodeAllocator, nameToken, name);
+        return AST::TypeModifier::create(nodeAllocator, type, typeModifiers);
     }
 }
 
@@ -143,7 +149,7 @@ AST::Binding *Parser::binding()
 
     auto& identifier = symbols.getSymbol(token.chars);
 
-    return AST::IdentifierBinding::create(context.nodeAllocator, token, identifier);
+    return AST::IdentifierBinding::create(nodeAllocator, token, identifier);
 }
 
 // Declarations
@@ -200,7 +206,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
     auto code = block();
 
     return AST::FunctionDeclaration::create(
-        context.nodeAllocator, nameToken, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
+        nodeAllocator, nameToken, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
     );
 }
 
@@ -248,7 +254,7 @@ AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
     }
 
     return AST::StructDeclaration::create(
-        context.nodeAllocator, token, modifiers.modifiers, name, std::move(declarations)
+        nodeAllocator, token, modifiers.modifiers, name, std::move(declarations)
     );
 }
 
@@ -278,7 +284,7 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     }
 
     return AST::EnumDeclaration::create(
-        context.nodeAllocator, token, modifiers.modifiers, name, rawType, std::move(cases), std::move(declarations)
+        nodeAllocator, token, modifiers.modifiers, name, rawType, std::move(cases), std::move(declarations)
     );
 }
 
@@ -300,7 +306,7 @@ AST::EnumDeclaration::Case Parser::enumCase()
 
     consume(TokenType::Semicolon);
 
-    return AST::EnumDeclaration::Case(token, name);
+    return AST::EnumDeclaration::Case(token, name, allocator<AST::EnumDeclaration::Case::Member>());
 }
 
 AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
@@ -342,12 +348,12 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool 
         consume(TokenType::Semicolon);
     }
 
-    return AST::VariableDeclaration::create(context.nodeAllocator, token, modifiers.modifiers, isMutable, variableBinding, tp, initial);
+    return AST::VariableDeclaration::create(nodeAllocator, token, modifiers.modifiers, isMutable, variableBinding, tp, initial);
 }
 
 AST::StatementDeclaration *Parser::statementDeclaration()
 {
-    return AST::StatementDeclaration::create(context.nodeAllocator, statement());
+    return AST::StatementDeclaration::create(nodeAllocator, statement());
 }
 
 // Statements
@@ -419,7 +425,7 @@ AST::IfStatement *Parser::ifStatement()
         }
     }
 
-    return AST::IfStatement::create(context.nodeAllocator, token, std::move(branches), std::move(fallback));
+    return AST::IfStatement::create(nodeAllocator, token, std::move(branches), std::move(fallback));
 }
 
 AST::ForStatement *Parser::forStatement()
@@ -434,7 +440,7 @@ AST::ForStatement *Parser::forStatement()
 
     auto code = block();
 
-    return AST::ForStatement::create(context.nodeAllocator, token, std::move(loopBinding), std::move(iterable), std::move(code));
+    return AST::ForStatement::create(nodeAllocator, token, std::move(loopBinding), std::move(iterable), std::move(code));
 }
 
 AST::GuardStatement *Parser::guardStatement() 
@@ -447,7 +453,7 @@ AST::GuardStatement *Parser::guardStatement()
 
     auto code = block();
 
-    return AST::GuardStatement::create(context.nodeAllocator, token, std::move(conds), std::move(code));
+    return AST::GuardStatement::create(nodeAllocator, token, std::move(conds), std::move(code));
 }
 
 AST::ReturnStatement *Parser::returnStatement()
@@ -455,7 +461,7 @@ AST::ReturnStatement *Parser::returnStatement()
     auto token = previous;
     auto expr = expression({});
     consume(TokenType::Semicolon);
-    return AST::ReturnStatement::create(context.nodeAllocator, token, expr);
+    return AST::ReturnStatement::create(nodeAllocator, token, expr);
 }
 
 AST::WhileStatement *Parser::whileStatement()
@@ -464,21 +470,21 @@ AST::WhileStatement *Parser::whileStatement()
     auto conds = conditions();
     auto code = block();
 
-    return AST::WhileStatement::create(context.nodeAllocator, token, std::move(conds), std::move(code));
+    return AST::WhileStatement::create(nodeAllocator, token, std::move(conds), std::move(code));
 }
 
 AST::BreakStatement *Parser::breakStatement()
 {
     auto token = previous;
     consume(TokenType::Semicolon);
-    return AST::BreakStatement::create(context.nodeAllocator, token);
+    return AST::BreakStatement::create(nodeAllocator, token);
 }
 
 AST::ContinueStatement *Parser::continueStatement()
 {
     auto token = previous;
     consume(TokenType::Semicolon);
-    return AST::ContinueStatement::create(context.nodeAllocator, token);
+    return AST::ContinueStatement::create(nodeAllocator, token);
 }
 
 std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
@@ -519,14 +525,14 @@ AST::Statement *Parser::assignmentOrExpression()
         consume(TokenType::Semicolon);
 
         if (op) {
-            return AST::CompoundAssignmentStatement::create(context.nodeAllocator, token, *op, expr, value);
+            return AST::CompoundAssignmentStatement::create(nodeAllocator, token, *op, expr, value);
         } else {
-            return AST::AssignmentStatement::create(context.nodeAllocator, token, expr, value);
+            return AST::AssignmentStatement::create(nodeAllocator, token, expr, value);
 
         }
     } else {
         consume(TokenType::Semicolon);
-        return AST::ExpressionStatement::create(context.nodeAllocator, expr);
+        return AST::ExpressionStatement::create(nodeAllocator, expr);
     }
 }
 
@@ -627,7 +633,7 @@ AST::Expression *Parser::call(AST::Expression *left)
     AST::vector<AST::Expression *NONNULL> arguments{allocator<AST::Expression *>()};
 
     if (match(TokenType::RightParenthesis)) {
-        return AST::CallExpression::create(context.nodeAllocator, token, std::move(left), std::move(arguments));
+        return AST::CallExpression::create(nodeAllocator, token, std::move(left), std::move(arguments));
     }
 
     do {
@@ -636,7 +642,7 @@ AST::Expression *Parser::call(AST::Expression *left)
 
     consume(TokenType::RightParenthesis);
 
-    return AST::CallExpression::create(context.nodeAllocator, token, std::move(left), std::move(arguments));
+    return AST::CallExpression::create(nodeAllocator, token, std::move(left), std::move(arguments));
 }
 
 AST::Expression *Parser::subscript(AST::Expression *NONNULL left) {
@@ -646,7 +652,7 @@ AST::Expression *Parser::subscript(AST::Expression *NONNULL left) {
 
     consume(TokenType::RightBrace);
 
-    return AST::SubscriptExpression::create(context.nodeAllocator, token, std::move(left), std::move(index));
+    return AST::SubscriptExpression::create(nodeAllocator, token, std::move(left), std::move(index));
 }
 
 AST::Expression *Parser::member(AST::Expression *left)
@@ -655,7 +661,7 @@ AST::Expression *Parser::member(AST::Expression *left)
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(nameToken.chars);
 
-    return AST::MemberAccessExpression::create(context.nodeAllocator, token, std::move(left), name);
+    return AST::MemberAccessExpression::create(nodeAllocator, token, std::move(left), name);
 }
 
 AST::Expression *Parser::inferredMember()
@@ -664,7 +670,7 @@ AST::Expression *Parser::inferredMember()
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(nameToken.chars);
 
-    return AST::InferredMemberAccessExpression::create(context.nodeAllocator, token, name);
+    return AST::InferredMemberAccessExpression::create(nodeAllocator, token, name);
 }
 
 std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
@@ -710,7 +716,7 @@ AST::Expression *Parser::binary(AST::Expression *left)
     ++newPrecedence;
     auto right = parseExpression(newPrecedence);
 
-    return AST::BinaryExpression::create(context.nodeAllocator, token, op, std::move(left), std::move(right));
+    return AST::BinaryExpression::create(nodeAllocator, token, op, std::move(left), std::move(right));
 }
 
 template <int skip, int base>
@@ -801,7 +807,7 @@ AST::Literal *Parser::createCharacterLiteral(const Token& token)
         }
     }
 
-    return AST::CharacterLiteral::create(context.nodeAllocator, token, value);
+    return AST::CharacterLiteral::create(nodeAllocator, token, value);
 }
 
 AST::Literal *Parser::createStringLiteral(const Token& token)
@@ -829,7 +835,7 @@ AST::Literal *Parser::createStringLiteral(const Token& token)
         }
     }
 
-    return AST::StringLiteral::create(context.nodeAllocator, token, std::move(string));
+    return AST::StringLiteral::create(nodeAllocator, token, std::move(string));
 }
 
 AST::Expression *Parser::literal()
@@ -845,43 +851,43 @@ AST::Expression *Parser::literal()
     switch (previous.type) {
         case Binary: 
             return IntegerLiteral::create(
-                context.nodeAllocator, 
+                nodeAllocator, 
                 previous, 
                 parseInteger<2, 2>(previous), 
                 IntegerType::Binary
             );
         case Octal: 
             return IntegerLiteral::create(
-                context.nodeAllocator, 
+                nodeAllocator, 
                 previous, 
                 parseInteger<2, 8>(previous), 
                 IntegerType::Octal
             );
         case Integer: 
             return IntegerLiteral::create(
-                context.nodeAllocator, 
+                nodeAllocator, 
                 previous, 
                 parseInteger<0, 10>(previous), 
                 IntegerType::Decimal
             );
         case Hexadecimal: 
             return IntegerLiteral::create(
-                context.nodeAllocator, 
+                nodeAllocator, 
                 previous, 
                 parseInteger<2, 16>(previous), 
                 IntegerType::Hexadecimal
             );
 
-        case Floating: return FloatingPointLiteral::create(context.nodeAllocator, previous, parseDouble(previous));
+        case Floating: return FloatingPointLiteral::create(nodeAllocator, previous, parseDouble(previous));
 
         case Character: return createCharacterLiteral(previous);
 
         case String: return createStringLiteral(previous);
 
-        case True: return BooleanLiteral::create(context.nodeAllocator, previous, true);
-        case False: return BooleanLiteral::create(context.nodeAllocator, previous, false);
+        case True: return BooleanLiteral::create(nodeAllocator, previous, true);
+        case False: return BooleanLiteral::create(nodeAllocator, previous, false);
 
-        case Nil: return NilLiteral::create(context.nodeAllocator, previous);
+        case Nil: return NilLiteral::create(nodeAllocator, previous);
 
         default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
     }
@@ -908,7 +914,7 @@ AST::Expression *Parser::prefixUnary()
 
     auto target = parseExpression(precedence);
 
-    return AST::UnaryExpression::create(context.nodeAllocator, token, op, std::move(target));
+    return AST::UnaryExpression::create(nodeAllocator, token, op, std::move(target));
 }
 
 AST::Expression *Parser::postfixUnary(AST::Expression *expression)
@@ -918,14 +924,14 @@ AST::Expression *Parser::postfixUnary(AST::Expression *expression)
     switch (token.type) {
         case TokenType::Bang: 
             return AST::UnaryExpression::create(
-                context.nodeAllocator, 
+                nodeAllocator, 
                 token, 
                 AST::UnaryOperator::ForceUnwrap, 
                 expression
             );
         case TokenType::At:
             return AST::UnaryExpression::create(
-                context.nodeAllocator,
+                nodeAllocator,
                 token,
                 AST::UnaryOperator::PostfixDereference,
                 expression
@@ -939,7 +945,7 @@ AST::Expression *Parser::identifier()
 {
     auto token = previous;
     auto& name = symbols.getSymbol(token.chars);
-    auto identifier = AST::Identifier::create(context.nodeAllocator, token, name);
+    auto identifier = AST::Identifier::create(nodeAllocator, token, name);
     if (expressionRules.allowInitializer && match(TokenType::LeftBracket)) {
         return initializer(std::move(identifier));
     }
@@ -948,7 +954,7 @@ AST::Expression *Parser::identifier()
 
 AST::Expression *Parser::self()
 {
-    return AST::Self::create(context.nodeAllocator, previous);
+    return AST::Self::create(nodeAllocator, previous);
 }
 
 AST::Expression *Parser::grouping()
@@ -964,7 +970,7 @@ AST::Expression *Parser::intrinsic()
     auto& name = symbols.getSymbol(token.chars.substr(1));
 
     bool hasTypeArguments = false;
-    AST::vector<AST::TypeNode *NONNULL> typeArguments{context.allocator<AST::TypeNode *>()};
+    AST::vector<AST::TypeNode *NONNULL> typeArguments{allocator<AST::TypeNode *>()};
     if (match(TokenType::Less)) {
         hasTypeArguments = true;
 
@@ -978,7 +984,7 @@ AST::Expression *Parser::intrinsic()
     }
 
     bool hasCall = false;
-    AST::vector<AST::Expression *NONNULL> arguments{context.allocator<AST::Expression *>()};
+    AST::vector<AST::Expression *NONNULL> arguments{allocator<AST::Expression *>()};
     if (match(TokenType::LeftParenthesis)) {
         hasCall = true;
 
@@ -992,7 +998,7 @@ AST::Expression *Parser::intrinsic()
     }
 
     return AST::IntrinsicExpression::create(
-        context.nodeAllocator, 
+        nodeAllocator, 
         token, 
         name, 
         hasTypeArguments,
@@ -1015,7 +1021,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
         auto nameToken = consume(TokenType::Identifier);
         auto& name = symbols.getSymbol(nameToken.chars);
         consume(TokenType::Equal);
-        auto member = AST::InferredMemberAccessExpression::create(context.nodeAllocator, nameToken, name);
+        auto member = AST::InferredMemberAccessExpression::create(nodeAllocator, nameToken, name);
         auto value = expression({});
         pairs.push_back({std::move(member), std::move(value)});
         if (!match(TokenType::Comma)) {
@@ -1024,7 +1030,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
         }
     }
 
-    return AST::InitializerExpression::create(context.nodeAllocator, token, std::move(identifier), std::move(pairs));
+    return AST::InitializerExpression::create(nodeAllocator, token, std::move(identifier), std::move(pairs));
 }
 
 // For improve cache-friendliness, this should probably be a "struct of arrays".
@@ -1108,3 +1114,4 @@ ParseRule ParseRule::expressionRules[] = {
     [TOKEN_SELF]          = {this_,    NULL,   PREC_NONE},
 */
 };
+

@@ -25,7 +25,10 @@ struct alignas(128) Architecture {
     Layout fpSingle;
     Layout fpDouble;
 
-    bool allowsUnalignedLoads = false;
+    /// Size in bytes of a general-purpose register.
+    uint8_t registerSize;
+    /// How many register-sized slots to use to pass or return an aggregate value.
+    uint8_t registerPackSize;
 
     static void populate(CPU cpu);
 

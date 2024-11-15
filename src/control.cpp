@@ -30,13 +30,13 @@ class FunctionBodyAnalyzer : public AST::DeclarationVisitorT<FunctionBodyAnalyze
 public:
     FunctionBodyAnalyzer() {}
 
-    Result analyzeFunction(AST::FunctionDeclaration& function) {
-        isVoid = function.getType()->getReturnType()->isVoid();
+    Result analyzeFunction(Function& function, AST::FunctionDeclaration *declaration) {
+        isVoid = function.type->getReturnType()->isVoid();
 
-        auto effect = visitBlock(function.getCode());
+        auto effect = visitBlock(declaration->getCode());
 
         if (!isVoid && effect != EndsFunction) {
-            Diagnostic::error(function, "Control reaches end of non-void function.");
+            Diagnostic::error(*declaration, "Control reaches end of non-void function.");
             result = ERROR;
         }
 
@@ -153,38 +153,17 @@ public:
 
 };
 
-class GlobalDeclarationAnalyzer : public AST::DeclarationVisitorT<GlobalDeclarationAnalyzer, Result> {
-public:
-    GlobalDeclarationAnalyzer() {}
+Result analyzeFunction(Function& function, AST::FunctionDeclaration *declaration) {
+    FunctionBodyAnalyzer analyzer;
 
-    Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return OK; }
-    Result visitVariableDeclaration(AST::VariableDeclaration& variable) { return OK; }
-    Result visitStatementDeclaration(AST::StatementDeclaration& statement) { llvm_unreachable("Should not exist at this point"); }
+    return analyzer.analyzeFunction(function, declaration);
+}
 
-    Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-        // TODO: Visit all user defined types in this pass.
-        return OK;
-    }
-
-    Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
-        // TODO: Visit all user defined types in this pass.
-        return OK;
-    }
-
-    Result visitFunctionDeclaration(AST::FunctionDeclaration& function) { 
-        FunctionBodyAnalyzer analyzer;
-
-        return analyzer.analyzeFunction(function);
-    }
-};
-
-PassResult analyzeControlFlow(ModuleDef& moduleDefinition)
+PassResult analyzeControlFlow(Module& module)
 {
-    GlobalDeclarationAnalyzer analyzer;
-
     Result result = OK;
-    for (const auto declaration : moduleDefinition.functions) {
-        result |= declaration->acceptVisitor(analyzer);
+    for (auto [function, declaration] : llvm::zip(module.functions, module.functionDeclarations)) {
+        result |= analyzeFunction(function, declaration);
     }
 
     return result;

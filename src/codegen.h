@@ -5,6 +5,6 @@
 #include "llvm/IR/Module.h"
 #include "namespace.h"
 
-std::unique_ptr<llvm::Module> generateCode(ModuleDef& moduleDefinition);
+std::unique_ptr<llvm::Module> generateCode(Module& module);
 
 #endif // LANG_codegen_h

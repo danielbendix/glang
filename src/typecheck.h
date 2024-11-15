@@ -9,6 +9,6 @@
 
 #include "containers/string_map.h"
 
-PassResult typecheckModuleDefinition(ModuleDef& moduleDefinition);
+PassResult typecheckModule(Module& module);
 
 #endif // LANG_typecheck_h
