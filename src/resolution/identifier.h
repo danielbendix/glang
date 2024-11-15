@@ -13,6 +13,8 @@ namespace AST {
     class StructDeclaration;
 };
 
+struct Function;
+
 struct IdentifierResolution {
     enum class Kind : uint8_t {
         UNRESOLVED,
@@ -42,19 +44,20 @@ struct IdentifierResolution {
         Global(AST::IdentifierBinding *NONNULL binding, bool isExtern) : binding{binding}, isExtern{isExtern} {}
     };
 
-    struct Function {
-        Kind kind = Kind::Function;
-        AST::FunctionDeclaration *NONNULL function;
-
-        Function(AST::FunctionDeclaration *NONNULL function) : function{function} {}
-    };
-
     struct Parameter {
         Kind kind = Kind::Parameter;
-        int parameterIndex;
-        AST::FunctionDeclaration *NONNULL function;
+        uint16_t index;
+        Function *NONNULL function;
 
-        Parameter(AST::FunctionDeclaration *NONNULL function, int parameterIndex) : function{function}, parameterIndex{parameterIndex} {}
+        Parameter(Function *NONNULL function, uint16_t parameterIndex) : function{function}, index{parameterIndex} {}
+    };
+
+    struct Function_ {
+        Kind kind = Kind::Function;
+        uint32_t index;
+        Function *NONNULL function;
+
+        Function_(Function *NONNULL function, uint32_t index) : function{function}, index{index} {}
     };
 
     struct TypeIdentifier {
@@ -68,7 +71,7 @@ struct IdentifierResolution {
         Unresolved unresolved;
         Local local;
         Global global;
-        Function function;
+        Function_ function;
         Parameter parameter;
         TypeIdentifier type;
     } as;
@@ -101,13 +104,13 @@ struct IdentifierResolution {
         return res;
     }
 
-    static IdentifierResolution function(AST::FunctionDeclaration *NONNULL function) {
+    static IdentifierResolution function(Function *NONNULL function, uint32_t index) {
         IdentifierResolution res;
-        res.as.function = Function(function);
+        res.as.function = Function_(function, index);
         return res;
     }
 
-    static IdentifierResolution parameter(AST::FunctionDeclaration *NONNULL function, int parameterIndex) {
+    static IdentifierResolution parameter(Function *NONNULL function, int parameterIndex) {
         IdentifierResolution res;
         res.as.parameter = Parameter(function, parameterIndex);
         return res;

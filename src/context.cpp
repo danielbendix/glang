@@ -1,5 +1,7 @@
 #include "context.h"
 
+GlobalContext globalContext;
+
 thread_local ThreadContext *NULLABLE ThreadContext::instance = nullptr;
 
 BumpAllocator& nodeAllocator() {

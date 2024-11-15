@@ -11,6 +11,6 @@
  * - Remove strictly unreachable code, e.g. not variables that are never used.
  * - Detect if a non-void function can reach the end of execution without returning a value.
  */
-PassResult analyzeControlFlow(ModuleDef& moduleDefinition);
+PassResult analyzeControlFlow(Module& module);
 
 #endif // LANG_control_h

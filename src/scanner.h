@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <string>
+#include <vector>
 
 class Scanner {
 public:
@@ -22,6 +23,7 @@ public:
     }
 private:
     using iterator = std::string::const_iterator;
+    std::vector<uint32_t> lineBreaks;
     std::string _string;
     iterator start;
     iterator current;
@@ -48,6 +50,9 @@ private:
     }
 
     void newline() {
+        auto offset = current - start;
+        assert(offset <= UINT32_MAX);
+        lineBreaks.push_back(offset);
         line += 1;
         column = -1;
     }
@@ -82,6 +87,8 @@ private:
     Token errorToken(ErrorCause cause);
     void error(ErrorCause errorType);
     void error(ErrorCause errorType, const std::string& message);
+
+    friend class Parser;
 };
 
 enum class Scanner::ErrorCause {

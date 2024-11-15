@@ -12,11 +12,7 @@
 using Result = PassResult;
 using enum PassResultKind;
 
-using llvm::TypeSwitch;
-using llvm::cast;
-
 class ScopeManager {
-
     
     struct Local {
         enum class Kind : uint8_t {
@@ -26,13 +22,17 @@ class ScopeManager {
         };
         const Symbol* identifier;
         union {
+            Kind kind;
             struct {
-                AST::FunctionDeclaration *function;
-                int index;
+                Kind kind;
+                uint32_t index;
+                uint32_t functionIndex;
             } parameter;
-            AST::IdentifierBinding *binding;
+            struct {
+                Kind kind;
+                AST::IdentifierBinding *binding;
+            } local;
         } as;
-        Kind kind;
         bool isWritten = false;
         bool isRead = false;
 
@@ -41,9 +41,9 @@ class ScopeManager {
             llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
         }
 
-        Local(const Symbol& identifier, AST::FunctionDeclaration& function, int index) : identifier{&identifier}, kind{Kind::Parameter}, as{.parameter = {.function=&function, index = index}} {}
+        Local(const Symbol& identifier, uint32_t functionIndex, uint32_t index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionIndex}} {}
 
-        Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, kind{isVariable ? Kind::Variable : Kind::Constant}, as{.binding = &binding} {}
+        Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, as{.local = {.kind = isVariable ? Kind::Variable : Kind::Constant, .binding = &binding}} {}
     };
 
     static_assert(sizeof(Local) <= 32);
@@ -51,11 +51,11 @@ class ScopeManager {
     std::vector<Local> locals = {};
     std::vector<uint32_t> scopes = {0};
 
-    ModuleDef& moduleDefinition;
+    Module& module;
 
 public:
 
-    ScopeManager(ModuleDef& moduleDefinition) : moduleDefinition{moduleDefinition} {
+    ScopeManager(Module& module) : module{module} {
         locals.reserve(64);
         scopes.reserve(8);
     }
@@ -79,27 +79,28 @@ public:
     }
 
     void warnOnUnusedLocal(Local& local) {
-        switch (local.kind) {
+        switch (local.as.kind) {
             case Local::Kind::Parameter:
                 if (!local.isRead) {
                     // TODO: Get location of parameter
-                    Diagnostic::error(*local.as.parameter.function, "Unused parameter [TODO: Add name and location].");
+                    auto *declaration = module.functionDeclarations[local.as.parameter.functionIndex];
+                    Diagnostic::error(*declaration, "Unused parameter [TODO: Add name and location].");
                 }
                 break;
             case Local::Kind::Constant:
                 if (!local.isRead) {
-                    Diagnostic::warning(*local.as.binding, "Unused immutable value.");
+                    Diagnostic::warning(*local.as.local.binding, "Unused immutable value.");
                 }
                 break;
             case Local::Kind::Variable:
                 if (local.isWritten) {
                     if (!local.isRead) {
-                        Diagnostic::warning(*local.as.binding, "Variable was written to, but never read.");
+                        Diagnostic::warning(*local.as.local.binding, "Variable was written to, but never read.");
                     }
                 } else if (local.isRead) {
-                    Diagnostic::warning(*local.as.binding, "Variable was never mutated.");
+                    Diagnostic::warning(*local.as.local.binding, "Variable was never mutated.");
                 } else {
-                    Diagnostic::warning(*local.as.binding, "Unused variable.");
+                    Diagnostic::warning(*local.as.local.binding, "Unused variable.");
                 }
                 break;
         }
@@ -109,10 +110,10 @@ public:
         uint32_t resetTo = scopes.back();
         scopes.pop_back();
 
-        resizeLocalsEmittingWarnings(resetTo);
+        popLocalsEmittingWarnings(resetTo);
     }
 
-    void resizeLocalsEmittingWarnings(size_t resetTo) {
+    void popLocalsEmittingWarnings(size_t resetTo) {
         for (int i = resetTo; i < locals.size(); ++i) {
             warnOnUnusedLocal(locals[i]);
         }
@@ -143,13 +144,13 @@ public:
 
             auto resetTo = scopes[index];
             scopes.resize(index);
-            resizeLocalsEmittingWarnings(resetTo);
+            popLocalsEmittingWarnings(resetTo);
         } else {
             auto value = handler();
 
             auto resetTo = scopes[index];
             locals.resize(resetTo);
-            resizeLocalsEmittingWarnings(resetTo);
+            popLocalsEmittingWarnings(resetTo);
 
             return value;
         }
@@ -163,25 +164,25 @@ public:
 
         if constexpr (returns_void<Lambda>) {
             handler();
-            resizeLocalsEmittingWarnings(resetScopesTo);
+            popLocalsEmittingWarnings(resetScopesTo);
         } else {
             auto value = handler();
-            resizeLocalsEmittingWarnings(resetScopesTo);
+            popLocalsEmittingWarnings(resetScopesTo);
             return value;
         }
     }
 
-    Result pushParameter(const Symbol& identifier, AST::FunctionDeclaration& function, int index) {
+    Result pushParameter(const Symbol& identifier, uint32_t functionIndex, uint32_t parameterIndex, AST::FunctionDeclaration *declaration) {
         assert(!scopes.empty());
         int64_t maxIndex = scopes.back();
         
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
-                Diagnostic::error(function, "Invalid redeclaration of parameter " + identifier.string());
+                Diagnostic::error(*declaration, "Invalid redeclaration of parameter " + identifier.string());
                 return ERROR;
             }
         }
-        locals.emplace_back(identifier, function, index);
+        locals.emplace_back(identifier, functionIndex, parameterIndex);
         return OK;
     }
 
@@ -192,7 +193,7 @@ public:
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
                 Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
-                Diagnostic::note(*locals[i].as.binding, identifier.string() + " previously declared here.");
+                Diagnostic::note(*locals[i].as.local.binding, identifier.string() + " previously declared here.");
                 return ERROR;
             }
         }
@@ -210,35 +211,27 @@ public:
                 if (isRead) {
                     local.isRead = true;
                 }
-                if (local.kind == Local::Kind::Parameter) {
-                    return IdentifierResolution::parameter(local.as.parameter.function, local.as.parameter.index);
+                if (local.as.kind == Local::Kind::Parameter) {
+                    auto *function = &module.functions[local.as.parameter.functionIndex];
+                    return IdentifierResolution::parameter(function, local.as.parameter.index);
                 } else {
-                    return IdentifierResolution::local(local.as.binding);
+                    return IdentifierResolution::local(local.as.local.binding);
                 }
             }
         }
         
-        if (auto declaration = moduleDefinition.all.lookup(identifier)) {
-            auto result = TypeSwitch<ModuleDef::Definition, IdentifierResolution>(*declaration)
-                .Case<AST::FunctionDeclaration *>([](auto function) {
-                    return IdentifierResolution::function(function);
-                })
-                .Case<AST::VariableDeclaration *>([](auto variable) {
-                    return IdentifierResolution::global(cast<AST::IdentifierBinding>(&variable->getBinding()), false);
-                })
-                .Case<Type *>([](auto type) {
-                    return IdentifierResolution::type(type);
-                })
-                .Case<AST::IdentifierBinding *>([](auto binding) {
-                    return IdentifierResolution::global(binding, false);
-                })
-                .Default([](auto any) {
-                    assert(false);
-                    return IdentifierResolution::unresolved();
-                })
-            ;
-            if (result) {
-                return result;
+        if (auto declaration = module.all.lookup(identifier)) {
+            auto kind = declaration->kind();
+            auto index = declaration->index();
+            switch (kind) {
+                case Definition::Kind::Function:
+                    return IdentifierResolution::function(&module.functions[index], index);
+                case Definition::Kind::Global:
+                    return IdentifierResolution::global(module.globals_[index].binding, false);
+                case Definition::Kind::Struct:
+                    return IdentifierResolution::type(module.structs[index]);
+                case Definition::Kind::Enum:
+                    return IdentifierResolution::type(module.enums[index]);
             }
         }
 

@@ -53,6 +53,9 @@ concept Allocator = requires(T allocator, size_t size, size_t alignment) {
 struct BumpAllocator {
     llvm::BumpPtrAllocator allocator;
 
+    BumpAllocator() {}
+    BumpAllocator(BumpAllocator&& other) : allocator{std::move(other.allocator)} {}
+
     template<typename T>
     constexpr void *allocate() {
         return allocate(sizeof(T), alignof(T));
@@ -79,15 +82,22 @@ public:
 
     Heap(const Heap&) = delete;
     Heap& operator=(const Heap&) = delete;
-    Heap(Heap&&) = delete;
     Heap& operator=(Heap&&) = delete;
 
+    Heap(Heap&& other) {
+        heap = other.heap;
+        other.heap = nullptr;
+    }
+
     ~Heap() {
-        mi_heap_destroy(heap);
+        if (heap) {
+            mi_heap_destroy(heap);
+        }
     }
 
     template <typename T>
     ArrayAllocator<T> allocator() {
+        assert(heap);
         return ArrayAllocator<T>(heap);
     }
 };
@@ -97,5 +107,13 @@ T *NONNULL allocate(Allocator& allocator, F f) {
     void *NONNULL space = allocator.allocate(sizeof(T), alignof(T));
     return f(space);
 }
+
+/// Represents the memory resources of the AST from a single file.
+struct ASTHandle {
+    Heap heap;
+    BumpAllocator nodeAllocator;
+
+    ASTHandle(Heap&& heap, BumpAllocator&& nodeAllocator) : heap{std::move(heap)}, nodeAllocator{std::move(nodeAllocator)} {}
+};
 
 #endif // LANG_memory_h

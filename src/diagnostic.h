@@ -4,9 +4,37 @@
 #include "AST.h"
 #include "parser.h"
 
+#include "llvm/Support/Allocator.h"
+
+void enableJSONDiagnostics();
+void enableStdoutDiagnostics();
+
+
+struct DiagnosticLocation {
+    uint32_t offset;
+    uint32_t length;
+};
+
+struct BufferedDiagnostic {
+    enum class Kind {
+        Error,
+        Warning,
+        Note,
+    };
+    char *description;
+    /// The file the diagnostic emanated from.
+    uint32_t sourceFile;
+    uint32_t sourceOffset;
+    /// The file the diagnostic is in. Should only differ from sourceFile for notes.
+    uint32_t file;
+    Kind kind;
+    /// number of secondary locations after the primary one.
+    uint8_t extraLocations;
+    uint32_t locationsIndex;
+    uint32_t descriptionLength;
+};
 
 class DiagnosticWriter {
-
 public:
     virtual void error(ParserException& parserException) = 0;
 
@@ -16,69 +44,32 @@ public:
 
     virtual void note(const AST::Node& node, std::string& message) = 0;
 
+    virtual void writeDiagnostic(BufferedDiagnostic& diagnostic, DiagnosticLocation *locations) = 0;
+
     virtual ~DiagnosticWriter() = default;
 };
 
+class DiagnosticBuffer {
+    llvm::BumpPtrAllocator stringAllocator;
+    std::vector<BufferedDiagnostic> diagnostics;
+    std::vector<DiagnosticLocation> locations;
 
-class IODiagnosticWriter : public DiagnosticWriter {
+    void flush(DiagnosticWriter& writer) {
+        // Potentially get a lock on the output.
+        for (auto& diagnostic : diagnostics) {
+            writer.writeDiagnostic(diagnostic, &locations[diagnostic.locationsIndex]);
+        }
 
-    std::ostream& out;
-
-public:
-    IODiagnosticWriter(std::ostream& out) : out{out} {}
-
-    virtual void error(ParserException& parserException) override {
-        out << "Parser error: " << AST::Location{parserException.token} << ' ' << parserException.description() << '\n';
+        clear();
     }
 
-    virtual void error(const AST::Node& node, std::string& message) override {
-        out << "Error: " << node.getLocation() << ' ' << message << "\n";
-    }
-
-    virtual void warning(const AST::Node& node, std::string& message) override {
-        out << "Warning: " << node.getLocation() << ' ' << message << "\n";
-    }
-
-    virtual void note(const AST::Node& node, std::string& message) override {
-        out << "Note: " << node.getLocation() << ' ' << message << "\n";
+    void clear() {
+        stringAllocator.Reset();
+        diagnostics.clear();
+        locations.clear();
     }
 };
 
-class JSONDiagnosticWriter : public DiagnosticWriter {
-    std::ostream& out;
-public:
-    JSONDiagnosticWriter(std::ostream& out) : out{out} {}
-
-    void printLocation(const AST::Location& location) {
-        out << R"({"line": )" << location.line << R"(, "column": )" << location.column << R"(, "length": )" << location.length << R"(})";
-    }
-
-    virtual void error(ParserException& parserException) override {
-        out << R"({"kind": "error", "message": ")" << parserException.description() << R"(", "location": )";
-        auto location = AST::Location(parserException.token);
-        printLocation(location);
-        out << R"(})" << '\n';
-    }
-
-    virtual void error(const AST::Node& node, std::string& message) override {
-        out << R"({"kind": "error", "message": ")" << message << R"(", "location": )";
-        printLocation(node.getLocation());
-        out << R"(})" << '\n';
-    }
-
-    virtual void warning(const AST::Node& node, std::string& message) override {
-        out << R"({"kind": "warning", "message": ")" << message << R"(", "location": )";
-        printLocation(node.getLocation());
-        out << R"(})" << '\n';
-    }
-
-    virtual void note(const AST::Node& node, std::string& message) override {
-        out << R"({"kind": "note", "message": ")" << message << R"(", "location": )";
-        printLocation(node.getLocation());
-        out << R"(})" << '\n';
-    }
-
-};
 
 class Diagnostic {
     static DiagnosticWriter *current;
@@ -101,6 +92,10 @@ public:
 
     static void note(const AST::Node& node, std::string&& message) {
         writer().note(node, message);
+    }
+
+    static void duplicateDeclaration(AST::Declaration& duplicate, AST::Declaration& initial) {
+
     }
 };
 

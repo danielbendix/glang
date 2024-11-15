@@ -22,6 +22,32 @@ void initialize(SymbolTable& symbols)
     setupBuiltins(symbols, Architecture::current());
 }
 
+enum class FileError {
+    FileNotFound,
+};
+
+std::variant<ParsedFile, FileError, ParserException> parseFile(const char *path) {
+    std::ifstream file(path, std::ios::in | std::ios::binary);
+    if (file.fail()) {
+        return FileError::FileNotFound;
+    }
+
+    file.seekg(0, file.end);
+    size_t file_size = file.tellg();
+    file.seekg(0, file.beg);
+
+    std::string contents(file_size, '\0');
+
+    file.read(contents.data(), file_size);
+    file.close();
+
+    try {
+        return parseString(std::move(contents));
+    } catch (ParserException exception) {
+        return exception;
+    }
+}
+
 ParsedFile parse(SymbolTable& symbols, std::string&& string) {
     try {
         auto parser = Parser{symbols, std::move(string)};
@@ -33,79 +59,92 @@ ParsedFile parse(SymbolTable& symbols, std::string&& string) {
     }
 }
 
-std::unique_ptr<ModuleDef> validate(ParsedFile&& parsed, bool verbose = false) {
-    auto moduleDef = createModuleDefinition(parsed.declarations);
-    if (typecheckModuleDefinition(*moduleDef).failed()) {
+void validate(Module& module, bool verbose = false) {
+    if (typecheckModule(module).failed()) {
         if (verbose) std::cout << "Sema phase failed. Exiting...\n";
         exit(1);
     }
-    if (verbose) std::cout << "Type check succeeded.\n";
-    if (analyzeControlFlow(*moduleDef).failed()) {
+    if (verbose) std::cout << "Sema phase succeeded.\n";
+    if (analyzeControlFlow(module).failed()) {
         if (verbose) std::cout << "Control flow analysis failed. Exiting...\n";
         exit(1);
     }
     if (verbose) std::cout << "Control flow analysis succeeded\n";
-
-    return moduleDef;
 }
 
-std::unique_ptr<llvm::Module> codegen(ModuleDef& moduleDef, bool verbose = false) {
-    auto module = generateCode(moduleDef);
-    if (!module) {
+std::unique_ptr<llvm::Module> codegen(Module& module, bool verbose = false) {
+    auto llvmModule = generateCode(module);
+    if (!llvmModule) {
         if (verbose) std::cout << "Codegen failed. Exiting...\n";
         exit(1);
     }
     if (verbose) std::cout << "Code generation succeeded.\n";
 
-    return module;
+    return llvmModule;
 }
 
 int main(int argc, char **argv)
 {
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
+    if (options.flags.json) {
+        enableJSONDiagnostics();
+    } else {
+        enableStdoutDiagnostics();
+    }
+
     SymbolTable symbols;
     ThreadContext threadContext{&symbols};
 
     initialize(symbols);
 
-    std::string filename = options.files[0];
-    std::ifstream file(filename, std::ios::in | std::ios::binary);
-    if (file.fail()) {
-        std::cout << "File " << filename << " does not exist. Exiting...\n";
-        return 1;
-    }
+    globalContext.files.reserve(options.files.size());
 
-    std::unique_ptr<DiagnosticWriter> writer;
-    if (options.flags.json) {
-        writer.reset(new JSONDiagnosticWriter{std::cout});
-        Diagnostic::setWriter(*writer);
-    } else {
-        writer.reset(new IODiagnosticWriter{std::cout});
-        Diagnostic::setWriter(*writer);
-    }
+    bool hadError = false;
 
-    file.seekg(0, file.end);
-    size_t file_size = file.tellg();
-    file.seekg(0, file.beg);
+    ModuleBuilder builder;
 
-    std::string contents(file_size, '\0');
+    for (auto *file : options.files) {
+        uint32_t fileHandle = globalContext.addFile(file);
 
-    file.read(contents.data(), file_size);
+        auto result = parseFile(file);
 
-    auto parsed = parse(symbols, std::move(contents));
-
-    std::visit([&](auto&& arg) {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, Validate>) {
-            std::ignore = validate(std::move(parsed), options.flags.verbose);
-        } else if constexpr (std::is_same_v<T, Codegen>) {
-            if (arg.printCode) {
-                for (const auto &d : parsed.declarations) {
-                    std::cout << *d;
+        std::visit(overloaded {
+            [&](ParsedFile& parsedFile) {
+                File& file = globalContext.files[fileHandle];
+                file.lineBreaks = std::move(parsedFile.lineBreaks);
+                file.astHandle = std::move(parsedFile.astHandle);
+                builder.addDeclarations(parsedFile.declarations, fileHandle);
+            },
+            [&](FileError error) {
+                switch (error) {
+                    case FileError::FileNotFound:
+                        std::cout << "error: file '" << file << "' does not exist.\n";
+                        hadError = true;
                 }
+            },
+            [&](ParserException& exception) {
+                Diagnostic::writer().error(exception);
+                hadError = true;
             }
-            auto module =  validate(std::move(parsed), options.flags.verbose);
+        }, result);
+    }
+
+    auto module = builder.finalize();
+
+    if (!module) {
+        if (options.flags.verbose) {
+            std::cout << "Exiting...\n";
+        }
+        exit(1);
+    }
+
+    std::visit(overloaded {
+        [&](Validate& _) {
+            validate(*module, options.flags.verbose);
+        },
+        [&](Codegen& arg) {
+            validate(*module, options.flags.verbose);
             auto llvmModule = codegen(*module);
 
             if (llvmModule) {
@@ -124,8 +163,6 @@ int main(int argc, char **argv)
                     }
                 }
             }
-        } else {
-            static_assert(always_false_v<T>, "Switch falls through.");
         }
     }, options.mode);
 }
