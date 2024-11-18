@@ -11,7 +11,7 @@ using enum PassResultKind;
 using llvm::cast;
 
 struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> {
-    uint32_t currentFile;
+    u32 currentFile;
     Module& module;
 
     AST::Node *getNodeFromDefinition(Definition definition) {
@@ -37,8 +37,8 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 
     Result addGlobal(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
-        uint32_t bindingIndex = module.globalBindings.size();
-        uint32_t declarationIndex = module.globalDeclarations.size();
+        u32 bindingIndex = module.globalBindings.size();
+        u32 declarationIndex = module.globalDeclarations.size();
 
         module.globalBindings.emplace_back(&binding, declarationIndex);
         module.globalDeclarations.emplace_back(&variable, bindingIndex, 1);
@@ -142,9 +142,9 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         AST::Node::deleteValue(&statement);
         return ERROR;
     }
-    ModuleInserter(Module& module, uint32_t file) : module{module} {}
+    ModuleInserter(Module& module, u32 file) : module{module} {}
 
-    static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, uint32_t file, Module& module) {
+    static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, u32 file, Module& module) {
         ModuleInserter inserter{module, file};
 
         Result result = OK;
@@ -156,7 +156,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 };
 
-void ModuleBuilder::addDeclarations(std::span<AST::Declaration *NONNULL> declarations, uint32_t file) {
+void ModuleBuilder::addDeclarations(std::span<AST::Declaration *NONNULL> declarations, u32 file) {
     assert(module);
     result |= ModuleInserter::insertDeclarationsIntoModule(declarations, file, *module);
 }

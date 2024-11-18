@@ -105,7 +105,7 @@ int main(int argc, char **argv)
     ModuleBuilder builder;
 
     for (auto *file : options.files) {
-        uint32_t fileHandle = globalContext.addFile(file);
+        u32 fileHandle = globalContext.addFile(file);
 
         auto result = parseFile(file);
 

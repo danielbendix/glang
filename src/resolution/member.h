@@ -5,7 +5,7 @@
 
 struct MemberResolution {
 
-    enum class Kind : uint8_t {
+    enum class Kind : u8 {
         UNRESOLVED,
         StructField,
         StructMethod,
@@ -18,23 +18,23 @@ struct MemberResolution {
 
     struct StructField {
         Kind kind = Kind::StructField;
-        uint32_t index;
+        u32 index;
 
-        StructField(uint32_t index) : index{index} {}
+        StructField(u32 index) : index{index} {}
     };
 
     struct StructMethod {
         Kind kind = Kind::StructMethod;
-        uint32_t index;
+        u32 index;
 
-        StructMethod(uint32_t index) : index{index} {}
+        StructMethod(u32 index) : index{index} {}
     };
 
     struct EnumCase {
         Kind kind = Kind::EnumCase;
-        uint32_t index;
+        u32 index;
 
-        EnumCase(uint32_t index) : index{index} {}
+        EnumCase(u32 index) : index{index} {}
     };
 
     union AS {
@@ -57,15 +57,15 @@ struct MemberResolution {
     MemberResolution(StructMethod structMethod) : as{.structMethod = structMethod} {}
     MemberResolution(EnumCase enumCase) : as{.enumCase = enumCase} {}
 
-    static MemberResolution structField(uint32_t index) {
+    static MemberResolution structField(u32 index) {
         return StructField(index);
     }
 
-    static MemberResolution structMethod(uint32_t index) {
+    static MemberResolution structMethod(u32 index) {
         return StructMethod(index);
     }
 
-    static MemberResolution enumCase(uint32_t index) {
+    static MemberResolution enumCase(u32 index) {
         return EnumCase(index);
     }
 };

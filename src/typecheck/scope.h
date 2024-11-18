@@ -15,7 +15,7 @@ using enum PassResultKind;
 class ScopeManager {
     
     struct Local {
-        enum class Kind : uint8_t {
+        enum class Kind : u8 {
             Parameter,
             Constant,
             Variable,
@@ -25,8 +25,8 @@ class ScopeManager {
             Kind kind;
             struct {
                 Kind kind;
-                uint32_t index;
-                uint32_t functionIndex;
+                u32 index;
+                u32 functionIndex;
             } parameter;
             struct {
                 Kind kind;
@@ -41,7 +41,7 @@ class ScopeManager {
             llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
         }
 
-        Local(const Symbol& identifier, uint32_t functionIndex, uint32_t index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionIndex}} {}
+        Local(const Symbol& identifier, u32 functionIndex, u32 index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionIndex}} {}
 
         Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, as{.local = {.kind = isVariable ? Kind::Variable : Kind::Constant, .binding = &binding}} {}
     };
@@ -49,7 +49,7 @@ class ScopeManager {
     static_assert(sizeof(Local) <= 32);
 
     std::vector<Local> locals = {};
-    std::vector<uint32_t> scopes = {0};
+    std::vector<u32> scopes = {0};
 
     Module& module;
 
@@ -107,7 +107,7 @@ public:
     }
 
     void popInnerScope() {
-        uint32_t resetTo = scopes.back();
+        u32 resetTo = scopes.back();
         scopes.pop_back();
 
         popLocalsEmittingWarnings(resetTo);
@@ -172,9 +172,9 @@ public:
         }
     }
 
-    Result pushParameter(const Symbol& identifier, uint32_t functionIndex, uint32_t parameterIndex, AST::FunctionDeclaration *declaration) {
+    Result pushParameter(const Symbol& identifier, u32 functionIndex, u32 parameterIndex, AST::FunctionDeclaration *declaration) {
         assert(!scopes.empty());
-        int64_t maxIndex = scopes.back();
+        i64 maxIndex = scopes.back();
         
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
@@ -188,7 +188,7 @@ public:
 
     Result pushBinding(const Symbol& identifier, AST::IdentifierBinding& binding) {
         assert(!scopes.empty());
-        int64_t maxIndex = scopes.back();
+        i64 maxIndex = scopes.back();
 
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {

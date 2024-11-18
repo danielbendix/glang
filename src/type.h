@@ -162,7 +162,7 @@ class IntegerType : public NumericType {
 public:
     const Symbol& name;
     const bool isSigned;
-    const uint32_t bitWidth;
+    const u32 bitWidth;
     const Layout layout;
 
     IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, Layout layout) 
@@ -178,7 +178,7 @@ public:
 
     // FIXME: Currently this only supports positive values.
     // Signed integer types have an "extra" value in the negative because of two's complement.
-    bool canFitValue(uint64_t value) {
+    bool canFitValue(u64 value) {
         if (value == 0 || bitWidth > 64) {
             return true;
         }
@@ -276,7 +276,7 @@ public:
 
 class FPType : public NumericType {
 public:
-    enum class Precision: uint8_t {
+    enum class Precision: u8 {
         Single = 0,
         Double = 1,
     };
@@ -296,7 +296,7 @@ public:
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
 
-    uint32_t fractionBits() {
+    u32 fractionBits() {
         switch (precision) {
             case Precision::Single:
                 return 23;
@@ -305,7 +305,7 @@ public:
         }
     }
 
-    uint32_t exponentBits() {
+    u32 exponentBits() {
         switch (precision) {
             case Precision::Single:
                 return 8;

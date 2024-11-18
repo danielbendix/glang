@@ -9,10 +9,10 @@
 struct File {
     const char *path;
     const char *name;
-    uint32_t pathSize;
-    uint32_t nameSize;
+    u32 pathSize;
+    u32 nameSize;
     std::unique_ptr<ASTHandle> astHandle = nullptr;
-    std::vector<uint32_t> lineBreaks;
+    std::vector<u32> lineBreaks;
 };
 
 struct GlobalContext {
@@ -20,7 +20,7 @@ struct GlobalContext {
     BumpAllocator filenameAllocator;
     std::mutex lock;
 
-    uint32_t addFile(const char *filePath) {
+    u32 addFile(const char *filePath) {
         auto path = std::filesystem::path{filePath};
         auto pathString = path.string();
         auto filenameString = path.filename().string();
@@ -74,7 +74,7 @@ BumpAllocator& nodeAllocator();
 
 // We may be able to get rid of this, or reduce its usage by using arrays of different kinds of types.
 // This would allow for the following:
-// - Referring to types by uint32_t.
+// - Referring to types by u32.
 // - Existential processing of types.
 // - Parallel arrays of LLVM types that exist only during codegen, reducing sizeof(Type).
 BumpAllocator& typeAllocator();

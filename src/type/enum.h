@@ -39,7 +39,7 @@ private:
     size_t minTag = -1;
     size_t maxTag = -1;
 
-    uint8_t bits = 0;
+    u8 bits = 0;
 
     std::vector<Case> cases;
     SymbolMap<size_t> caseMap;
@@ -74,7 +74,7 @@ public:
 
     }
 
-    void setCases(uint8_t bits, std::pair<size_t, size_t> tags, std::vector<Case>&& cases, SymbolMap<size_t>&& caseMap) {
+    void setCases(u8 bits, std::pair<size_t, size_t> tags, std::vector<Case>&& cases, SymbolMap<size_t>&& caseMap) {
         this->bits = bits;
         this->minTag = tags.first;
         this->maxTag = tags.second;

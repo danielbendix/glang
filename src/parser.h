@@ -11,10 +11,10 @@ struct ParsedFile {
     //std::string path;
 public:
     std::vector<AST::Declaration *> declarations;
-    std::vector<uint32_t> lineBreaks;
+    std::vector<u32> lineBreaks;
     std::unique_ptr<ASTHandle> astHandle;
 
-    ParsedFile(std::vector<AST::Declaration *>&& declarations, std::vector<uint32_t>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
+    ParsedFile(std::vector<AST::Declaration *>&& declarations, std::vector<u32>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
         : declarations{std::move(declarations)}, lineBreaks{std::move(lineBreaks)}, astHandle{std::move(astHandle)} {}
 };
 
@@ -99,9 +99,9 @@ public:
 
 class Parser {
     struct Modifiers {
-        uint32_t line = 0;
-        uint32_t column = 0;
-        uint32_t length = 0;
+        u32 line = 0;
+        u32 column = 0;
+        u32 length = 0;
         AST::Modifiers modifiers; 
     };
 

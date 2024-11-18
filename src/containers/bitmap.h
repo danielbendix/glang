@@ -10,39 +10,39 @@
 class Bitmap final {
     static constexpr size_t LBO = 1;
 
-    uint32_t size;
-    uint32_t blocks;
+    u32 size;
+    u32 blocks;
 
-    uint64_t *data;
-    uint64_t lbo[LBO];
+    u64 *data;
+    u64 lbo[LBO];
 
     bool isLBO() const {
         return blocks < LBO;
     }
 public:
-    Bitmap(uint32_t size) {
+    Bitmap(u32 size) {
         this->size = size;
         blocks = block_count(size);
 
         if (blocks <= LBO) [[likely]] {
-            std::memset(lbo, 0, sizeof(uint64_t) * LBO);
+            std::memset(lbo, 0, sizeof(u64) * LBO);
             data = lbo;
         } else {
-            data = new uint64_t[blocks];
-            std::memset(data, 0, sizeof(uint64_t) * blocks);
+            data = new u64[blocks];
+            std::memset(data, 0, sizeof(u64) * blocks);
         }
     }
 
-    Bitmap(uint64_t *data, uint32_t size) {
+    Bitmap(u64 *data, u32 size) {
         this->size = size;
         blocks = size >> 6;
 
         if (blocks <= 1) [[likely]] {
-            std::memcpy(this->data, data, sizeof(uint64_t) * blocks);
+            std::memcpy(this->data, data, sizeof(u64) * blocks);
             data = lbo;
         } else {
-            this->data = new uint64_t[blocks];
-            std::memcpy(this->data, data, sizeof(uint64_t) * blocks);
+            this->data = new u64[blocks];
+            std::memcpy(this->data, data, sizeof(u64) * blocks);
         }
     }
 
@@ -56,7 +56,7 @@ public:
         size = other.size;
         blocks = other.blocks;
         if (other.isLBO()) {
-            memcpy(lbo, other.lbo, sizeof(uint64_t) * LBO);
+            memcpy(lbo, other.lbo, sizeof(u64) * LBO);
             data = lbo;
         } else {
             data = other.data;
@@ -74,12 +74,12 @@ public:
         }
     }
 
-    uint32_t count() const {
+    u32 count() const {
         return size;
     }
 
-    void copyInto(uint64_t *buffer) const {
-        memcpy(buffer, data, blocks * sizeof(uint64_t));
+    void copyInto(u64 *buffer) const {
+        memcpy(buffer, data, blocks * sizeof(u64));
     }
 
     bool set(size_t index) {
@@ -88,19 +88,19 @@ public:
 
         assert(block < blocks);
 
-        uint8_t current = (data[block] >> offset) % 1;
+        u8 current = (data[block] >> offset) % 1;
         data[block] |= 1 << offset;
 
         return !current;
     }
 
     void negate() {
-        for (uint64_t& segment : std::span{data, blocks}) {
+        for (u64& segment : std::span{data, blocks}) {
             segment = ~segment;
         }
     }
     
-    Bitmap& operator |=(const std::span<const uint64_t> rhs) {
+    Bitmap& operator |=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -110,7 +110,7 @@ public:
         return *this;
     }
 
-    Bitmap& operator &=(const std::span<const uint64_t> rhs) {
+    Bitmap& operator &=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -120,7 +120,7 @@ public:
         return *this;
     }
 
-    Bitmap& operator ^=(const std::span<const uint64_t> rhs) {
+    Bitmap& operator ^=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -130,10 +130,10 @@ public:
         return *this;
     }
 
-    uint32_t countr_ones() const {
-        uint32_t result = 0;
+    u32 countr_ones() const {
+        u32 result = 0;
         for (size_t i = 0; i < blocks; ++i) {
-            uint32_t ones = std::countr_one(data[i]);
+            u32 ones = std::countr_one(data[i]);
             result += ones;
             if (ones < 64) {
                 break;
@@ -145,13 +145,13 @@ public:
 
     template <typename Func>
     void iterate_zeros(Func&& f) {
-        uint32_t i = 0;
+        u32 i = 0;
 
         for (auto segment : std::span{data, blocks}) {
             size_t j = i;
 
-            uint32_t max = std::min(size, i + 64);
-            for (uint32_t j = i; j < max; j++, segment >>= 1) {
+            u32 max = std::min(size, i + 64);
+            for (u32 j = i; j < max; j++, segment >>= 1) {
                 // TODO: use countl_one on segment to do fewer iterations.
                 if ((segment & 1) == 0) {
                     f(j);
@@ -164,13 +164,13 @@ public:
 
     template <typename Func>
     void iterate_ones(Func&& f) {
-        uint32_t i = 0;
+        u32 i = 0;
 
         for (auto segment : std::span{data, blocks}) {
             size_t j = i;
 
-            uint32_t max = std::min(size, i + 64);
-            for (uint32_t j = i; j < max; j++, segment >>= 1) {
+            u32 max = std::min(size, i + 64);
+            for (u32 j = i; j < max; j++, segment >>= 1) {
                 // TODO: use countl_zero on segment to do fewer iterations.
                 if ((segment & 1) == 1) {
                     f(j);
@@ -181,7 +181,7 @@ public:
         }
     }
 
-    static constexpr uint32_t block_count(size_t size) {
+    static constexpr u32 block_count(size_t size) {
         return (size + 0x3F) >> 6;
 
     }

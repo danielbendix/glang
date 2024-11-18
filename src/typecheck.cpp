@@ -31,7 +31,7 @@ class GlobalVariableTypeChecker {
     Module& module;
     TypeResolver& typeResolver;
     PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *> ancestors;
-    llvm::SmallVector<uint32_t, 8> checkStack_;
+    llvm::SmallVector<u32, 8> checkStack_;
     ScopeManager& scopeManager;
     ExpressionTypeChecker::GlobalHandler globalHandler;
 
@@ -40,7 +40,7 @@ public:
     GlobalVariableTypeChecker(Module& module, ScopeManager& scopeManager, TypeResolver& typeResolver) 
         : module{module}, scopeManager{scopeManager}, typeResolver{typeResolver}
     {
-        auto globalHandlerLambda = [this](uint32_t bindingIndex) -> Result {
+        auto globalHandlerLambda = [this](u32 bindingIndex) -> Result {
             auto& binding = this->module.globalBindings[bindingIndex];
             auto declarationIndex = binding.declarationIndex;
             auto& declaration = this->module.globalDeclarations[declarationIndex];
@@ -54,7 +54,7 @@ public:
         globalHandler = globalHandlerLambda;
     }
 
-    Result typeCheckGlobal(uint32_t index, GlobalDeclaration& global) {
+    Result typeCheckGlobal(u32 index, GlobalDeclaration& global) {
         if (auto it = std::ranges::find(checkStack_, index); it != checkStack_.end()) {
             for (auto globalIndex : checkStack_) {
                 Diagnostic::error(*module.globalDeclarations[globalIndex].declaration, "Cycle detected in globals.");
@@ -359,7 +359,7 @@ public:
         : scopeManager{module}, typeResolver{module, builtins} 
     {}
 
-    Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, uint32_t index) {
+    Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, u32 index) {
         scopeManager.reset();
 
         result = OK;
@@ -369,7 +369,7 @@ public:
         auto functionType = function.type;
 
         scopeManager.pushOuterScope();
-        for (uint32_t parameterIndex = 0; parameterIndex < function.parameterCount; ++parameterIndex) {
+        for (u32 parameterIndex = 0; parameterIndex < function.parameterCount; ++parameterIndex) {
             auto& parameter = declaration->getParameter(parameterIndex);
             result |= scopeManager.pushParameter(
                 parameter.name, 
@@ -763,7 +763,7 @@ PassResult typecheckModule(Module& module)
     // All global types are known here.
 
     FunctionTypeChecker bodyTypeChecker{module, builtins};
-    for (uint32_t functionIndex = 0; functionIndex < module.functions.size(); ++functionIndex) {
+    for (u32 functionIndex = 0; functionIndex < module.functions.size(); ++functionIndex) {
         auto& function = module.functions[functionIndex];
         auto *declaration = module.functionDeclarations[functionIndex];
 

@@ -41,7 +41,7 @@ using llvm::APInt;
 
 namespace AST {
     struct Modifiers final {
-        using BITS_TYPE = uint32_t;
+        using BITS_TYPE = u32;
         static constexpr size_t BIT_COUNT = sizeof(BITS_TYPE) * CHAR_BIT;
     private:
         BITS_TYPE bits = 0;
@@ -56,9 +56,9 @@ namespace AST {
             COUNT
         };
 
-        static constexpr uint8_t MODIFIER_COUNT = uint8_t(Modifier::COUNT);
+        static constexpr u8 MODIFIER_COUNT = u8(Modifier::COUNT);
 
-        static_assert(uint8_t(Modifier::COUNT) <= BIT_COUNT);
+        static_assert(u8(Modifier::COUNT) <= BIT_COUNT);
 
         constexpr Modifiers() {}
 
@@ -81,18 +81,18 @@ namespace AST {
         }
 
         constexpr bool has(Modifier modifier) const {
-            return bits & (1 << uint8_t(modifier));
+            return bits & (1 << u8(modifier));
         }
 
         constexpr void set(Modifier modifier) {
-            bits |= 1 << uint8_t(modifier);
+            bits |= 1 << u8(modifier);
         }
 
         constexpr void invert() {
             bits = ~bits & ~(-1 << MODIFIER_COUNT);
         }
 
-        constexpr uint8_t count() {
+        constexpr u8 count() {
             return __builtin_popcount(bits);
         }
 
@@ -144,9 +144,9 @@ namespace AST {
     class PrintContext;
 
     struct Location {
-        uint32_t line;
-        uint32_t column;
-        uint32_t length;
+        u32 line;
+        u32 column;
+        u32 length;
 
         Location(Token token) : line{token.line}, column{token.column}, length{token.length} {}
     };
@@ -384,7 +384,7 @@ namespace AST {
 
     class TypeModifier : public TypeNode {
     public:
-        enum class Modifier : uint8_t {
+        enum class Modifier : u8 {
             Pointer,
             Optional,
             Location,
@@ -629,7 +629,7 @@ namespace AST {
 
     class IntegerLiteral : public Literal {
     public:
-        enum class Type: uint8_t {
+        enum class Type: u8 {
             Binary,
             Octal,
             Decimal,
@@ -729,7 +729,7 @@ namespace AST {
     
     class CharacterLiteral : public Literal {
     public:
-        using Character = uint32_t;
+        using Character = u32;
     private:
         const Character value;
 
@@ -1828,13 +1828,13 @@ namespace AST {
 
     class FunctionName {
         struct Label {
-            uint32_t offset;
-            uint32_t length;
+            u32 offset;
+            u32 length;
         };
 
         const char *NONNULL base;
-        uint32_t length;
-        uint32_t root;
+        u32 length;
+        u32 root;
         vector<Label> labels;
     };
 

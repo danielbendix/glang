@@ -780,7 +780,7 @@ AST::Literal *Parser::createCharacterLiteral(const Token& token)
     AST::CharacterLiteral::Character value = 0;
 
     // TODO: I shouldn't be rolling my own unicode handling code.
-    uint8_t c = characters[0];
+    u8 c = characters[0];
 
     if (c == '\\') {
 

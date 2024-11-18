@@ -99,7 +99,7 @@ void Scanner::skipWhitespace() {
 Token Scanner::makeToken(TokenType type)
 {
     std::string_view chars = std::string_view(start, current);
-    uint32_t length = current - start;
+    u32 length = current - start;
     return Token(type, chars, startLine, startColumn, current - start);
 }
 

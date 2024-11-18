@@ -23,15 +23,15 @@ public:
     }
 private:
     using iterator = std::string::const_iterator;
-    std::vector<uint32_t> lineBreaks;
+    std::vector<u32> lineBreaks;
     std::string _string;
     iterator start;
     iterator current;
     iterator end;
-    uint32_t line = 1;
-    uint32_t column = 0;
-    uint32_t startLine = line;
-    uint32_t startColumn = column;
+    u32 line = 1;
+    u32 column = 0;
+    u32 startLine = line;
+    u32 startColumn = column;
     ErrorCause _error = NO_ERROR;
 
     bool isAtEnd() {

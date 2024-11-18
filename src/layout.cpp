@@ -4,18 +4,18 @@
 
 std::pair<Layout, Offset> incorporateLayoutAsField(Layout parent, Layout child)
 {
-    uint8_t alignment = std::max(parent.alignment(), child.alignment());
+    u8 alignment = std::max(parent.alignment(), child.alignment());
     auto alignMask = child.alignmentValue() - 1;
 
     Offset offset = (parent.size() + alignMask) & ~alignMask;
-    uint32_t newSize = offset + child.size();
+    u32 newSize = offset + child.size();
 
     return {{alignment, newSize}, offset};
 }
 
 std::pair<Layout, Offset> incorporateLayoutAsField_C_ABI(Layout parent, Layout child)
 {
-    uint8_t alignment = std::max(parent.alignment(), child.alignment());
+    u8 alignment = std::max(parent.alignment(), child.alignment());
 
     auto alignMask = child.alignmentValue() - 1;
     
@@ -26,7 +26,7 @@ std::pair<Layout, Offset> incorporateLayoutAsField_C_ABI(Layout parent, Layout c
 
     Offset offset = (parent.size() + alignMask) & ~alignMask;
 
-    uint32_t newSize = offset + childSize;
+    u32 newSize = offset + childSize;
 
     return {{alignment, newSize}, offset};
 }

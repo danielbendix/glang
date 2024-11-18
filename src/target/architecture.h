@@ -4,7 +4,7 @@
 
 #include "layout.h"
 
-enum class CPU: uint8_t {
+enum class CPU: u8 {
     x86_64 = 1,
     arm64 = 2,
 };
@@ -26,9 +26,9 @@ struct alignas(128) Architecture {
     Layout fpDouble;
 
     /// Size in bytes of a general-purpose register.
-    uint8_t registerSize;
+    u8 registerSize;
     /// How many register-sized slots to use to pass or return an aggregate value.
-    uint8_t registerPackSize;
+    u8 registerPackSize;
 
     static void populate(CPU cpu);
 

@@ -1,21 +1,21 @@
 #ifndef LANG_layout_h
 #define LANG_layout_h
 
-#include <utility>
+#include "common.h"
 
-#include <cstdint>
+#include <utility>
 #include <cassert>
 
-using Offset = uint32_t;
+using Offset = u32;
 
 struct Align {
-    uint8_t alignment;
+    u8 alignment;
 
-    Align(uint8_t alignment) : alignment{alignment} {
+    Align(u8 alignment) : alignment{alignment} {
         assert(alignment <= 31);
     }
 
-    uint32_t alignmentValue() const {
+    u32 alignmentValue() const {
         return 1 << alignment;
     }
 };
@@ -23,28 +23,28 @@ struct Align {
 struct Layout {
 private:
     Align _alignment;
-    uint32_t _size;
+    u32 _size;
 public:
 
-    Layout(Align alignment, uint32_t size) : _alignment{alignment}, _size{size} {}
+    Layout(Align alignment, u32 size) : _alignment{alignment}, _size{size} {}
 
     /// The alignment as a power of two.
-    uint8_t alignment() const {
+    u8 alignment() const {
         return _alignment.alignment;
     }
 
     /// The actual numeric value of the alignment.
-    uint32_t alignmentValue() const {
+    u32 alignmentValue() const {
         return _alignment.alignmentValue();
     }
 
     /// The size required for a single value.
-    uint32_t size() const {
+    u32 size() const {
         return _size;
     }
 
     /// The value that must be added to access the next value when stored contiguously.
-    uint32_t stride() const {
+    u32 stride() const {
         auto alignMask = alignmentValue() - 1;
         return (_size + alignMask) & ~alignMask;
     }

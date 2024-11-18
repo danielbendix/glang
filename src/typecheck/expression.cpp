@@ -264,7 +264,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
     if (auto structType = dyn_cast<StructType>(initializingType)) {
         initializer.setType(structType);
 
-        Bitmap definedFields{(uint32_t) structType->getFields().size()};
+        Bitmap definedFields{(u32) structType->getFields().size()};
 
         Result result = OK;
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
@@ -309,7 +309,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         definedFields |= {structType->getInitializedFields(), blocks};
         if (definedFields.countr_ones() < structType->getFields().size()) {
             std::vector<const Symbol *> missing;
-            definedFields.iterate_zeros([&](uint32_t index) {
+            definedFields.iterate_zeros([&](u32 index) {
                 auto& binding = llvm::cast<AST::IdentifierBinding>(structType->getFields()[index]->getBinding());
                 missing.push_back(&binding.getIdentifier());
             });

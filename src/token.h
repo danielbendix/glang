@@ -1,9 +1,11 @@
 #ifndef LANG_token_h
 #define LANG_token_h
 
+#include "common.h"
+
 #include <string_view>
 
-enum class TokenType : uint8_t {
+enum class TokenType : u8 {
     // Brackets
     /// []
     LeftBrace, RightBrace,
@@ -124,14 +126,14 @@ std::ostream& operator<<(std::ostream& os, TokenType tokenType);
 
 struct Token final {
     TokenType type;
-    uint32_t line;
-    uint32_t column;
-    uint32_t length;
+    u32 line;
+    u32 column;
+    u32 length;
     // Since we're storing the length (in bytes), we could compute the
     // string_view from a char * and the length;
     std::string_view chars;
 
-    Token(TokenType type, std::string_view chars, uint32_t line, uint32_t column, uint32_t length) 
+    Token(TokenType type, std::string_view chars, u32 line, u32 column, u32 length) 
         : type{type}, chars{chars}, line{line}, column{column}, length{length} {}
 };
 
