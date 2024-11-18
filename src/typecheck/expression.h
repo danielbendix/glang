@@ -61,7 +61,7 @@ enum class LValueKind : uint8_t {
 
 class ExpressionLValueTypeChecker : public AST::ExpressionVisitorT<ExpressionLValueTypeChecker, LValueTypeResult, Type *> {
 public:
-    using GlobalHandler = std::function<Result(AST::IdentifierBinding&)>;
+    using GlobalHandler = std::function<Result(uint32_t)>;
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;
@@ -130,7 +130,7 @@ public:
 
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
 public:
-    using GlobalHandler = std::function<Result(AST::IdentifierBinding&)>;
+    using GlobalHandler = std::function<Result(uint32_t)>;
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;

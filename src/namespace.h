@@ -33,6 +33,25 @@ struct Global {
     Type *type;
 };
 
+// There may be better names for these two.
+
+struct GlobalDeclaration {
+    AST::VariableDeclaration *declaration;
+    uint32_t bindingsIndex;
+    uint32_t bindingsSize;
+
+    GlobalDeclaration(AST::VariableDeclaration *declaration, uint32_t bindingsIndex, uint32_t bindingsSize) 
+        : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize} {}
+};
+
+struct GlobalBinding {
+    AST::IdentifierBinding *binding;
+    uint32_t declarationIndex;
+
+    GlobalBinding(AST::IdentifierBinding *binding, uint32_t declarationIndex) 
+        : binding{binding}, declarationIndex{declarationIndex} {}
+};
+
 struct Definition {
     enum class Kind : uint8_t {
         Function,
@@ -80,8 +99,6 @@ struct Module {
 
     SymbolMap<Type *NONNULL> types;
 
-    std::vector<AST::VariableDeclaration *NONNULL> globals;
-
     std::vector<StructType *NONNULL> structs;
     /// parallel to `structs`.
     std::vector<AST::StructDeclaration *NONNULL> structDeclarations;
@@ -94,9 +111,8 @@ struct Module {
     /// parallel to `functions`.
     std::vector<AST::FunctionDeclaration *NONNULL> functionDeclarations;
 
-    std::vector<Global> globals_;
-    /// parallel to `globals`.
-    std::vector<AST::VariableDeclaration *NONNULL> globalDeclarations;
+    std::vector<GlobalDeclaration> globalDeclarations;
+    std::vector<GlobalBinding> globalBindings;
 };
 
 struct ModuleBuilder {

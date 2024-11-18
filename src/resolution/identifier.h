@@ -39,9 +39,11 @@ struct IdentifierResolution {
     struct Global {
         Kind kind = Kind::Global;
         bool isExtern;
+        uint32_t bindingIndex;
         AST::IdentifierBinding *NONNULL binding;
 
-        Global(AST::IdentifierBinding *NONNULL binding, bool isExtern) : binding{binding}, isExtern{isExtern} {}
+        Global(uint32_t bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) 
+            : bindingIndex{bindingIndex}, binding{binding}, isExtern{isExtern} {}
     };
 
     struct Parameter {
@@ -98,9 +100,9 @@ struct IdentifierResolution {
         return res;
     }
 
-    static IdentifierResolution global(AST::IdentifierBinding *NONNULL binding, bool isExtern) {
+    static IdentifierResolution global(uint32_t bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) {
         IdentifierResolution res;
-        res.as.global = Global(binding, isExtern);
+        res.as.global = Global(bindingIndex, binding, isExtern);
         return res;
     }
 

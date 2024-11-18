@@ -516,7 +516,7 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
                 break;
             case IdentifierResolution::Kind::Global: {
                 auto *binding = resolution.as.global.binding;
-                if (binding->hasType() || (globalHandler && (*globalHandler)(*binding).ok())) {
+                if (binding->hasType() || (globalHandler && (*globalHandler)(resolution.as.global.bindingIndex).ok())) {
                     return TypeResult{binding->getType(), binding->getIsMutable()};
                 } else {
                     return {};
