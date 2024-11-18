@@ -11,7 +11,7 @@ void SymbolTable::growSlots() {
         capacity = capacity << 1;
     }
 
-    const uint64_t mask = capacity - 1;
+    const u64 mask = capacity - 1;
     slots = (Slot *) calloc(capacity, sizeof(Slot));
     if (oldSlots) {
         const Slot *end = oldSlots + oldCapacity;
@@ -25,9 +25,9 @@ void SymbolTable::growSlots() {
     nextResize = capacity * MaxLoadFactor;
 }
 
-inline void SymbolTable::insert(Symbol *symbol, uint64_t hash) {
-    const uint64_t mask = capacity - 1;
-    uint64_t index = symbol->hash & mask;
+inline void SymbolTable::insert(Symbol *symbol, u64 hash) {
+    const u64 mask = capacity - 1;
+    u64 index = symbol->hash & mask;
     
     for (;;) {
         Slot& slot = slots[index];
@@ -41,13 +41,13 @@ inline void SymbolTable::insert(Symbol *symbol, uint64_t hash) {
     }
 }
 
-Symbol *SymbolTable::findSymbol(const std::string_view string, uint64_t hash) {
+Symbol *SymbolTable::findSymbol(const std::string_view string, u64 hash) {
     if (capacity == 0) {
         return nullptr;
     }
 
-    const uint64_t mask = capacity - 1;
-    uint64_t index = hash & mask;
+    const u64 mask = capacity - 1;
+    u64 index = hash & mask;
 
     for (;;) {
         Slot slot = slots[index];
@@ -63,7 +63,7 @@ Symbol *SymbolTable::findSymbol(const std::string_view string, uint64_t hash) {
     }
 }
 
-Symbol *SymbolTable::insertSymbol(const std::string_view string, uint64_t hash) {
+Symbol *SymbolTable::insertSymbol(const std::string_view string, u64 hash) {
     Symbol *symbol = symbolAllocator.Allocate<Symbol>();
     symbol->hash = hash;
     symbol->size = string.size();
@@ -78,8 +78,8 @@ Symbol *SymbolTable::insertSymbol(const std::string_view string, uint64_t hash) 
         growSlots();
     }
 
-    const uint64_t mask = capacity - 1;
-    uint64_t index = hash & mask;
+    const u64 mask = capacity - 1;
+    u64 index = hash & mask;
 
     insert(symbol, hash);
 
@@ -89,7 +89,7 @@ Symbol *SymbolTable::insertSymbol(const std::string_view string, uint64_t hash) 
 }
 
 Symbol& SymbolTable::getSymbol(const std::string_view string) {
-    uint64_t hash = hashString(string);
+    u64 hash = hashString(string);
 
     Symbol *symbol = findSymbol(string, hash);
 
@@ -101,6 +101,6 @@ Symbol& SymbolTable::getSymbol(const std::string_view string) {
 }
 
 Symbol *SymbolTable::getSymbolIfExists(const std::string_view string) {
-    uint64_t hash = hashString(string);
+    u64 hash = hashString(string);
     return findSymbol(string, hash);
 }

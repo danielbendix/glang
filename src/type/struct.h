@@ -27,13 +27,13 @@ public:
     const bool wellFormed;
     const bool isCompact;
     const bool isUnpadded;
-    uint32_t fieldCount;
+    u32 fieldCount;
 private:
 
     struct Field {
         Type *type;
         Symbol *name;
-        uint32_t offset;
+        u32 offset;
         Align alignment;
     };
 
@@ -44,12 +44,12 @@ private:
 
     std::vector<AST::VariableDeclaration *> fields;
     // TODO: Put into collective array with fields.
-    std::vector<uint32_t> offsets = {};
+    std::vector<u32> offsets = {};
     std::vector<AST::FunctionDeclaration *> methods;
 
     union {
-        uint64_t single;
-        uint64_t *multiple;
+        u64 single;
+        u64 *multiple;
     } initializedFields;
 
     StructType(
@@ -113,7 +113,7 @@ public:
         return methods;
     }
 
-    const uint64_t *getInitializedFields() const {
+    const u64 *getInitializedFields() const {
         if (fields.size() <= 64) {
             return &initializedFields.single;
         } else {
@@ -126,7 +126,7 @@ public:
 
         if (initializedFields.count() > 64) {
             auto& allocator = typeAllocator();
-            this->initializedFields.multiple = (uint64_t *) allocator.allocate(sizeof(uint64_t) * initializedFields.count() / 64, alignof(uint64_t));
+            this->initializedFields.multiple = (u64 *) allocator.allocate(sizeof(u64) * initializedFields.count() / 64, alignof(u64));
             initializedFields.copyInto(this->initializedFields.multiple);
         } else {
             initializedFields.copyInto(&this->initializedFields.single);

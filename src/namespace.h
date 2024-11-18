@@ -4,6 +4,7 @@
 #include "AST.h"
 #include "AST_Visitor.h"
 
+#include "common.h"
 #include "containers/symbol_map.h"
 #include "diagnostic.h"
 
@@ -14,77 +15,70 @@
 #include "llvm/ADT/PointerUnion.h"
 
 struct Function {
-    uint16_t parameterCount;
-    uint32_t file;
+    u16 parameterCount;
+    u32 file;
     FunctionType *type = nullptr;
 };
 
 struct Method {
-    uint16_t parameterCount;
-    uint32_t file;
+    u16 parameterCount;
+    u32 file;
     Type *self;
     FunctionType *type = nullptr;
-};
-
-// For now, we require a global to be an identifier binding.
-struct Global {
-    AST::IdentifierBinding *binding;
-    AST::Expression *value;
-    Type *type;
 };
 
 // There may be better names for these two.
 
 struct GlobalDeclaration {
     AST::VariableDeclaration *declaration;
-    uint32_t bindingsIndex;
-    uint32_t bindingsSize;
+    u32 bindingsIndex;
+    u32 bindingsSize;
 
-    GlobalDeclaration(AST::VariableDeclaration *declaration, uint32_t bindingsIndex, uint32_t bindingsSize) 
+    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize) 
         : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize} {}
 };
 
 struct GlobalBinding {
     AST::IdentifierBinding *binding;
-    uint32_t declarationIndex;
+    u32 declarationIndex;
 
-    GlobalBinding(AST::IdentifierBinding *binding, uint32_t declarationIndex) 
+    GlobalBinding(AST::IdentifierBinding *binding, u32 declarationIndex) 
         : binding{binding}, declarationIndex{declarationIndex} {}
 };
 
 struct Definition {
-    enum class Kind : uint8_t {
+    enum class Kind : u8 {
         Function,
         Global,
         Struct,
         Enum,
     };
 
-    static constexpr uint32_t indexBitMask = (1 << 28) - 1;
+    static constexpr u32 indexBitMask = (1 << 28) - 1;
 
-    uint32_t bits;
+    u32 bits;
 
-    Definition(Kind kind, uint32_t index) : bits{(uint32_t(kind) << 28) | (index & indexBitMask)}  {
+    Definition(Kind kind, u32 index) : bits{(u32(kind) << 28) | (index & indexBitMask)}  {
         assert(index < (1 << 28));
     }
 
-    static Definition fromFunctionIndex(uint32_t functionIndex) {
+    static Definition fromFunctionIndex(u32 functionIndex) {
         return Definition(Kind::Function, functionIndex);
     }
 
-    static Definition fromGlobalIndex(uint32_t globalIndex) {
+    static Definition fromGlobalIndex(u32 globalIndex) {
         return Definition(Kind::Global, globalIndex);
     }
 
-    static Definition fromStructIndex(uint32_t structIndex) {
+    static Definition fromStructIndex(u32 structIndex) {
         return Definition(Kind::Struct, structIndex);
     }
 
-    static Definition fromEnumIndex(uint32_t enumIndex) {
+    static Definition fromEnumIndex(u32 enumIndex) {
         return Definition(Kind::Enum, enumIndex);
     }
 
-    uint32_t index() const {
+    u32 index() const {
         return bits & indexBitMask;
     }
 
@@ -122,7 +116,7 @@ struct ModuleBuilder {
     PassResult result = PassResultKind::OK;
     std::unique_ptr<Module> module = std::make_unique<Module>();
 
-    void addDeclarations(std::span<AST::Declaration *NONNULL> declarations, uint32_t file);
+    void addDeclarations(std::span<AST::Declaration *NONNULL> declarations, u32 file);
 
     std::unique_ptr<Module> finalize() {
         if (result.ok()) {

@@ -11,8 +11,8 @@ void enableStdoutDiagnostics();
 
 
 struct DiagnosticLocation {
-    uint32_t offset;
-    uint32_t length;
+    u32 offset;
+    u32 length;
 };
 
 struct BufferedDiagnostic {
@@ -23,15 +23,15 @@ struct BufferedDiagnostic {
     };
     char *description;
     /// The file the diagnostic emanated from.
-    uint32_t sourceFile;
-    uint32_t sourceOffset;
+    u32 sourceFile;
+    u32 sourceOffset;
     /// The file the diagnostic is in. Should only differ from sourceFile for notes.
-    uint32_t file;
+    u32 file;
     Kind kind;
     /// number of secondary locations after the primary one.
-    uint8_t extraLocations;
-    uint32_t locationsIndex;
-    uint32_t descriptionLength;
+    u8 extraLocations;
+    u32 locationsIndex;
+    u32 descriptionLength;
 };
 
 class DiagnosticWriter {

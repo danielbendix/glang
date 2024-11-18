@@ -16,7 +16,7 @@ namespace AST {
 struct Function;
 
 struct IdentifierResolution {
-    enum class Kind : uint8_t {
+    enum class Kind : u8 {
         UNRESOLVED,
         Global,
         Function,
@@ -39,27 +39,27 @@ struct IdentifierResolution {
     struct Global {
         Kind kind = Kind::Global;
         bool isExtern;
-        uint32_t bindingIndex;
+        u32 bindingIndex;
         AST::IdentifierBinding *NONNULL binding;
 
-        Global(uint32_t bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) 
+        Global(u32 bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) 
             : bindingIndex{bindingIndex}, binding{binding}, isExtern{isExtern} {}
     };
 
     struct Parameter {
         Kind kind = Kind::Parameter;
-        uint16_t index;
+        u16 index;
         Function *NONNULL function;
 
-        Parameter(Function *NONNULL function, uint16_t parameterIndex) : function{function}, index{parameterIndex} {}
+        Parameter(Function *NONNULL function, u16 parameterIndex) : function{function}, index{parameterIndex} {}
     };
 
     struct Function_ {
         Kind kind = Kind::Function;
-        uint32_t index;
+        u32 index;
         Function *NONNULL function;
 
-        Function_(Function *NONNULL function, uint32_t index) : function{function}, index{index} {}
+        Function_(Function *NONNULL function, u32 index) : function{function}, index{index} {}
     };
 
     struct TypeIdentifier {
@@ -100,13 +100,13 @@ struct IdentifierResolution {
         return res;
     }
 
-    static IdentifierResolution global(uint32_t bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) {
+    static IdentifierResolution global(u32 bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) {
         IdentifierResolution res;
         res.as.global = Global(bindingIndex, binding, isExtern);
         return res;
     }
 
-    static IdentifierResolution function(Function *NONNULL function, uint32_t index) {
+    static IdentifierResolution function(Function *NONNULL function, u32 index) {
         IdentifierResolution res;
         res.as.function = Function_(function, index);
         return res;

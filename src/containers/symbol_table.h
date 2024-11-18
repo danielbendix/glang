@@ -16,11 +16,11 @@
 
 class Symbol {
 private:
-    uint64_t hash;
+    u64 hash;
     size_t size;
     char *data;
 
-    Symbol(uint64_t hash, size_t size, char *data) : hash{hash}, size{size}, data{data} {}
+    Symbol(u64 hash, size_t size, char *data) : hash{hash}, size{size}, data{data} {}
     Symbol(const Symbol&) = delete;
     Symbol operator=(const Symbol&) = delete;
     Symbol(Symbol&&) = delete;
@@ -70,10 +70,10 @@ private:
     SymbolTable& operator=(SymbolTable&&) = delete;
 
     void growSlots();
-    inline void insert(Symbol *symbol, uint64_t hash);
+    inline void insert(Symbol *symbol, u64 hash);
 
-    Symbol *findSymbol(const std::string_view string, uint64_t hash);
-    Symbol *insertSymbol(const std::string_view string, uint64_t hash);
+    Symbol *findSymbol(const std::string_view string, u64 hash);
+    Symbol *insertSymbol(const std::string_view string, u64 hash);
 
 public:
     SymbolTable() {}

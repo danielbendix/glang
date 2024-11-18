@@ -3,8 +3,7 @@
 
 #include "common.h"
 
-
-enum class IntrinsicKind: uint8_t {
+enum class IntrinsicKind: u8 {
     Truncate,
     Print,
     Assert,

@@ -4,7 +4,7 @@
 
 #include "layout.h"
 
-enum class CPU: uint8_t {
+enum class CPU: u8 {
     x86_64 = 1,
     arm64 = 2,
 };

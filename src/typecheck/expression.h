@@ -53,7 +53,7 @@ struct LValueTypeResult {
     }
 };
 
-enum class LValueKind : uint8_t {
+enum class LValueKind : u8 {
     Assignment,
     CompoundAssignment,
     AddressOf,
@@ -61,7 +61,7 @@ enum class LValueKind : uint8_t {
 
 class ExpressionLValueTypeChecker : public AST::ExpressionVisitorT<ExpressionLValueTypeChecker, LValueTypeResult, Type *> {
 public:
-    using GlobalHandler = std::function<Result(uint32_t)>;
+    using GlobalHandler = std::function<Result(u32)>;
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;
@@ -130,7 +130,7 @@ public:
 
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
 public:
-    using GlobalHandler = std::function<Result(uint32_t)>;
+    using GlobalHandler = std::function<Result(u32)>;
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;

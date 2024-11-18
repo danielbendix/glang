@@ -1,26 +1,26 @@
 #include "hash.h"
 
-uint64_t hashString(const std::string& string) {
-    uint64_t hash = 14695981039346656037UL;
-    for (uint8_t c : string) {
+u64 hashString(const std::string& string) {
+    u64 hash = 14695981039346656037UL;
+    for (u8 c : string) {
         hash ^= c;
         hash *= 1099511628211;
     }
     return hash;
 }
 
-uint64_t hashString(const std::string_view string) {
-    uint64_t hash = 14695981039346656037UL;
-    for (uint8_t c : string) {
+u64 hashString(const std::string_view string) {
+    u64 hash = 14695981039346656037UL;
+    for (u8 c : string) {
         hash ^= c;
         hash *= 1099511628211;
     }
     return hash;
 }
 
-constexpr uint64_t hashString(const char *string) {
-    uint64_t hash = 14695981039346656037UL;
-    uint8_t c;
+constexpr u64 hashString(const char *string) {
+    u64 hash = 14695981039346656037UL;
+    u8 c;
     while ((c = *string++)) {
         hash ^= c;
         hash *= 1099511628211;
@@ -28,9 +28,9 @@ constexpr uint64_t hashString(const char *string) {
     return hash;
 }
 
-constexpr uint64_t hashString(const char *string, size_t length) {
-    uint64_t hash = 14695981039346656037UL;
-    uint8_t c;
+constexpr u64 hashString(const char *string, size_t length) {
+    u64 hash = 14695981039346656037UL;
+    u8 c;
     while ((c = *string++)) {
         hash ^= c;
         hash *= 1099511628211;

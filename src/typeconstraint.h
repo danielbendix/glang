@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-enum class TypeConstraintKind : uint8_t {
+enum class TypeConstraintKind : u8 {
     Numeric,
     Floating,
     Optional,

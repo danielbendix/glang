@@ -257,7 +257,7 @@ public:
         llvm_unreachable("Unable to find local.");
     }
 
-    Binding getGlobal(uint32_t index) {
+    Binding getGlobal(u32 index) {
         return {context.llvmGlobals[index], 0};
     }
 
@@ -267,11 +267,11 @@ public:
         return *alloca;
     }
 
-    llvm::Argument& getArgument(uint32_t i) {
+    llvm::Argument& getArgument(u32 i) {
         return *function.getArg(i);
     }
 
-    llvm::Function& getFunction(uint32_t functionIndex) {
+    llvm::Function& getFunction(u32 functionIndex) {
         return *context.llvmFunctions[functionIndex];
     }
 
@@ -351,11 +351,11 @@ public:
         }
     }
 
-    llvm::ConstantInt *getIntegerConstant(IntegerType *type, uint64_t value) {
+    llvm::ConstantInt *getIntegerConstant(IntegerType *type, u64 value) {
         return llvm::ConstantInt::get(cast<llvm::IntegerType>(type->getLLVMType(context.llvmContext)), value, type->isSigned);
     }
 
-    llvm::ConstantInt *getIntegerConstant(int bitWidth, uint64_t value) {
+    llvm::ConstantInt *getIntegerConstant(int bitWidth, u64 value) {
         auto type = llvm::IntegerType::get(context.llvmContext, bitWidth);
         return llvm::ConstantInt::get(type, value, false);
     }
@@ -1659,7 +1659,7 @@ public:
         auto structType = cast<StructType>(initializer.getType());
         llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));
 
-        Bitmap undefined{(uint32_t) structType->getFields().size()};
+        Bitmap undefined{(u32) structType->getFields().size()};
 
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
@@ -1674,7 +1674,7 @@ public:
             structValue = function.builder.CreateInsertValue(structValue, value, {index});
         }
 
-        undefined.iterate_zeros([&](uint32_t index) {
+        undefined.iterate_zeros([&](u32 index) {
             auto initial = structType->getFields()[index]->getInitialValue();
             assert(initial);
             auto value = visitExpressionAsValue(initial);
