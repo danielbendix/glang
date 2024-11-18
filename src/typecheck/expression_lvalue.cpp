@@ -186,8 +186,9 @@ LValueTypeResult ExpressionLValueTypeChecker::visitIdentifier(AST::Identifier& i
                 llvm_unreachable("UNDEFINED resolution in type check.");
                 break;
             case IdentifierResolution::Kind::Global: {
+
                 auto *binding = resolution.as.global.binding;
-                if (binding->hasType() || (globalHandler && (*globalHandler)(*binding).ok())) {
+                if (binding->hasType() || (globalHandler && (*globalHandler)(resolution.as.global.bindingIndex).ok())) {
                     return LValueTypeResult{binding->getType(), binding->getIsMutable()};
                 } else {
                     return {};

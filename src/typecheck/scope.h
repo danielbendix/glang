@@ -227,7 +227,7 @@ public:
                 case Definition::Kind::Function:
                     return IdentifierResolution::function(&module.functions[index], index);
                 case Definition::Kind::Global:
-                    return IdentifierResolution::global(module.globals_[index].binding, false);
+                    return IdentifierResolution::global(index, module.globalBindings[index].binding, false);
                 case Definition::Kind::Struct:
                     return IdentifierResolution::type(module.structs[index]);
                 case Definition::Kind::Enum:

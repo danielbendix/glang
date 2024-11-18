@@ -70,21 +70,19 @@ class Context {
 public:
     llvm::Module& llvmModule;
     LLVMContext& llvmContext;
-    //llvm::StringMap<AST::Declaration *> globals;
 
     std::vector<AST::FunctionDeclaration *> functions;
     std::vector<llvm::Function *NONNULL> llvmFunctions;
-    std::vector<AST::VariableDeclaration *> globals;
-    PointerMap<AST::IdentifierBinding *, llvm::GlobalVariable *> llvmGlobals;
+
+    std::vector<GlobalDeclaration> globals;
+    std::vector<llvm::GlobalVariable *> llvmGlobals;
 
     PointerMap<Type *, llvm::Function *> printFunctions;
 
     Context(LLVMContext& llvmContext, llvm::Module& llvmModule) : llvmContext{llvmContext}, llvmModule{llvmModule} {}
 
-    void addGlobal(AST::VariableDeclaration& global) {
-        globals.push_back(&global);
-
-        auto& binding = cast<AST::IdentifierBinding>(global.getBinding());
+    void addGlobal(GlobalBinding& globalBinding) {
+        auto& binding = *globalBinding.binding;
 
         auto type = binding.getType()->getLLVMType(llvmContext);
         auto name = binding.getIdentifier().string_view();
@@ -95,8 +93,8 @@ public:
             llvm::GlobalValue::ExternalLinkage, 
             llvm::UndefValue::get(type), name
         );
-        
-        llvmGlobals.insert(&binding, llvmGlobal);
+
+        llvmGlobals.push_back(llvmGlobal);
     }
 
     llvm::Function *setupGlobalConstructor() {
@@ -149,17 +147,22 @@ public:
 };
 
 bool populateContext(Context& context, Module& module) {
-    for (auto global : module.globals) {
-        context.addGlobal(*global);
+    for (auto& globalBinding : module.globalBindings) {
+        context.addGlobal(globalBinding);
     }
+    std::swap(context.globals, module.globalDeclarations);
 
     for (auto [function, declaration] : llvm::zip(module.functions, module.functionDeclarations)) {
         context.addFunction(function, declaration->getName());
     }
-
     std::swap(context.functions, module.functionDeclarations);
     
     return false;
+}
+
+void unpopulateContext(Context& context, Module& module) {
+    std::swap(context.globals, module.globalDeclarations);
+    std::swap(context.functions, module.functionDeclarations);
 }
 
 class CompilingFunction {
@@ -254,12 +257,8 @@ public:
         llvm_unreachable("Unable to find local.");
     }
 
-    Binding getGlobal(AST::IdentifierBinding& binding) {
-        return {context.llvmGlobals[&binding], 0};
-    }
-
-    Binding getGlobal(AST::IdentifierBinding *binding) {
-        return {context.llvmGlobals[binding], 0};
+    Binding getGlobal(uint32_t index) {
+        return {context.llvmGlobals[index], 0};
     }
 
     llvm::AllocaInst& makeStackSlot(llvm::Type *type) {
@@ -611,10 +610,13 @@ public:
         finalize();
     }
 
-    void generateGlobalCode(AST::VariableDeclaration& global) {
-        auto& binding = cast<AST::IdentifierBinding>(global.getBinding());
-        auto value = visitExpressionAsValue(global.getInitialValue());
-        auto llvmGlobal = function.getGlobal(binding).getPointer();
+    void generateGlobalCode(GlobalDeclaration& global) {
+        assert(global.bindingsSize == 1);
+        auto index = global.bindingsIndex;
+
+        auto value = visitExpressionAsValue(global.declaration->getInitialValue());
+
+        auto llvmGlobal = function.getGlobal(index).getPointer();
         function.builder.CreateStore(value, llvmGlobal);
         function.builder.CreateRetVoid();
     }
@@ -1001,7 +1003,7 @@ public:
             case IdentifierResolution::Kind::Global: {
                 const auto global = resolution.as.global;
                 auto type = function.getLLVMType(identifier.getType());
-                auto value = function.getGlobal(global.binding);
+                auto value = function.getGlobal(global.bindingIndex);
                 if (value.getInt()) {
                     return Value::value(value.getPointer());
                 } else {
@@ -1746,10 +1748,10 @@ void codegenGlobals(Context& context) {
     llvm::FunctionType *initializerType = llvm::FunctionType::get(llvm::Type::getVoidTy(context.llvmContext), false);
     const char *initializerName = "__glang_global_initializer";
 
-    for (const auto global : context.globals) {
+    for (auto& global : context.globals) {
         llvm::Function *initializer = llvm::Function::Create(initializerType, llvm::Function::ExternalLinkage, initializerName, context.llvmModule);
         FunctionCodeGenerator generator{*initializer, context};
-        generator.generateGlobalCode(*global);
+        generator.generateGlobalCode(global);
 
         function.builder.CreateCall(initializerType, initializer);
     }
@@ -1820,6 +1822,8 @@ std::unique_ptr<llvm::Module> generateCode(Module& module)
     populateContext(context, module);
 
     performCodegen(context);
+
+    unpopulateContext(context, module);
 
     if (llvm::verifyModule(*llvmModule, &llvm::outs())) {
         llvm::outs() << *llvmModule;

@@ -21,7 +21,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
             case Definition::Kind::Function:
                 return module.functionDeclarations[index];
             case Definition::Kind::Global:
-                return module.globals_[index].binding;
+                return module.globalBindings[index].binding;
             case Definition::Kind::Struct:
                 return module.structDeclarations[index];
             case Definition::Kind::Enum:
@@ -37,17 +37,14 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 
     Result addGlobal(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
+        uint32_t bindingIndex = module.globalBindings.size();
+        uint32_t declarationIndex = module.globalDeclarations.size();
+
+        module.globalBindings.emplace_back(&binding, declarationIndex);
+        module.globalDeclarations.emplace_back(&variable, bindingIndex, 1);
+
         const Symbol& name = binding.getIdentifier();
-        module.globals.push_back(&variable);
-
-        auto index = module.globals_.size();
-        module.globals_.push_back({});
-        module.globalDeclarations.push_back(&variable);
-        assert(module.globals_.size() == module.globalDeclarations.size());
-        auto& global = module.globals_.back();
-        global.binding = &binding;
-
-        auto definition = Definition::fromGlobalIndex(index);
+        auto definition = Definition::fromGlobalIndex(bindingIndex);
         if (!module.all.insert(name, definition)) {
             diagnoseDuplicateDeclaration(name, binding);
             return ERROR;
