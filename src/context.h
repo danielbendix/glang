@@ -67,16 +67,16 @@ struct ThreadContext {
     SymbolTable *NONNULL symbols;
     // This can be removed once the Sema phase is emitting GIR, instead of decorating nodes.
     BumpAllocator nodeAllocator;
+    // We may be able to get rid of this, or reduce its usage by using arrays of different kinds of types.
+    // This would allow for the following:
+    // - Referring to types by u32.
+    // - Existential processing of types.
+    // - Parallel arrays of LLVM types that exist only during codegen, reducing sizeof(Type).
     BumpAllocator typeAllocator;
 };
 
 BumpAllocator& nodeAllocator();
 
-// We may be able to get rid of this, or reduce its usage by using arrays of different kinds of types.
-// This would allow for the following:
-// - Referring to types by u32.
-// - Existential processing of types.
-// - Parallel arrays of LLVM types that exist only during codegen, reducing sizeof(Type).
 BumpAllocator& typeAllocator();
 
 #endif // LANG_context_h
