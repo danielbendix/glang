@@ -46,10 +46,6 @@ public:
             auto& declaration = this->module.globalDeclarations[declarationIndex];
             return typeCheckGlobal(declarationIndex, declaration);
         };
-//        auto globalHandlerLambda = [this](AST::IdentifierBinding& binding) -> Result {
-//            auto global = this->ancestors[&binding];
-//            return typeCheckGlobal(*global);
-//        };
         static_assert(sizeof(globalHandlerLambda) <= 8);
         globalHandler = globalHandlerLambda;
     }
@@ -119,61 +115,6 @@ public:
         }
     }
 
-//    Result typeCheckGlobal(AST::VariableDeclaration& variable) {
-//        if (auto it = std::ranges::find(checkStack, &variable); it != checkStack.end()) {
-//            for (auto global : checkStack) {
-//                Diagnostic::error(*global, "Cycle detected in globals.");
-//            }
-//            return ERROR;
-//        }
-//
-//        Type *declaredType = nullptr;
-//        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
-//            declaredType = typeResolver.resolveType(*typeDeclaration);
-//            if (!declaredType) {
-//                return ERROR;
-//            }
-//        }
-//
-//        Type *type = nullptr;
-//        if (AST::Expression *initial = variable.getInitialValue()) {
-//            checkStack.push_back(&variable);
-//            ExpressionTypeChecker typeChecker{scopeManager, typeResolver, globalHandler};
-//            type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
-//            checkStack.pop_back();
-//            variable.markAsChecked();
-//            orderedGlobals.push_back(&variable);
-//
-//            if (!type) {
-//                return ERROR;
-//            }
-//
-//            if (declaredType && type != declaredType) {
-//                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
-//                if (wrapped) {
-//                    variable.setWrappedInitialValue(std::move(wrapped));
-//                }
-//                if (coerceResult.failed()) {
-//                    return ERROR;
-//                }
-//                type = declaredType;
-//            }
-//        } else {
-//            Diagnostic::error(variable, "Global variable declaration has no initial value.");
-//            return ERROR;
-//        }
-//
-//        if (type) {
-//            auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
-//            binding.setType(type);
-//            binding.setIsMutable(variable.getIsMutable());
-//            variable.setType(*type);
-//            return OK;
-//        } else {
-//            return ERROR;
-//        }
-//    }
-
     Result typeCheckGlobals(std::vector<GlobalDeclaration>& globals) {
         assert(orderedGlobals.empty());
         orderedGlobals.reserve(globals.size());
@@ -191,30 +132,6 @@ public:
 
         return result;
     }
-
-//    Result typeCheckGlobals(std::vector<AST::VariableDeclaration *>& globals) {
-//        // This is a bad hack for now. Typechecking should be soon rewritten 
-//        // into a single pass, which should handle name resolution, typechecking, 
-//        // and control flow together.
-//        // TODO: Reserve size in underlying map.
-//        for (auto global : globals) {
-//            auto& identifierBinding = cast<AST::IdentifierBinding>(global->getBinding());
-//            ancestors.insert(&identifierBinding, global);
-//        }
-//
-//        Result result = OK;
-//        for (auto global : globals) {
-//            if (global->getIsChecked()) continue;
-//            result |= typeCheckGlobal(*global);
-//        }
-//
-//        if (result.ok()) {
-//            assert(orderedGlobals.size() == globals.size());
-//            std::swap(globals, orderedGlobals);
-//        }
-//
-//        return result;
-//    }
 };
 
 class GlobalDeclarationTypeChecker {
@@ -239,65 +156,6 @@ public:
         GlobalVariableTypeChecker typeChecker{module, scopeManager, typeResolver};
         return typeChecker.typeCheckGlobals(globals);
     }
-
-//    Result typeCheckGlobals(std::vector<AST::VariableDeclaration *>& globals) {
-//        scopeManager.reset();
-//        GlobalVariableTypeChecker typeChecker{module, scopeManager, typeResolver};
-//        return typeChecker.typeCheckGlobals(globals);
-//    }
-
-//    Result typeCheckGlobal(AST::VariableDeclaration& variable) {
-//        if (auto it = std::ranges::find(checkStack, &variable); it != checkStack.end()) {
-//            for (auto global : checkStack) {
-//                Diagnostic::error(*global, "Cycle detected in globals.");
-//            }
-//            return ERROR;
-//        }
-//
-//        Type *declaredType = nullptr;
-//        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
-//            declaredType = typeResolver.resolveType(*typeDeclaration);
-//            if (!declaredType) {
-//                return ERROR;
-//            }
-//        }
-//
-//        Type *type = nullptr;
-//        if (AST::Expression *initial = variable.getInitialValue()) {
-//            checkStack.push_back(&variable);
-//            ExpressionTypeChecker typeChecker{typeResolver, globalHandler};
-//            type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
-//            checkStack.pop_back();
-//
-//            if (!type) {
-//                return ERROR;
-//            }
-//
-//            if (declaredType && type != declaredType) {
-//                auto [coerceResult, wrapped] = coerceType(*declaredType, *type, *initial);
-//                if (wrapped) {
-//                    variable.setWrappedInitialValue(std::move(wrapped));
-//                }
-//                if (coerceResult.failed()) {
-//                    return ERROR;
-//                }
-//                type = declaredType;
-//            }
-//        } else {
-//            Diagnostic::error(variable, "Global variable declaration has no initial value.");
-//            return ERROR;
-//        }
-//
-//        if (type) {
-//            auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
-//            binding.setType(type);
-//            binding.setIsMutable(variable.getIsMutable());
-//            variable.setType(*type);
-//            return OK;
-//        } else {
-//            return ERROR;
-//        }
-//    }
 
     Result typeCheckFunction(Function& function, AST::FunctionDeclaration *declaration) {
         Result result = OK;
