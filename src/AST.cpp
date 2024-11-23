@@ -91,14 +91,253 @@ namespace AST {
 }
 
 namespace AST {
-    std::ostream& operator<<(std::ostream& os, const Location& location) {
-        if (location.length == 1) {
-            return os << '[' << location.line << ':' << location.column <<']';
-        } else {
-            return os << '[' << location.line << ':' << location.column << '-' << location.column + location.length - 1 <<']';
-        }
+
+    FileLocation Node::getFileLocation() const {
+        return AST::visit(*this, [](auto& node) {
+            return node.getFileLocation();
+        });
     }
 
+    FileLocation TypeLiteral::getFileLocation() const {
+        return {offset, name.length()};
+    }
+
+    FileLocation TypeModifier::getFileLocation() const {
+        // TODO: Get total length of modifiers.
+        return {offset, 1};
+    }
+
+    FileLocation Identifier::getFileLocation() const { 
+        return {offset, name.length()};
+    }
+
+    FileLocation Self::getFileLocation() const { 
+        return {offset, 4};
+    }
+
+    FileLocation BinaryExpression::getFileLocation() const {
+        auto getLength = [](BinaryOperator op) -> u32 {
+            switch (op) {
+                case BinaryOperator::OpenRange:
+                case BinaryOperator::ClosedRange:
+                    return 3;
+                case BinaryOperator::Add:
+                case BinaryOperator::Subtract:
+                case BinaryOperator::Multiply:
+                case BinaryOperator::Divide:
+                case BinaryOperator::Modulo:
+                    return 1;
+                case BinaryOperator::ShiftLeft:
+                case BinaryOperator::ShiftRight:
+                    return 2;
+                case BinaryOperator::BitwiseAnd:
+                case BinaryOperator::BitwiseOr:
+                case BinaryOperator::BitwiseXor:
+                    return 1;
+                case BinaryOperator::Equal:
+                case BinaryOperator::NotEqual:
+                    return 2;
+                case BinaryOperator::Less:
+                case BinaryOperator::Greater:
+                    return 1;
+                case BinaryOperator::LessEqual:
+                case BinaryOperator::GreaterEqual:
+                    return 2;
+                case BinaryOperator::LogicalAnd:
+                    return 3;
+                case BinaryOperator::LogicalOr:
+                    return 2;
+            }
+        };
+        u32 length = getLength(op);
+        return {offset, length};
+    }
+
+    FileLocation IntrinsicExpression::getFileLocation() const {
+        return {offset, name.length() + 1};
+    }
+
+    FileLocation UnaryExpression::getFileLocation() const {
+        auto getLength = [](UnaryOperator op) -> u32 {
+            using enum UnaryOperator;
+            switch (op) {
+                case Negate: 
+                    return 1;
+                case BitwiseNegate:
+                    return 1;
+                case Not:
+                    return 3;
+                case AddressOf:
+                case PrefixDereference:
+                case PostfixDereference:
+                    return 1;
+                case ForceUnwrap:
+                    return 1;
+                case ZeroExtend: 
+                case SignExtend:
+                case IntegerToFP:
+                case FPExtend:
+                case OptionalWrap: 
+                    llvm_unreachable("Cannot get file location for wrapper node.");
+            }
+        };
+        return {offset, getLength(op)};
+    }
+
+    FileLocation FunctionDeclaration::getFileLocation() const {
+        return {offset, name.length()};
+    }
+
+    FileLocation StructDeclaration::getFileLocation() const {
+        return {offset, name.length()};
+    }
+
+    FileLocation ProtocolDeclaration::getFileLocation() const {
+        return {offset, name.length()};
+    }
+
+    FileLocation EnumDeclaration::getFileLocation() const {
+        return {offset, name.length()};
+    }
+
+    FileLocation AssignmentStatement::getFileLocation() const {
+        return {offset, 1};
+    }
+
+    FileLocation CompoundAssignmentStatement::getFileLocation() const {
+        auto getLength = [](BinaryOperator op) -> u32 {
+            using enum BinaryOperator;
+            switch (op) {
+                case OpenRange:
+                case ClosedRange:
+                case Equal:
+                case NotEqual:
+                case Less:
+                case LessEqual:
+                case Greater:
+                case GreaterEqual:
+                case LogicalAnd:
+                case LogicalOr:
+                    llvm_unreachable("Unsupported binary operator for compound assignment.");
+                case Add:
+                case Subtract:
+                case Multiply:
+                case Divide:
+                case Modulo:
+                    return 2;
+                case AST::BinaryOperator::ShiftLeft:
+                case AST::BinaryOperator::ShiftRight:
+                    return 3;
+                case AST::BinaryOperator::BitwiseAnd:
+                case AST::BinaryOperator::BitwiseOr:
+                case AST::BinaryOperator::BitwiseXor:
+                    return 2;
+            }
+
+        };
+        return {offset, getLength(op)};
+    }
+
+    FileLocation IfStatement::getFileLocation() const {
+        return {offset, 2};
+    }
+
+    FileLocation GuardStatement::getFileLocation() const {
+        return {offset, 5};
+    }
+
+    FileLocation ReturnStatement::getFileLocation() const {
+        return {offset, 6};
+    }
+
+    FileLocation WhileStatement::getFileLocation() const {
+        return {offset, 5};
+    }
+
+    FileLocation ForStatement::getFileLocation() const {
+        return {offset, 3};
+    }
+
+    FileLocation BreakStatement::getFileLocation() const {
+        return {offset, 5};
+    }
+
+    FileLocation ContinueStatement::getFileLocation() const {
+        return {offset, 8};
+    }
+
+    FileLocation ExpressionStatement::getFileLocation() const {
+        return expression->getFileLocation();
+    }
+
+    FileLocation StatementDeclaration::getFileLocation() const {
+        return statement->getFileLocation();
+    }
+
+    FileLocation VariableDeclaration::getFileLocation() const {
+        return {offset, 3};
+    }
+
+    FileLocation NilLiteral::getFileLocation() const {
+        return {offset, 3};
+    }
+
+    FileLocation BooleanLiteral::getFileLocation() const {
+        u32 length = getValue() ? 4 : 5;
+        return {offset, length};
+    }
+
+    FileLocation IntegerLiteral::getFileLocation() const {
+        // TODO: Needs length
+        llvm_unreachable(__FUNCTION__);
+    }
+
+    FileLocation FloatingPointLiteral::getFileLocation() const {
+        // TODO: Needs length
+        llvm_unreachable(__FUNCTION__);
+    }
+
+    FileLocation CharacterLiteral::getFileLocation() const {
+        // TODO: Needs length.
+        llvm_unreachable(__FUNCTION__);
+    }
+
+    FileLocation StringLiteral::getFileLocation() const {
+        // TODO: Needs length.
+        llvm_unreachable(__FUNCTION__);
+    }
+
+    FileLocation CallExpression::getFileLocation() const {
+        // TODO: Get closing parenthesis.
+        return {offset, 1};
+    }
+
+    FileLocation SubscriptExpression::getFileLocation() const {
+        // TODO: Get closing bracket.
+        return {offset, 1};
+    }
+
+    FileLocation InitializerExpression::getFileLocation() const {
+        return {offset, 1};
+    }
+
+    FileLocation MemberAccessExpression::getFileLocation() const {
+        return {offset, memberName.length()};
+    }
+
+    FileLocation InferredMemberAccessExpression::getFileLocation() const {
+        // TODO: This should perhaps include the dot.
+        return {offset, memberName.length()};
+    }
+
+    // Bindings
+
+    FileLocation IdentifierBinding::getFileLocation() const {
+        return {offset, identifier.length()};
+    }
+}
+
+namespace AST {
     void Node::print(std::ostream& os) const {
         PrintContext pc{os};
         pc << *this;

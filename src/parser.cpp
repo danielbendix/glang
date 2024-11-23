@@ -22,16 +22,17 @@ ParsedFile Parser::parse()
         declarations.emplace_back(declaration());
     }
 
+    u32 size = previous.offset;
+
     auto astHandle = std::make_unique<ASTHandle>(std::move(heap), std::move(nodeAllocator));
-    return ParsedFile(std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle));
+    return ParsedFile(size, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle));
 }
 
 // Utilities
 Parser::Modifiers Parser::parseModifiers()
 {
     Modifiers result = {
-        .line = current.line,
-        .column = current.column,
+        .offset = current.offset,
         .length = 0,
         .modifiers = {},
     };
@@ -96,11 +97,13 @@ AST::Block Parser::block()
 AST::TypeNode *Parser::type(bool hasIdentifier) 
 {
     Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
-    Symbol& name = symbols.getSymbol(nameToken.chars);
+    Symbol& name = symbols.getSymbol(toStringView(nameToken));
 
     AST::vector<AST::TypeModifier::Modifier> typeModifiers{allocator<AST::TypeModifier::Modifier>()};
 
     using enum AST::TypeModifier::Modifier;
+
+    u32 modifierOffset = current.offset;
 
     for (;;) {
         if (match(TokenType::Star)) {
@@ -137,7 +140,7 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
         return AST::TypeLiteral::create(nodeAllocator, nameToken, name);
     } else {
         auto type = AST::TypeLiteral::create(nodeAllocator, nameToken, name);
-        return AST::TypeModifier::create(nodeAllocator, type, typeModifiers);
+        return AST::TypeModifier::create(nodeAllocator, type, typeModifiers, modifierOffset);
     }
 }
 
@@ -147,7 +150,7 @@ AST::Binding *Parser::binding()
 {
     auto token = consume(TokenType::Identifier);
 
-    auto& identifier = symbols.getSymbol(token.chars);
+    auto& identifier = symbols.getSymbol(toStringView(token));
 
     return AST::IdentifierBinding::create(nodeAllocator, token, identifier);
 }
@@ -173,7 +176,7 @@ AST::Declaration *Parser::declaration()
 AST::FunctionParameter Parser::parameter()
 {
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
     consume(TokenType::Colon);
     auto tp = type();
 
@@ -185,7 +188,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
     checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers);
 
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
     consume(TokenType::LeftParenthesis);
 
@@ -245,7 +248,7 @@ AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
     checkModifiers(modifiers.modifiers, AST::StructDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
     consume(TokenType::LeftBracket);
     AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
@@ -263,14 +266,15 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     checkModifiers(modifiers.modifiers, AST::EnumDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
-    consume(TokenType::LeftBracket);
-  
     AST::TypeNode *rawType = nullptr;
     if (match(TokenType::Colon)) {
         rawType = type();
     }
+
+    consume(TokenType::LeftBracket);
+  
     AST::vector<AST::EnumDeclaration::Case> cases{allocator<AST::EnumDeclaration::Case>()};
     AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
 
@@ -292,7 +296,7 @@ AST::EnumDeclaration::Case Parser::enumCase()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
     if (match(TokenType::LeftParenthesis)) {
         AST::vector<AST::EnumDeclaration::Case::Member> members{allocator<AST::EnumDeclaration::Case::Member>()};
@@ -313,7 +317,7 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
 {
     if (match(TokenType::Identifier)) {
         Token identifierToken = previous;
-        auto& identifier = symbols.getSymbol(identifierToken.chars);
+        auto& identifier = symbols.getSymbol(toStringView(identifierToken));
         if (match(TokenType::Colon)) {
             auto memberType = type();
             return AST::EnumDeclaration::Case::Member(&identifier, memberType);
@@ -659,7 +663,7 @@ AST::Expression *Parser::member(AST::Expression *left)
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
     return AST::MemberAccessExpression::create(nodeAllocator, token, std::move(left), name);
 }
@@ -668,7 +672,7 @@ AST::Expression *Parser::inferredMember()
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
-    auto& name = symbols.getSymbol(nameToken.chars);
+    auto& name = symbols.getSymbol(toStringView(nameToken));
 
     return AST::InferredMemberAccessExpression::create(nodeAllocator, token, name);
 }
@@ -733,18 +737,17 @@ unsigned bitCount(unsigned length) {
 }
 
 template <int skip, int base>
-llvm::APInt parseInteger(Token token) {
-    unsigned bits = bitCount<skip, base>(token.chars.length());
-    std::string_view chars = token.chars;
+llvm::APInt parseInteger(std::string_view chars) {
+    unsigned bits = bitCount<skip, base>(chars.length());
     chars.remove_prefix(skip);
     return llvm::APInt{bits, {chars}, base};
 }
 
-double parseDouble(Token& token)
+double parseDouble(std::string_view chars)
 {
     char *end = nullptr;
-    double value = strtod(token.chars.data(), &end);
-    if (end == (token.chars.data() + token.chars.size())) {
+    double value = strtod(chars.data(), &end);
+    if (end == (chars.end())) {
         return value;
     }
     // FIXME: Raise exception if all of string was not consumed
@@ -773,7 +776,7 @@ static inline void checkLength(const Token& token, std::string_view characters) 
 AST::Literal *Parser::createCharacterLiteral(const Token& token) 
 {
     // NOTE: Assumption of single quote delimiters.
-    std::string_view characters = token.chars;
+    std::string_view characters = toStringView(token);
     characters.remove_prefix(1);
     characters.remove_suffix(1);
 
@@ -813,10 +816,10 @@ AST::Literal *Parser::createCharacterLiteral(const Token& token)
 AST::Literal *Parser::createStringLiteral(const Token& token)
 {
     AST::string string{allocator<char>()};
-    string.reserve(token.chars.length() - 2); // Don't reserve for quotes
+    string.reserve(token.length - 2); // Don't reserve for quotes
     
     // NOTE: This currently only supports double quotes as delimiters.
-    std::string_view characters = token.chars;
+    std::string_view characters = toStringView(token);
     characters.remove_prefix(1);
     characters.remove_suffix(1);
 
@@ -853,32 +856,32 @@ AST::Expression *Parser::literal()
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
-                parseInteger<2, 2>(previous), 
+                parseInteger<2, 2>(toStringView(previous)), 
                 IntegerType::Binary
             );
         case Octal: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
-                parseInteger<2, 8>(previous), 
+                parseInteger<2, 8>(toStringView(previous)), 
                 IntegerType::Octal
             );
         case Integer: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
-                parseInteger<0, 10>(previous), 
+                parseInteger<0, 10>(toStringView(previous)), 
                 IntegerType::Decimal
             );
         case Hexadecimal: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
-                parseInteger<2, 16>(previous), 
+                parseInteger<2, 16>(toStringView(previous)), 
                 IntegerType::Hexadecimal
             );
 
-        case Floating: return FloatingPointLiteral::create(nodeAllocator, previous, parseDouble(previous));
+        case Floating: return FloatingPointLiteral::create(nodeAllocator, previous, parseDouble(toStringView(previous)));
 
         case Character: return createCharacterLiteral(previous);
 
@@ -944,7 +947,7 @@ AST::Expression *Parser::postfixUnary(AST::Expression *expression)
 AST::Expression *Parser::identifier()
 {
     auto token = previous;
-    auto& name = symbols.getSymbol(token.chars);
+    auto& name = symbols.getSymbol(toStringView(token));
     auto identifier = AST::Identifier::create(nodeAllocator, token, name);
     if (expressionRules.allowInitializer && match(TokenType::LeftBracket)) {
         return initializer(std::move(identifier));
@@ -967,7 +970,7 @@ AST::Expression *Parser::grouping()
 AST::Expression *Parser::intrinsic()
 {
     auto token = previous;
-    auto& name = symbols.getSymbol(token.chars.substr(1));
+    auto& name = symbols.getSymbol(toStringView(token).substr(1));
 
     bool hasTypeArguments = false;
     AST::vector<AST::TypeNode *NONNULL> typeArguments{allocator<AST::TypeNode *>()};
@@ -1019,7 +1022,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
     AST::vector<AST::InitializerExpression::Pair> pairs{allocator<AST::InitializerExpression::Pair>()};
     while (!match(TokenType::RightBracket)) {
         auto nameToken = consume(TokenType::Identifier);
-        auto& name = symbols.getSymbol(nameToken.chars);
+        auto& name = symbols.getSymbol(toStringView(nameToken));
         consume(TokenType::Equal);
         auto member = AST::InferredMemberAccessExpression::create(nodeAllocator, nameToken, name);
         auto value = expression({});

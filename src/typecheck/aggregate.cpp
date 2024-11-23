@@ -34,6 +34,13 @@ std::pair<AggregateType, bool> asAggregate(Type *type) {
     });
 }
 
+u32 getAggregateFileHandle(AggregateType aggregateType) {
+    return TypeSwitch<AggregateType, u32>(aggregateType)
+        .Case<StructType *>([](StructType *structType) {
+            return structType->file;
+        });
+}
+
 std::string getAggregateName(AggregateType aggregateType) {
     return TypeSwitch<AggregateType, std::string>(aggregateType)
         .Case<StructType *>([](StructType *structType) {
@@ -130,7 +137,7 @@ public:
         auto [aggregate, isTypeChecked] = asAggregate(type);
         if (aggregate && !isTypeChecked) {
             if (aggregate == current) {
-                Diagnostic::error(field, "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.");
+                Diagnostic::error(field, "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.", getAggregateFileHandle(current));
                 return ERROR;
             } else {
                 pushLocation(field);
@@ -222,9 +229,18 @@ public:
 
             cycleDescription += getAggregateName(current);
 
-            Diagnostic::error(*diagnosticLocationStack[index], std::move(cycleDescription));
-            for (const auto diagnosticLocation : std::views::drop(diagnosticLocationStack, 1 + index)) {
-                Diagnostic::note(*diagnosticLocation, "Cycle through here.");
+            auto sourceFile = getAggregateFileHandle(aggregateType);
+            auto sourceOffset = diagnosticLocationStack[index]->getFileLocation().offset;
+
+            Diagnostic::error(*diagnosticLocationStack[index], std::move(cycleDescription), sourceFile);
+
+            for (i32 i = 1 + index; i < diagnosticLocationStack.size(); ++i) {
+                const auto aggregateType = checkStack[i - 1];
+                const auto diagnosticLocation = diagnosticLocationStack[i];
+
+                const u32 file = getAggregateFileHandle(aggregateType);
+
+                Diagnostic::note(*diagnosticLocation, "Cycle through here.", file, sourceFile, sourceOffset);
             }
 
             return ERROR;

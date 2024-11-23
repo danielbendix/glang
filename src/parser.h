@@ -10,12 +10,13 @@
 struct ParsedFile {
     //std::string path;
 public:
+    const u32 size;
     std::vector<AST::Declaration *> declarations;
     std::vector<u32> lineBreaks;
     std::unique_ptr<ASTHandle> astHandle;
 
-    ParsedFile(std::vector<AST::Declaration *>&& declarations, std::vector<u32>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
-        : declarations{std::move(declarations)}, lineBreaks{std::move(lineBreaks)}, astHandle{std::move(astHandle)} {}
+    ParsedFile(u32 size, std::vector<AST::Declaration *>&& declarations, std::vector<u32>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
+        : size{size}, declarations{std::move(declarations)}, lineBreaks{std::move(lineBreaks)}, astHandle{std::move(astHandle)} {}
 };
 
 ParsedFile parseString(std::string&& string);
@@ -63,10 +64,12 @@ public:
         TokenType expected;
     } data;
 
-    std::string description() const {
+    std::string _description;
+
+    const std::string_view description() const {
         switch (cause) {
             case Cause::FailedExpectation:
-                return std::string{"Expected '"} + tokenTypeToString(data.expected) + "', found '" + std::string{token.chars} + "'.";
+                return _description;
             case Cause::ExpectedExpression:
                 return "Expected expression.";
             case Cause::ExpectedFunctionName:
@@ -88,19 +91,23 @@ public:
         }
     }
 
-    ParserException(Token token, Cause cause, Data data) : cause{cause}, token{token}, data{data}  {}
+    ParserException(Token token, Cause cause, std::string&& description, Data data) 
+        : cause{cause}, token{token}, _description{std::move(description)}, data{data}  {}
 public:
-    ParserException(Token token, Cause cause) : cause{cause}, token{token}, data{.nothing = {}}  {}
+    ParserException(Token token, Cause cause) 
+        : cause{cause}, token{token}, data{.nothing = {}} {}
+    ParserException(Token token, Cause cause, std::string& description) 
+        : cause{cause}, token{token}, data{.nothing = {}}, _description{std::move(description)} {}
 
-    static ParserException failedExpectation(Token token, TokenType expected) {
-        return ParserException(token, Cause::FailedExpectation, {.expected = expected});
+    static ParserException failedExpectation(Token token, std::string_view tokenString, TokenType expected) {
+        auto description = std::string{"Expected '"} + tokenTypeToString(expected) + "', found '" + std::string{tokenString} + "'.";
+        return ParserException(token, Cause::FailedExpectation, std::move(description), {.expected = expected});
     }
 };
 
 class Parser {
     struct Modifiers {
-        u32 line = 0;
-        u32 column = 0;
+        u32 offset = 0;
         u32 length = 0;
         AST::Modifiers modifiers; 
     };
@@ -238,10 +245,14 @@ class Parser {
    
     Token consume(TokenType type) {
         if (!match(type)) {
-            throw ParserException::failedExpectation(current, type);
+            throw ParserException::failedExpectation(current, toStringView(current), type);
         }
         return previous;
     }
+
+    std::string_view toStringView(Token token) const {
+        return token.string_view(scanner._string.data());
+    };
 
     template <typename T>
     ArrayAllocator<T> allocator() {

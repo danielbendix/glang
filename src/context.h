@@ -9,10 +9,14 @@
 struct File {
     const char *path;
     const char *name;
-    u32 pathSize;
-    u32 nameSize;
+    const u32 pathSize;
+    const u32 nameSize;
+    u32 size = 0;
     std::unique_ptr<ASTHandle> astHandle = nullptr;
     std::vector<u32> lineBreaks;
+
+    File(const char *path, u32 pathSize, const char *name, u32 nameSize)
+        : path{path}, pathSize{pathSize}, name{name}, nameSize{nameSize} {}
 };
 
 struct GlobalContext {
@@ -36,7 +40,7 @@ struct GlobalContext {
 
         assert(files.capacity() > files.size());
         auto index = files.size();
-        files.push_back({.name = filename, .path = filepath });
+        files.emplace_back(filepath, pathString.size(), filename, filenameString.size());
 
         return index;
     }
@@ -64,6 +68,11 @@ struct ThreadContext {
         return instance;
     }
 
+    static void setCurrentFile(u32 fileHandle) {
+        instance->currentFile = fileHandle;
+    }
+
+    u32 currentFile;
     SymbolTable *NONNULL symbols;
     // This can be removed once the Sema phase is emitting GIR, instead of decorating nodes.
     BumpAllocator nodeAllocator;

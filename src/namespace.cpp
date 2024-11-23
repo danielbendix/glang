@@ -11,29 +11,34 @@ using enum PassResultKind;
 using llvm::cast;
 
 struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> {
-    u32 currentFile;
+    const u32 currentFile;
     Module& module;
 
-    AST::Node *getNodeFromDefinition(Definition definition) {
+    std::pair<AST::Node *NONNULL, u32> getNodeAndFileFromDefinition(Definition definition) {
         auto kind = definition.kind();
         auto index = definition.index();
         switch (kind) {
             case Definition::Kind::Function:
-                return module.functionDeclarations[index];
-            case Definition::Kind::Global:
-                return module.globalBindings[index].binding;
+                return {module.functionDeclarations[index], module.functions[index].file};
+            case Definition::Kind::Global: {
+                auto& binding = module.globalBindings[index];
+                return {binding.binding, module.globalDeclarations[binding.declarationIndex].file};
+            }
             case Definition::Kind::Struct:
-                return module.structDeclarations[index];
+                return {module.structDeclarations[index], module.structs[index]->file};
             case Definition::Kind::Enum:
-                return module.enumDeclarations[index];
+                return {module.enumDeclarations[index], module.enums[index]->file};
         }
     }
 
     void diagnoseDuplicateDeclaration(const Symbol& name, AST::Node& duplicate) {
-        Diagnostic::error(duplicate, "Duplicate declaration.");
         auto existing = module.all[name];
-        auto declaration = getNodeFromDefinition(existing);
-        Diagnostic::note(*declaration, "Previously declared here.");
+
+        u32 offendingFile = currentFile;
+        auto [original, originalFile] = getNodeAndFileFromDefinition(existing);
+
+        Diagnostic::error(duplicate, "Duplicate declaration.", offendingFile);
+        Diagnostic::note(*original, "Previously declared here.", offendingFile, originalFile, duplicate.getFileLocation().offset);
     }
 
     Result addGlobal(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
@@ -41,7 +46,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         u32 declarationIndex = module.globalDeclarations.size();
 
         module.globalBindings.emplace_back(&binding, declarationIndex);
-        module.globalDeclarations.emplace_back(&variable, bindingIndex, 1);
+        module.globalDeclarations.emplace_back(&variable, bindingIndex, 1, currentFile);
 
         const Symbol& name = binding.getIdentifier();
         auto definition = Definition::fromGlobalIndex(bindingIndex);
@@ -57,12 +62,9 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         Result result = OK;
 
         auto index = module.functions.size();
-        module.functions.push_back({});
+        module.functions.push_back({u16(functionDeclaration.getParameterCount()), currentFile});
         module.functionDeclarations.push_back(&functionDeclaration);
         assert(module.functions.size() == module.functionDeclarations.size());
-        auto& function = module.functions.back();
-        function.file = currentFile;
-        function.parameterCount = functionDeclaration.getParameterCount();
 
         auto definition = Definition::fromFunctionIndex(index);
         if (!module.all.insert(name, definition)) {
@@ -120,12 +122,12 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 
     Result visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
-        auto structType = resolveStructType(structDeclaration);
+        auto structType = createStructType(structDeclaration, currentFile);
         return addStructType(structDeclaration.getName(), structType, structDeclaration);
     }
 
     Result visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
-        auto enumType = resolveEnumType(enumDeclaration);
+        auto enumType = createEnumType(enumDeclaration, currentFile);
         return addEnumType(enumDeclaration.getName(), std::move(enumType), enumDeclaration);
         Diagnostic::error(enumDeclaration, "Enums are not currently supported.");
         return ERROR;
@@ -142,7 +144,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         AST::Node::deleteValue(&statement);
         return ERROR;
     }
-    ModuleInserter(Module& module, u32 file) : module{module} {}
+    ModuleInserter(Module& module, u32 file) : module{module}, currentFile{file} {}
 
     static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, u32 file, Module& module) {
         ModuleInserter inserter{module, file};

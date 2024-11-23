@@ -9,6 +9,6 @@
 
 #include "type/struct.h"
 
-StructType *NONNULL resolveStructType(AST::StructDeclaration& structDeclaration);
+StructType *NONNULL createStructType(AST::StructDeclaration& structDeclaration, u32 file);
 
 #endif // LANG_namespace_struct_h

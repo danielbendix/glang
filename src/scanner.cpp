@@ -98,9 +98,11 @@ void Scanner::skipWhitespace() {
 
 Token Scanner::makeToken(TokenType type)
 {
-    std::string_view chars = std::string_view(start, current);
+    const char *chars = start.base();
     u32 length = current - start;
-    return Token(type, chars, startLine, startColumn, current - start);
+    u32 offset = start - _string.begin();
+
+    return Token{type, length, offset};
 }
 
 [[nodiscard]]

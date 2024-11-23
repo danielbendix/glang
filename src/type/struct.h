@@ -27,6 +27,7 @@ public:
     const bool wellFormed;
     const bool isCompact;
     const bool isUnpadded;
+    const u32 file;
     u32 fieldCount;
 private:
 
@@ -54,6 +55,7 @@ private:
 
     StructType(
         const Symbol& name, 
+        u32 file,
         bool wellFormed, 
         bool isCompact,
         bool isUnpadded,
@@ -62,6 +64,7 @@ private:
         std::vector<AST::FunctionDeclaration *>&& methods
     ) 
         : Type{TK_Struct}
+        , file{file}
         , wellFormed{wellFormed}
         , isCompact{isCompact}
         , isUnpadded{isUnpadded}
@@ -81,6 +84,7 @@ public:
 
     static StructType *NONNULL create(
         const Symbol& name, 
+        u32 file,
         bool wellFormed, 
         bool isCompact,
         bool isUnpadded,
@@ -90,7 +94,7 @@ public:
     ) 
     {
         return allocate(typeAllocator(), [&](void *space) {
-            return new (space) StructType{name, wellFormed, isCompact, isUnpadded, std::move(properties), std::move(fields), std::move(methods)};
+            return new (space) StructType{name, file, wellFormed, isCompact, isUnpadded, std::move(properties), std::move(fields), std::move(methods)};
         });
     }
 

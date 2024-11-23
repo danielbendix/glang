@@ -15,16 +15,22 @@
 #include "llvm/ADT/PointerUnion.h"
 
 struct Function {
-    u16 parameterCount;
-    u32 file;
+    const u16 parameterCount;
+    const u32 file;
     FunctionType *type = nullptr;
+
+    Function(u16 parameterCount, u32 file)
+        : parameterCount{parameterCount}, file{file} {}
 };
 
 struct Method {
-    u16 parameterCount;
-    u32 file;
+    const u16 parameterCount;
+    const u32 file;
     Type *self;
     FunctionType *type = nullptr;
+
+    Method(u16 parameterCount, u32 file, Type *self)
+        : parameterCount{parameterCount}, file{file}, self{self} {}
 };
 
 // There may be better names for these two.
@@ -33,9 +39,10 @@ struct GlobalDeclaration {
     AST::VariableDeclaration *declaration;
     u32 bindingsIndex;
     u32 bindingsSize;
+    const u32 file;
 
-    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize) 
-        : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize} {}
+    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize, u32 file) 
+        : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize}, file{file} {}
 };
 
 struct GlobalBinding {
@@ -56,7 +63,7 @@ struct Definition {
 
     static constexpr u32 indexBitMask = (1 << 28) - 1;
 
-    u32 bits;
+    const u32 bits;
 
     Definition(Kind kind, u32 index) : bits{(u32(kind) << 28) | (index & indexBitMask)}  {
         assert(index < (1 << 28));

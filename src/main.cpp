@@ -48,27 +48,19 @@ std::variant<ParsedFile, FileError, ParserException> parseFile(const char *path)
     }
 }
 
-ParsedFile parse(SymbolTable& symbols, std::string&& string) {
-    try {
-        auto parser = Parser{symbols, std::move(string)};
-        auto result = parser.parse();
-        return result;
-    } catch (ParserException exception) {
-        Diagnostic::writer().error(exception);
-        exit(-1);
-    }
-}
-
 void validate(Module& module, bool verbose = false) {
     if (typecheckModule(module).failed()) {
+        Diagnostic::flush();
         if (verbose) std::cout << "Sema phase failed. Exiting...\n";
         exit(1);
     }
     if (verbose) std::cout << "Sema phase succeeded.\n";
     if (analyzeControlFlow(module).failed()) {
+        Diagnostic::flush();
         if (verbose) std::cout << "Control flow analysis failed. Exiting...\n";
         exit(1);
     }
+    Diagnostic::flush();
     if (verbose) std::cout << "Control flow analysis succeeded\n";
 }
 
@@ -112,6 +104,7 @@ int main(int argc, char **argv)
         std::visit(overloaded {
             [&](ParsedFile& parsedFile) {
                 File& file = globalContext.files[fileHandle];
+                file.size = parsedFile.size;
                 file.lineBreaks = std::move(parsedFile.lineBreaks);
                 file.astHandle = std::move(parsedFile.astHandle);
                 builder.addDeclarations(parsedFile.declarations, fileHandle);
@@ -124,7 +117,7 @@ int main(int argc, char **argv)
                 }
             },
             [&](ParserException& exception) {
-                Diagnostic::writer().error(exception);
+                Diagnostic::writer().error(exception, fileHandle);
                 hadError = true;
             }
         }, result);
