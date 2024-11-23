@@ -9,6 +9,6 @@
 
 #include "type/enum.h"
 
-EnumType *NONNULL resolveEnumType(AST::EnumDeclaration& enumDeclaration);
+EnumType *NONNULL createEnumType(AST::EnumDeclaration& enumDeclaration, u32 file);
 
 #endif // LANG_namespace_enum_h

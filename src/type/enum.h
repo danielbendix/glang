@@ -31,6 +31,7 @@ public:
     };
 private:
 
+    // TODO: Remove this, type check by parallel iteration with module.enumDeclarations.
     AST::EnumDeclaration *declaration;
 
     bool wellFormed = true;
@@ -40,18 +41,22 @@ private:
     size_t maxTag = -1;
 
     u8 bits = 0;
+public:
+    const u32 file;
+private:
 
     std::vector<Case> cases;
     SymbolMap<size_t> caseMap;
 
-    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration) : Type{TK_Enum}, name{name}, declaration{enumDeclaration} {}
+    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration, u32 file) 
+        : Type{TK_Enum}, name{name}, declaration{enumDeclaration}, file{file} {}
 public:
     void *codegen;
 
 public:
-    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration) {
+    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration, u32 file) {
         return allocate(typeAllocator(), [&](void *space) {
-            return new (space) EnumType{declaration.getName(), &declaration};
+            return new (space) EnumType{declaration.getName(), &declaration, file};
         });
     }
 

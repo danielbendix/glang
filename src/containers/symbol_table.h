@@ -33,6 +33,10 @@ public:
         return this == &other;
     }
 
+    u32 length() const {
+        return size;
+    }
+
     operator std::string_view() const {
         return string_view();
     }

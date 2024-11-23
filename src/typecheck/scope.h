@@ -192,8 +192,11 @@ public:
 
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
+                u32 file = ThreadContext::get()->currentFile;
+                auto fileLocation = locals[i].as.local.binding->getFileLocation();
+
                 Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
-                Diagnostic::note(*locals[i].as.local.binding, identifier.string() + " previously declared here.");
+                Diagnostic::note(*locals[i].as.local.binding, identifier.string() + " previously declared here.", file, fileLocation.offset);
                 return ERROR;
             }
         }

@@ -2,6 +2,7 @@
 #define LANG_diagnostic_h
 
 #include "AST.h"
+#include "location.h"
 #include "parser.h"
 
 #include "llvm/Support/Allocator.h"
@@ -10,39 +11,42 @@ void enableJSONDiagnostics();
 void enableStdoutDiagnostics();
 
 
-struct DiagnosticLocation {
-    u32 offset;
-    u32 length;
-};
-
 struct BufferedDiagnostic {
-    enum class Kind {
+    enum class Kind : u8 {
         Error,
         Warning,
         Note,
     };
-    char *description;
+    const char *description;
     /// The file the diagnostic emanated from.
-    u32 sourceFile;
-    u32 sourceOffset;
+    const u32 sourceFile;
+    const u32 sourceOffset;
     /// The file the diagnostic is in. Should only differ from sourceFile for notes.
-    u32 file;
-    Kind kind;
+    const u32 file;
+    const Kind kind;
     /// number of secondary locations after the primary one.
-    u8 extraLocations;
-    u32 locationsIndex;
-    u32 descriptionLength;
+    const u8 extraLocations;
+    const u32 locationsIndex;
+    const u32 descriptionLength;
+
+    BufferedDiagnostic(Kind kind, const char *description, u32 descriptionLength, u32 file, u32 sourceFile, u32 sourceOffset, u32 locations, u8 extraLocations)
+        : kind{kind}
+        , description{description}
+        , descriptionLength{descriptionLength}
+        , file{file}
+        , sourceFile{sourceFile}
+        , sourceOffset{sourceOffset}
+        , locationsIndex{locations}
+        , extraLocations{extraLocations}
+        {}
 };
 
 class DiagnosticWriter {
 public:
-    virtual void error(ParserException& parserException) = 0;
+    virtual void start() = 0;
+    virtual void end() = 0;
 
-    virtual void error(const AST::Node& node, std::string& message) = 0;
-
-    virtual void warning(const AST::Node& node, std::string& message) = 0;
-
-    virtual void note(const AST::Node& node, std::string& message) = 0;
+    virtual void error(ParserException& parserException, u32 fileHandle) = 0;
 
     virtual void writeDiagnostic(BufferedDiagnostic& diagnostic, DiagnosticLocation *locations) = 0;
 
@@ -53,6 +57,73 @@ class DiagnosticBuffer {
     llvm::BumpPtrAllocator stringAllocator;
     std::vector<BufferedDiagnostic> diagnostics;
     std::vector<DiagnosticLocation> locations;
+
+    u32 pushLocation(DiagnosticLocation location) {
+        u32 locationsIndex = this->locations.size();
+
+        locations.push_back(location);
+
+        return locationsIndex;
+    }
+
+public:
+
+    void error(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+        u32 locationsIndex = pushLocation(location);
+
+        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
+        memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
+        messageBuffer[message.size()] = '\0';
+
+        diagnostics.push_back(BufferedDiagnostic {
+            BufferedDiagnostic::Kind::Error,
+            messageBuffer,
+            u32(message.size()),
+            sourceFile,
+            sourceFile,
+            sourceOffset, 
+            locationsIndex,
+            0
+        });
+    }
+
+    void warning(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation locations) {
+        u32 locationsIndex = pushLocation(locations);
+
+        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
+        memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
+        messageBuffer[message.size()] = '\0';
+
+        diagnostics.push_back(BufferedDiagnostic {
+            BufferedDiagnostic::Kind::Warning,
+            messageBuffer,
+            u32(message.size()),
+            sourceFile,
+            sourceFile,
+            sourceOffset, 
+            locationsIndex,
+            0
+        });
+    }
+
+    void note(std::string_view message, u32 sourceFile, u32 sourceOffset, u32 file, DiagnosticLocation location) {
+        u32 locationsIndex = pushLocation(location);
+
+        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
+        memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
+        messageBuffer[message.size()] = '\0';
+
+        diagnostics.push_back(BufferedDiagnostic {
+            BufferedDiagnostic::Kind::Note,
+            messageBuffer,
+            u32(message.size()),
+            file,
+            sourceFile,
+            sourceOffset, 
+            locationsIndex,
+            0
+        });
+    }
 
     void flush(DiagnosticWriter& writer) {
         // Potentially get a lock on the output.
@@ -73,6 +144,9 @@ class DiagnosticBuffer {
 
 class Diagnostic {
     static DiagnosticWriter *current;
+
+    static DiagnosticBuffer buffer;
+
 public:
     static DiagnosticWriter& writer() {
         return *current;
@@ -83,19 +157,38 @@ public:
     }
 
     static void error(const AST::Node& node, std::string&& message) {
-        writer().error(node, message);
+        u32 file = ThreadContext::get()->currentFile;
+        error(node, std::move(message), file);
+    }
+
+    static void error(const AST::Node& node, std::string&& message, u32 file) {
+        DiagnosticLocation location = node.getFileLocation();
+        buffer.error(message, file, location.offset, location);
     }
 
     static void warning(const AST::Node& node, std::string&& message) {
-        writer().warning(node, message);
+        u32 file = ThreadContext::get()->currentFile;
+        warning(node, std::move(message), file);
     }
 
-    static void note(const AST::Node& node, std::string&& message) {
-        writer().note(node, message);
+    static void warning(const AST::Node& node, std::string&& message, u32 file) {
+        DiagnosticLocation location = node.getFileLocation();
+        buffer.warning(message, file, location.offset, location);
     }
 
-    static void duplicateDeclaration(AST::Declaration& duplicate, AST::Declaration& initial) {
+    static void note(const AST::Node& node, std::string&& message, u32 file, u32 sourceOffset) {
+        u32 sourceFile = ThreadContext::get()->currentFile;
+        note(node, std::move(message), file, sourceFile, sourceOffset);
+    }
 
+    static void note(const AST::Node& node, std::string&& message, u32 file, u32 sourceFile, u32 sourceOffset) {
+        DiagnosticLocation location = node.getFileLocation();
+        buffer.note(message, sourceFile, sourceOffset, file, location);
+    }
+
+    static void flush() {
+        buffer.flush(*current);
+        buffer.clear();
     }
 };
 

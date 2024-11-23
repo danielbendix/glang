@@ -178,7 +178,8 @@ bool IntegerFold::greaterThanOrEqualTo(const Operand& left, const Operand& right
 
 AST::IntegerLiteral *NULLABLE foldUnaryArithmetic(AST::Node& locationNode, AST::IntegerLiteral& operand, IntegerType *NULLABLE as, auto function) {
     if (function(operand.getValue(), as)) {
-        operand.getLocation() = locationNode.getLocation();
+        // FIXME. have special location data on IntegerLiteral.
+        //operand.getLocation() = locationNode.getLocation();
         return &operand;
     } else {
         return nullptr;
@@ -209,7 +210,8 @@ AST::Literal *NULLABLE IntegerFold::unary(AST::UnaryExpression& unary, AST::Inte
 AST::IntegerLiteral *NULLABLE foldBinaryArithmetic(AST::Node& locationNode, AST::IntegerLiteral& left, AST::IntegerLiteral& right, IntegerType *NULLABLE as, auto function) {
     if (function(left.getValue(), right.getValue(), as)) {
         right.~IntegerLiteral();
-        left.getLocation() = locationNode.getLocation();
+        // FIXME: Have special location on IntegerLiteral.
+        //left.getLocation() = locationNode.getLocation();
         // FIXME: Use location of binary operator for result node.
         return &left;
     } else {

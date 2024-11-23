@@ -126,15 +126,15 @@ std::ostream& operator<<(std::ostream& os, TokenType tokenType);
 
 struct Token final {
     TokenType type;
-    u32 line;
-    u32 column;
     u32 length;
-    // Since we're storing the length (in bytes), we could compute the
-    // string_view from a char * and the length;
-    std::string_view chars;
+    u32 offset;
 
-    Token(TokenType type, std::string_view chars, u32 line, u32 column, u32 length) 
-        : type{type}, chars{chars}, line{line}, column{column}, length{length} {}
+    std::string_view string_view(const char *fileStart) const {
+        return {fileStart + offset, length};
+    }
+
+    Token(TokenType type, u32 length, u32 offset) 
+        : type{type}, length{length}, offset{offset} {}
 };
 
 #endif // LANG_token_h

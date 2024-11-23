@@ -50,7 +50,7 @@ private:
     }
 
     void newline() {
-        auto offset = current - start;
+        auto offset = current - _string.begin();
         assert(offset <= UINT32_MAX);
         lineBreaks.push_back(offset);
         line += 1;

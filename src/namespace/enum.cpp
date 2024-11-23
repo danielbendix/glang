@@ -9,12 +9,7 @@
  *   - Static variables.
  */
 
-class EnumChildVisitor : public AST::DeclarationVisitorT<EnumChildVisitor, PassResult> {
-
-
-};
-
-EnumType *resolveEnumType(AST::EnumDeclaration& declaration) 
+EnumType *createEnumType(AST::EnumDeclaration& declaration, u32 file) 
 {
-    return EnumType::create(declaration.getName(), declaration);
+    return EnumType::create(declaration.getName(), declaration, file);
 }

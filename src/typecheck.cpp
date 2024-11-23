@@ -51,6 +51,8 @@ public:
     }
 
     Result typeCheckGlobal(u32 index, GlobalDeclaration& global) {
+        ThreadContext::setCurrentFile(global.file);
+
         if (auto it = std::ranges::find(checkStack_, index); it != checkStack_.end()) {
             for (auto globalIndex : checkStack_) {
                 Diagnostic::error(*module.globalDeclarations[globalIndex].declaration, "Cycle detected in globals.");
@@ -158,6 +160,8 @@ public:
     }
 
     Result typeCheckFunction(Function& function, AST::FunctionDeclaration *declaration) {
+        ThreadContext::setCurrentFile(function.file);
+
         Result result = OK;
         Type *returnType;
 
@@ -218,6 +222,8 @@ public:
     {}
 
     Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, u32 index) {
+        ThreadContext::setCurrentFile(function.file);
+
         scopeManager.reset();
 
         result = OK;

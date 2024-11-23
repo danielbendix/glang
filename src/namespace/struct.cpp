@@ -1,6 +1,6 @@
 #include "struct.h"
 #include "AST.h"
-#include "../AST_Visitor.h"
+#include "AST_Visitor.h"
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -15,8 +15,10 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     std::vector<AST::FunctionDeclaration *> methods;
     std::vector<AST::VariableDeclaration *> staticFields;
     std::vector<AST::FunctionDeclaration *> staticMethods;
+    const u32 file;
 
-    StructVisitor(AST::StructDeclaration& visiting) : visiting{visiting} {}
+    StructVisitor(AST::StructDeclaration& visiting, u32 file) 
+        : visiting{visiting}, file{file} {}
 
     // Declaration visitor
 
@@ -28,9 +30,11 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
         }
         auto& binding = *identifierBinding;
         if (!properties.insert(binding.getIdentifier(), &variable)) {
-            Diagnostic::error(binding, "Duplicate declaration of struct field.");
+            auto fileLocation = binding.getFileLocation();
+
+            Diagnostic::error(binding, "Duplicate declaration of struct field.", file);
             auto& existing = *static_cast<AST::Node *>(properties[binding.getIdentifier()].getOpaqueValue());
-            Diagnostic::note(existing, "Previously declared here.");
+            Diagnostic::note(existing, "Previously declared here.", file, fileLocation.offset);
             return ERROR;
         }
 
@@ -45,9 +49,11 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
 
     Result visitFunctionDeclaration(AST::FunctionDeclaration& function) {
         if (!properties.insert(function.getName(), &function)) {
-            Diagnostic::error(function, "Duplicate declaration in struct.");
+            auto fileLocation = function.getFileLocation();
+
+            Diagnostic::error(function, "Duplicate declaration in struct.", file);
             auto& existing = *static_cast<AST::Node *>(properties[function.getName()].getOpaqueValue());
-            Diagnostic::note(existing, "Previously declared here.");
+            Diagnostic::note(existing, "Previously declared here.", file, fileLocation.offset);
             return ERROR;
         }
         if (function.getModifiers().has(AST::Modifier::Static)) {
@@ -80,8 +86,8 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     }
 };
 
-StructType *resolveStructType(AST::StructDeclaration& structDeclaration) {
-    StructVisitor visitor{structDeclaration};
+StructType *createStructType(AST::StructDeclaration& structDeclaration, u32 file) {
+    StructVisitor visitor{structDeclaration, file};
 
     Result result = OK;
 
@@ -95,6 +101,7 @@ StructType *resolveStructType(AST::StructDeclaration& structDeclaration) {
     
     return StructType::create(
         structDeclaration.getName(), 
+        file,
         result.ok(),
         isCompact,
         isUnpadded,
