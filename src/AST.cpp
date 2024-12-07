@@ -188,6 +188,10 @@ namespace AST {
         return {offset, name.length()};
     }
 
+    FileLocation FunctionDeclaration::getClosingBracketLocation() const {
+        return {closingBracket, 1};
+    }
+
     FileLocation StructDeclaration::getFileLocation() const {
         return {offset, name.length()};
     }

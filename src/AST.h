@@ -1879,26 +1879,29 @@ namespace AST {
     protected:
         Symbol& name;
         vector<FunctionParameter> parameters;
-        int arity;
+        u32 arity;
+        u32 closingBracket;
         TypeNode *NULLABLE returnTypeDeclaration;
         Block code;
 
-        FunctionDeclaration(Token token, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
+        FunctionDeclaration(Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
             : Declaration{NK_Decl_Function, token, modifiers}
             , name{name}
             , parameters{parameters}
-            , arity{int(this->parameters.size())}
+            , arity{u32(this->parameters.size())}
+            , closingBracket{closingBracket}
             , returnTypeDeclaration{returnType}
             , code{std::move(code)} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
+        FileLocation getClosingBracketLocation() const;
 
         template <Allocator A>
-        static FunctionDeclaration *NONNULL create(A& allocator, Token token, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) {
+        static FunctionDeclaration *NONNULL create(A& allocator, Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) FunctionDeclaration(token, modifiers, name, std::move(parameters), returnType, std::move(code));
+                return new(space) FunctionDeclaration(token, closingBracket, modifiers, name, std::move(parameters), returnType, std::move(code));
 
             });
         }

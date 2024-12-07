@@ -208,8 +208,11 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 
     auto code = block();
 
+    assert(previous.type == TokenType::RightBracket);
+    u32 closingBracket = previous.offset;
+
     return AST::FunctionDeclaration::create(
-        nodeAllocator, nameToken, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
+        nodeAllocator, nameToken, closingBracket, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
     );
 }
 
