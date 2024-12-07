@@ -52,7 +52,7 @@ struct Location {
         auto line = getLine(fileLocation.offset, lineBreaks);
         u32 column;
         if (line == 1) {
-            column = fileLocation.offset;
+            column = fileLocation.offset + 1;
         } else {
             column = fileLocation.offset - lineBreaks[line - 2];
         }
@@ -63,7 +63,7 @@ struct Location {
         auto line = getLine(diagnosticLocation.offset, lineBreaks);
         u32 column;
         if (line == 1) {
-            column = diagnosticLocation.offset;
+            column = diagnosticLocation.offset + 1;
         } else {
             column = diagnosticLocation.offset - lineBreaks[line - 2];
         }

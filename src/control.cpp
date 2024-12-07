@@ -36,7 +36,7 @@ public:
         auto effect = visitBlock(declaration->getCode());
 
         if (!isVoid && effect != EndsFunction) {
-            Diagnostic::error(*declaration, "Control reaches end of non-void function.");
+            Diagnostic::error(declaration->getClosingBracketLocation(), "Control reaches end of non-void function.");
             result = ERROR;
         }
 

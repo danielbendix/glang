@@ -156,6 +156,11 @@ public:
         current = &writer;
     }
 
+    static void error(AST::FileLocation location, std::string&& message) {
+        u32 file = ThreadContext::get()->currentFile;
+        buffer.error(std::move(message), file, location.offset, location);
+    }
+
     static void error(const AST::Node& node, std::string&& message) {
         u32 file = ThreadContext::get()->currentFile;
         error(node, std::move(message), file);
@@ -163,7 +168,7 @@ public:
 
     static void error(const AST::Node& node, std::string&& message, u32 file) {
         DiagnosticLocation location = node.getFileLocation();
-        buffer.error(message, file, location.offset, location);
+        buffer.error(std::move(message), file, location.offset, location);
     }
 
     static void warning(const AST::Node& node, std::string&& message) {

@@ -76,7 +76,7 @@ public:
 
     std::string_view createUnderlineString(u32 start, u32 end, u32 offset, u32 length, char *line) {
         assert(offset >= start);
-        assert(offset + length < end);
+        assert(offset + length <= end);
 
         u32 spaces = offset - start;
 
@@ -111,9 +111,8 @@ public:
         out << filepath << ':' << location.line << ':' << location.column << ": " << description << ": " << std::string_view{diagnostic.description, diagnostic.descriptionLength} << '\n';
 
         auto openFile = getOpenFile(diagnostic.file);
-        u32 start = location.line == 1 ? 0 : file.lineBreaks[location.line - 2];
-        start += 1;
-        u32 end = location.line < file.lineBreaks.size() ? file.lineBreaks[location.line - 1] : file.size;
+        u32 start = location.line == 1 ? 0 : file.lineBreaks[location.line - 2] + 1;
+        u32 end = location.line <= file.lineBreaks.size() ? file.lineBreaks[location.line - 1] : file.size;
 
         u32 lineSize = end - start;
         fseek(openFile.file, start, SEEK_SET);
