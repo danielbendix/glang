@@ -164,10 +164,10 @@ public:
 
         if constexpr (returns_void<Lambda>) {
             handler();
-            popLocalsEmittingWarnings(resetScopesTo);
+            scopes.resize(resetScopesTo);
         } else {
             auto value = handler();
-            popLocalsEmittingWarnings(resetScopesTo);
+            scopes.resize(resetScopesTo);
             return value;
         }
     }
