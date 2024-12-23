@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <charconv>
+#include <cmath>
 
 ParsedFile parseString(std::string&& string) {
     Parser parser{*ThreadContext::get()->symbols, std::move(string)};

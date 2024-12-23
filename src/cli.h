@@ -1,6 +1,9 @@
 #ifndef LANG_cli_h
 #define LANG_cli_h
 
+#include <vector>
+#include <optional>
+#include <variant>
 #include <span>
 #include <vector>
 #include <optional>
