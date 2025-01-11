@@ -292,8 +292,8 @@ namespace AST {
     }
 
     FileLocation IntegerLiteral::getFileLocation() const {
-        // TODO: Needs length
-        llvm_unreachable(__FUNCTION__);
+        // FIXME: Fix for folded literals.
+        return {offset, value.getLength()};
     }
 
     FileLocation FloatingPointLiteral::getFileLocation() const {
@@ -637,7 +637,7 @@ namespace AST {
     }
 
     void IntegerLiteral::print(PrintContext& pc) const {
-        switch (value.type) {
+        switch (value.getType()) {
             case Type::Binary:
                 pc << "0b";
                 return pc.printInteger(value, 2);
