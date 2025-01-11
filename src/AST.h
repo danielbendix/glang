@@ -152,7 +152,7 @@ namespace AST {
 
     class Node {
     public:
-        enum Kind {
+        enum Kind : u32 {
             // Declarations
             NK_Decl_Variable,
             NK_Decl_Function,
@@ -639,24 +639,19 @@ namespace AST {
             Hexadecimal,
         };
 
+        static constexpr u32 MAX_LENGTH = (1U << 29) - 1U;
+
         // A hack to put data inside the padding of APInt
         class Value : public llvm::APInt {
         public:
-            Type type;
-            bool isSigned;
-            // To represent arbitrary precision  values like ~0 without infinite bits.
-            bool extendWithOnes;
-            Value(llvm::APInt&& value, Type type, bool isSigned, bool extendWithOnes) : APInt{value}, isSigned{isSigned}, type{type} {}
-
-//            Value& operator=(APInt&& rhs) {
-//                APInt::operator=(rhs);
-//                return *this;
-//            }
+            u32 metadata;
+            Value(llvm::APInt&& value, Type type, u32 length) : APInt{value} {
+                assert(length <= MAX_LENGTH);
+                metadata = (u32(type) << 29) | length;
+            }
 
             Value& operator=(Value&& rhs) {
-                type = rhs.type;
-                isSigned = rhs.isSigned;
-                extendWithOnes = rhs.extendWithOnes;
+                metadata = rhs.metadata;
                 APInt::operator=(std::move(rhs));
                 return *this;
             }
@@ -673,23 +668,31 @@ namespace AST {
                 APInt::operator=(std::move(other));
             }
 
+            u32 getLength() const {
+                return metadata & MAX_LENGTH;
+            }
+
+            Type getType() const {
+                return Type(metadata >> 29);
+            }
+
             friend class IntegerLiteral;
             friend class IntegerFold;
         };
     private:
         Value value;
     protected:
-        IntegerLiteral(Token token, APInt&& value, Type integerType)
+        IntegerLiteral(Token token, APInt&& value, Type integerType, u32 length)
             : Literal{NK_Expr_Literal_Integer, token}
-            , value{std::move(value), integerType, false, false} {}
+            , value{std::move(value), integerType, length} {}
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static IntegerLiteral *NONNULL create(Allocator& allocator, Token token, APInt&& value, Type integerType) {
+        static IntegerLiteral *NONNULL create(Allocator& allocator, Token token, APInt&& value, Type integerType, u32 length) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IntegerLiteral{token, std::move(value), integerType};
+                return new(space) IntegerLiteral{token, std::move(value), integerType, length};
             });
         }
 

@@ -741,6 +741,10 @@ unsigned bitCount(unsigned length) {
 
 template <int skip, int base>
 llvm::APInt parseInteger(std::string_view chars) {
+    if (chars.size() > UINT16_MAX) {
+        // TODO: Emit non-fatal error.
+        return llvm::APInt{0U, 0UL, true};
+    }
     unsigned bits = bitCount<skip, base>(chars.length());
     chars.remove_prefix(skip);
     return llvm::APInt{bits, {chars}, base};
@@ -860,28 +864,32 @@ AST::Expression *Parser::literal()
                 nodeAllocator, 
                 previous, 
                 parseInteger<2, 2>(toStringView(previous)), 
-                IntegerType::Binary
+                IntegerType::Binary,
+                previous.length
             );
         case Octal: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
                 parseInteger<2, 8>(toStringView(previous)), 
-                IntegerType::Octal
+                IntegerType::Octal,
+                previous.length
             );
         case Integer: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
                 parseInteger<0, 10>(toStringView(previous)), 
-                IntegerType::Decimal
+                IntegerType::Decimal,
+                previous.length
             );
         case Hexadecimal: 
             return IntegerLiteral::create(
                 nodeAllocator, 
                 previous, 
                 parseInteger<2, 16>(toStringView(previous)), 
-                IntegerType::Hexadecimal
+                IntegerType::Hexadecimal,
+                previous.length
             );
 
         case Floating: return FloatingPointLiteral::create(nodeAllocator, previous, parseDouble(toStringView(previous)));
