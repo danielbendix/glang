@@ -236,7 +236,7 @@ public:
         for (u32 parameterIndex = 0; parameterIndex < function.parameterCount; ++parameterIndex) {
             auto& parameter = declaration->getParameter(parameterIndex);
             result |= scopeManager.pushParameter(
-                parameter.name, 
+                *parameter.name, 
                 index,
                 parameterIndex,
                 declaration
@@ -461,7 +461,7 @@ public:
         for (int bi = 0; bi < ifStatement.getConditionCount(); ++bi) {
             scopeManager.withAutoResetScope([&] {
                 auto& branch = ifStatement.getCondition(bi);
-                for (AST::Condition& condition : branch.getConditions()) {
+                for (AST::Condition condition : branch.getConditions()) {
                     result |= handleCondition(&condition);
                     if (result.failed()) return;
                 }
@@ -478,7 +478,7 @@ public:
         // but is the easiest way to deal with guard scopes.
         visitBlock(guardStatement.getBlock());
         scopeManager.withAutoMergingScopes([&] {
-            for (AST::Condition& condition : guardStatement.getConditions()) {
+            for (AST::Condition condition : guardStatement.getConditions()) {
                 result |= handleCondition(&condition);
                 if (result.failed()) return;
             }
@@ -521,7 +521,7 @@ public:
 
     void visitWhileStatement(AST::WhileStatement& whileStatement) {
         scopeManager.withAutoResetScope([&] {
-            for (AST::Condition& condition : whileStatement.getConditions()) {
+            for (AST::Condition condition : whileStatement.getConditions()) {
                 result |= handleCondition(&condition);
                 if (result.failed()) return;
             }

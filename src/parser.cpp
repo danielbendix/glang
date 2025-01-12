@@ -24,7 +24,7 @@ ParsedFile Parser::parse()
 
     u32 size = previous.offset;
 
-    auto astHandle = std::make_unique<ASTHandle>(std::move(heap), std::move(nodeAllocator));
+    auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
     return ParsedFile(size, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle));
 }
 
@@ -83,13 +83,13 @@ AST::Block Parser::block()
 {
     consume(TokenType::LeftBracket);
 
-    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
+    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
 
     while (!match(TokenType::RightBracket)) {
-        declarations.emplace_back(declaration());
+        declarations.append(declaration());
     }
 
-    return AST::Block(std::move(declarations));
+    return AST::Block(declarations.freeze());
 }
 
 // Types
@@ -99,7 +99,7 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
     Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
     Symbol& name = symbols.getSymbol(toStringView(nameToken));
 
-    AST::vector<AST::TypeModifier::Modifier> typeModifiers{allocator<AST::TypeModifier::Modifier>()};
+    std::vector<AST::TypeModifier::Modifier> typeModifiers{};
 
     using enum AST::TypeModifier::Modifier;
 
@@ -192,11 +192,11 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 
     consume(TokenType::LeftParenthesis);
 
-    AST::vector<AST::FunctionParameter> parameters{allocator<AST::FunctionParameter>()};
-    if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
+    GrowingSpan<AST::FunctionParameter> parameters{arrayAllocator};
+    if (!check(TokenType::RightParenthesis)) parameters.append(parameter());
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
-        parameters.emplace_back(std::move(parameter()));
+        parameters.append(parameter());
     }
 
     consume(TokenType::RightParenthesis);
@@ -212,7 +212,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
     u32 closingBracket = previous.offset;
 
     return AST::FunctionDeclaration::create(
-        nodeAllocator, nameToken, closingBracket, modifiers.modifiers, name, std::move(parameters), returnType, std::move(code)
+        nodeAllocator, nameToken, closingBracket, modifiers.modifiers, name, parameters.freeze(), returnType, code
     );
 }
 
@@ -225,11 +225,11 @@ AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
 
     consume(TokenType::LeftParenthesis);
 
-    AST::vector<AST::FunctionParameter> parameters{allocator<AST::FunctionParameter>()};
-    if (!check(TokenType::RightParenthesis)) parameters.emplace_back(std::move(parameter()));
+    GrowingSpan<AST::FunctionParameter> parameters{arrayAllocator};
+    if (!check(TokenType::RightParenthesis)) parameters.append(parameter());
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
-        parameters.emplace_back(std::move(parameter()));
+        parameters.append(parameter());
     }
 
     consume(TokenType::RightParenthesis);
@@ -254,13 +254,13 @@ AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
     consume(TokenType::LeftBracket);
-    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
+    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
     while (!match(TokenType::RightBracket)) {
-        declarations.push_back(declaration());
+        declarations.append(declaration());
     }
 
     return AST::StructDeclaration::create(
-        nodeAllocator, token, modifiers.modifiers, name, std::move(declarations)
+        nodeAllocator, token, modifiers.modifiers, name, declarations.freeze()
     );
 }
 
@@ -278,20 +278,20 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
 
     consume(TokenType::LeftBracket);
   
-    AST::vector<AST::EnumDeclaration::Case> cases{allocator<AST::EnumDeclaration::Case>()};
-    AST::vector<AST::Declaration *NONNULL> declarations{allocator<AST::Declaration *>()};
+    GrowingSpan<AST::EnumDeclaration::Case> cases{arrayAllocator};
+    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
 
     while (!match(TokenType::RightBracket)) {
         if (match(TokenType::Case)) {
             auto case_ = enumCase();
-            cases.push_back(std::move(case_));
+            cases.append(case_);
         } else {
-            declarations.push_back(declaration());
+            declarations.append(declaration());
         }
     }
 
     return AST::EnumDeclaration::create(
-        nodeAllocator, token, modifiers.modifiers, name, rawType, std::move(cases), std::move(declarations)
+        nodeAllocator, token, modifiers.modifiers, name, rawType, cases.freeze(), declarations.freeze()
     );
 }
 
@@ -302,18 +302,18 @@ AST::EnumDeclaration::Case Parser::enumCase()
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
     if (match(TokenType::LeftParenthesis)) {
-        AST::vector<AST::EnumDeclaration::Case::Member> members{allocator<AST::EnumDeclaration::Case::Member>()};
+        GrowingSpan<AST::EnumDeclaration::Case::Member> members{arrayAllocator};
         do {
-            members.push_back(enumCaseMember());
+            members.append(enumCaseMember());
         } while (match(TokenType::Comma));
         consume(TokenType::RightParenthesis);
         consume(TokenType::Semicolon);
-        return AST::EnumDeclaration::Case(token, name, std::move(members));
+        return AST::EnumDeclaration::Case(token, name, members.freeze());
     }
 
     consume(TokenType::Semicolon);
 
-    return AST::EnumDeclaration::Case(token, name, allocator<AST::EnumDeclaration::Case::Member>());
+    return AST::EnumDeclaration::Case(token, name, {});
 }
 
 AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
@@ -326,11 +326,11 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
             return AST::EnumDeclaration::Case::Member(&identifier, memberType);
         } else {
             auto memberType = type(true);
-            return AST::EnumDeclaration::Case::Member(std::move(memberType));
+            return AST::EnumDeclaration::Case::Member(memberType);
         }
     } else {
         auto memberType = type();
-        return AST::EnumDeclaration::Case::Member(std::move(memberType));
+        return AST::EnumDeclaration::Case::Member(memberType);
     }
 }
 
@@ -395,32 +395,32 @@ AST::Statement *Parser::statement()
     return assignmentOrExpression();
 }
 
-AST::vector<AST::Condition> Parser::conditions() 
+Span<AST::Condition> Parser::conditions() 
 {
-    AST::vector<AST::Condition> conditions{allocator<AST::Condition>()};
+    GrowingSpan<AST::Condition> conditions{arrayAllocator};
     while (true) {
         if (match(TokenType::Var) || match(TokenType::Let)) {
-            conditions.emplace_back(variableDeclaration({}, true));
+            conditions.append(variableDeclaration({}, true));
         } else {
-            conditions.emplace_back(expression({.allowInitializer = false}));
+            conditions.append(expression({.allowInitializer = false}));
         }
 
         if (!match(TokenType::Comma)) {
             break;
         }
     }
-    return conditions;
+    return conditions.freeze();
 }
 
 AST::IfStatement *Parser::ifStatement()
 {
     auto token = previous;
-    AST::vector<AST::IfStatement::Branch> branches{allocator<AST::IfStatement::Branch>()};
+    GrowingSpan<AST::IfStatement::Branch> branches{arrayAllocator};
     std::optional<AST::Block> fallback;
     while (true) {
         auto conds = conditions();
         auto code = block();
-        branches.emplace_back(std::move(conds), std::move(code));
+        branches.append({conds, code});
 
         if (match(TokenType::Else)) {
             if (!match(TokenType::If)) {
@@ -432,7 +432,7 @@ AST::IfStatement *Parser::ifStatement()
         }
     }
 
-    return AST::IfStatement::create(nodeAllocator, token, std::move(branches), std::move(fallback));
+    return AST::IfStatement::create(nodeAllocator, token, branches.freeze(), fallback);
 }
 
 AST::ForStatement *Parser::forStatement()
@@ -637,19 +637,19 @@ AST::Expression *Parser::call(AST::Expression *left)
 {
     auto token = previous;
 
-    AST::vector<AST::Expression *NONNULL> arguments{allocator<AST::Expression *>()};
+    GrowingSpan<AST::Expression *NONNULL> arguments{arrayAllocator};
 
     if (match(TokenType::RightParenthesis)) {
-        return AST::CallExpression::create(nodeAllocator, token, std::move(left), std::move(arguments));
+        return AST::CallExpression::create(nodeAllocator, token, std::move(left), arguments.freeze());
     }
 
     do {
-        arguments.emplace_back(expression({}));
+        arguments.append(expression({}));
     } while (match(TokenType::Comma));
 
     consume(TokenType::RightParenthesis);
 
-    return AST::CallExpression::create(nodeAllocator, token, std::move(left), std::move(arguments));
+    return AST::CallExpression::create(nodeAllocator, token, std::move(left), arguments.freeze());
 }
 
 AST::Expression *Parser::subscript(AST::Expression *NONNULL left) {
@@ -741,7 +741,7 @@ unsigned bitCount(unsigned length) {
 
 template <int skip, int base>
 llvm::APInt parseInteger(std::string_view chars) {
-    if (chars.size() > UINT16_MAX) {
+    if (chars.size() > AST::IntegerLiteral::MAX_LENGTH) {
         // TODO: Emit non-fatal error.
         return llvm::APInt{0U, 0UL, true};
     }
@@ -822,7 +822,7 @@ AST::Literal *Parser::createCharacterLiteral(const Token& token)
 
 AST::Literal *Parser::createStringLiteral(const Token& token)
 {
-    AST::string string{allocator<char>()};
+    GrowingString string{arrayAllocator};
     string.reserve(token.length - 2); // Don't reserve for quotes
     
     // NOTE: This currently only supports double quotes as delimiters.
@@ -836,16 +836,16 @@ AST::Literal *Parser::createStringLiteral(const Token& token)
             ++it;
             auto escaped = escapeCharacter(*it);
             if (escaped.has_value()) {
-                string.push_back(escaped.value());
+                string.append(escaped.value());
             } else {
                 throw ParserException(token, ParserException::Cause::InvalidEscapeSequence);
             }
         } else {
-            string.push_back(c);
+            string.append(c);
         }
     }
 
-    return AST::StringLiteral::create(nodeAllocator, token, std::move(string));
+    return AST::StringLiteral::create(nodeAllocator, token, string.freeze());
 }
 
 AST::Expression *Parser::literal()
@@ -984,7 +984,7 @@ AST::Expression *Parser::intrinsic()
     auto& name = symbols.getSymbol(toStringView(token).substr(1));
 
     bool hasTypeArguments = false;
-    AST::vector<AST::TypeNode *NONNULL> typeArguments{allocator<AST::TypeNode *>()};
+    GrowingSpan<AST::TypeNode *NONNULL> typeArguments{arrayAllocator};
     if (match(TokenType::Less)) {
         hasTypeArguments = true;
 
@@ -992,19 +992,19 @@ AST::Expression *Parser::intrinsic()
             // TODO: Error: empty type paramters are not allowed.
         }
         do {
-            typeArguments.emplace_back(type());
+            typeArguments.append(type());
         } while (match(TokenType::Comma));
         consume(TokenType::Greater);
     }
 
     bool hasCall = false;
-    AST::vector<AST::Expression *NONNULL> arguments{allocator<AST::Expression *>()};
+    GrowingSpan<AST::Expression *NONNULL> arguments{arrayAllocator};
     if (match(TokenType::LeftParenthesis)) {
         hasCall = true;
 
         if (!match(TokenType::RightParenthesis)) {
             do {
-                arguments.emplace_back(expression({}));
+                arguments.append(expression({}));
             } while (match(TokenType::Comma));
 
             consume(TokenType::RightParenthesis);
@@ -1016,9 +1016,9 @@ AST::Expression *Parser::intrinsic()
         token, 
         name, 
         hasTypeArguments,
-        std::move(typeArguments), 
+        typeArguments.freeze(), 
         hasCall,
-        std::move(arguments)
+        arguments.freeze()
     );
 }
 
@@ -1030,21 +1030,21 @@ AST::Expression *Parser::inferredInitializer()
 AST::Expression *Parser::initializer(AST::Identifier *identifier)
 {
     Token token = previous;
-    AST::vector<AST::InitializerExpression::Pair> pairs{allocator<AST::InitializerExpression::Pair>()};
+    GrowingSpan<AST::InitializerExpression::Pair> pairs{arrayAllocator};
     while (!match(TokenType::RightBracket)) {
         auto nameToken = consume(TokenType::Identifier);
         auto& name = symbols.getSymbol(toStringView(nameToken));
         consume(TokenType::Equal);
         auto member = AST::InferredMemberAccessExpression::create(nodeAllocator, nameToken, name);
         auto value = expression({});
-        pairs.push_back({std::move(member), std::move(value)});
+        pairs.append({member, value});
         if (!match(TokenType::Comma)) {
             consume(TokenType::RightBracket);
             break;
         }
     }
 
-    return AST::InitializerExpression::create(nodeAllocator, token, std::move(identifier), std::move(pairs));
+    return AST::InitializerExpression::create(nodeAllocator, token, std::move(identifier), pairs.freeze());
 }
 
 // For improve cache-friendliness, this should probably be a "struct of arrays".

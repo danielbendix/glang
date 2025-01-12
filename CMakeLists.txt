@@ -5,8 +5,8 @@ project(glang)
 option(ENABLE_UBSAN "Enable UB Sanitizer" OFF)
 if(ENABLE_UBSAN)
     message("Enabling UB Sanitizer")
-    set(CMAKE_C_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return)
-    set(CMAKE_CXX_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return)
+    set(CMAKE_C_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds)
+    set(CMAKE_CXX_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds)
 endif()
 
 
@@ -22,8 +22,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
 find_package(LLVM REQUIRED CONFIG)
 
-find_package(mimalloc REQUIRED)
-
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
@@ -36,4 +34,3 @@ llvm_map_components_to_libnames(llvm_libs ${LLVM_TARGETS_TO_BUILD} support core 
 add_subdirectory(src)
 
 target_link_libraries(glang PUBLIC ${llvm_libs})
-target_link_libraries(glang PUBLIC mimalloc)

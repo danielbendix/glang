@@ -754,12 +754,12 @@ public:
         return test;
     }
 
-    llvm::Value *codegenConditions(const AST::vector<AST::Condition>& conditions, llvm::BasicBlock& onFalse) {
+    llvm::Value *codegenConditions(const Span<AST::Condition>& conditions, llvm::BasicBlock& onFalse) {
         auto last = conditions.size() - 1;
 
         llvm::Value *value = nullptr;
         llvm::BasicBlock *next = nullptr;
-        for (auto [i, condition] : enumerate(conditions)) {
+        for (auto condition : conditions) {
             value = TypeSwitch<AST::Condition, llvm::Value *>(condition)
                 .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
                     return codegenConditionalBinding(*variable, onFalse);
@@ -1664,10 +1664,10 @@ public:
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
-            auto resolution = pair.first->getResolution();
+            auto resolution = pair.name->getResolution();
             assert(resolution.getKind() == MemberResolution::Kind::StructField);
 
-            auto value = visitExpressionAsValue(pair.second);
+            auto value = visitExpressionAsValue(pair.value);
             unsigned index = resolution.as.structField.index;
             undefined.set(index);
 

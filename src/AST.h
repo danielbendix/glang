@@ -11,10 +11,10 @@
 #include "context.h"
 
 #include "containers/symbol_table.h"
+#include "containers/span.h"
 #include "containers/small_byte_array.h"
+#include "containers/string.h"
 
-#include <string>
-#include <vector>
 #include <cassert>
 #include <climits>
 
@@ -136,11 +136,6 @@ namespace AST {
 }
 
 namespace AST {
-    template <typename T>
-    using vector = std::vector<T, ArrayAllocator<T>>;
-
-    using string = std::basic_string<char, std::char_traits<char>, ArrayAllocator<char>>;
-
     class PrintContext;
 
     struct FileLocation {
@@ -221,110 +216,6 @@ namespace AST {
 
         static void deleteNode(AST::Node *NONNULL node);
         static void deleteValue(AST::Node *NONNULL node) { deleteNode(node); }
-    };
-
-    template <typename T>
-    class iterator {
-        using internal = vector<T *NONNULL>::iterator;
-        internal it;
-
-    public:
-        iterator(internal it) : it{it} {}
-
-        T& operator*() {
-            return **it;
-        }
-
-        iterator& operator++() {
-            ++it;
-            return *this;
-        }
-
-        friend bool operator==(const iterator& lhs, const iterator& rhs) {
-            return lhs.it == rhs.it;
-        }
-        friend bool operator!=(const iterator& lhs, const iterator& rhs) {
-            return lhs.it != rhs.it;
-        }
-        friend class Block;
-    };
-
-    template <typename T>
-    class const_iterator {
-        using internal = vector<T *NONNULL>::const_iterator;
-        internal it;
-
-    public:
-        const_iterator(internal it) : it{it} {}
-
-        const T& operator*() const {
-            return **it;
-        }
-
-        const_iterator& operator++() {
-            ++it;
-            return *this;
-        }
-
-        friend bool operator==(const const_iterator& lhs, const const_iterator& rhs) {
-            return lhs.it == rhs.it;
-        }
-        friend bool operator!=(const const_iterator& lhs, const const_iterator& rhs) {
-            return lhs.it != rhs.it;
-        }
-        friend class Block;
-    };
-
-    template <typename T>
-    class value_iterator {
-        using internal = vector<T>::iterator;
-        internal it;
-
-    public:
-        value_iterator(internal it) : it{it} {}
-
-        T& operator*() {
-            return *it;
-        }
-
-        value_iterator& operator++() {
-            ++it;
-            return *this;
-        }
-
-        friend bool operator==(const value_iterator& lhs, const value_iterator& rhs) {
-            return lhs.it == rhs.it;
-        }
-        friend bool operator!=(const value_iterator& lhs, const value_iterator& rhs) {
-            return lhs.it != rhs.it;
-        }
-        friend class Block;
-    };
-
-    template <typename T>
-    class const_value_iterator {
-        using internal = vector<T>::const_iterator;
-        internal it;
-
-    public:
-        const_value_iterator(internal it) : it{it} {}
-
-        const T& operator*() const {
-            return *it;
-        }
-
-        const_value_iterator& operator++() {
-            ++it;
-            return *this;
-        }
-
-        friend bool operator==(const const_value_iterator& lhs, const const_value_iterator& rhs) {
-            return lhs.it == rhs.it;
-        }
-        friend bool operator!=(const const_value_iterator& lhs, const const_value_iterator& rhs) {
-            return lhs.it != rhs.it;
-        }
-        friend class Block;
     };
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);
@@ -429,18 +320,13 @@ namespace AST {
     class Declaration;
     class Block {
     protected:
-        vector<Declaration *NONNULL> declarations;
+        Span<Declaration *NONNULL> declarations;
 
-        Block(const Block&) = delete;
-        Block& operator=(const Block&) = delete;
+        using iterator = Span<Declaration *NONNULL>::iterator::dereferencing_iterator;
+        using const_iterator = Span<Declaration *NONNULL>::const_iterator::dereferencing_iterator;
+
     public:
-        Block(vector<Declaration *NONNULL>&& declarations) : declarations{std::move(declarations)} {}
-        Block(Block&& other) = default;
-        Block& operator=(Block&& other) = default;
-
-        static std::unique_ptr<Block> create(vector<Declaration *NONNULL>&& declarations) {
-            return std::unique_ptr<Block>(new Block(std::move(declarations)));
-        }
+        Block(Span<Declaration *NONNULL> declarations) : declarations{declarations} {}
 
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -449,39 +335,38 @@ namespace AST {
             return declarations.size();
         }
 
-        Declaration& operator[](size_t index) const {
+        Declaration& operator[](u32 index) const {
             return *declarations[index];
         }
 
-        void resize(size_t newSize) {
-            assert(newSize < declarations.size());
-            declarations.resize(newSize);
+        void shrinkTo(u32 newSize) {
+            declarations.shrinkTo(newSize);
         }
 
         // Iterator
 
-        iterator<Declaration> begin() {
-            return iterator<Declaration>(declarations.begin());
+        iterator begin() {
+            return iterator(declarations.begin());
         }
 
-        iterator<Declaration> end() {
-            return iterator<Declaration>(declarations.end());
+        iterator end() {
+            return iterator(declarations.end());
         }
 
-        const_iterator<Declaration> begin() const {
-            return const_iterator<Declaration>(declarations.cbegin());
+        const_iterator begin() const {
+            return const_iterator(declarations.begin());
         }
 
-        const_iterator<Declaration> end() const {
-            return const_iterator<Declaration>(declarations.cend());
+        const_iterator end() const {
+            return const_iterator(declarations.end());
         }
 
-        const_iterator<Declaration> cbegin() const {
-            return const_iterator<Declaration>(declarations.cbegin());
+        const_iterator cbegin() const {
+            return const_iterator(declarations.cbegin());
         }
 
-        const_iterator<Declaration> cend() const {
-            return const_iterator<Declaration>(declarations.cend());
+        const_iterator cend() const {
+            return const_iterator(declarations.cend());
         }
     };
 
@@ -759,21 +644,21 @@ namespace AST {
     };
 
     class StringLiteral : public Literal {
-        string value;
+        String value;
 
-        StringLiteral(Token token, string&& value) : Literal{NK_Expr_Literal_String, token}, value{std::move(value)} {}
+        StringLiteral(Token token, String value) : Literal{NK_Expr_Literal_String, token}, value{std::move(value)} {}
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static StringLiteral *NONNULL create(Allocator& allocator, Token token, string&& value) {
+        static StringLiteral *NONNULL create(Allocator& allocator, Token token, String value) {
             return allocate(allocator, [&](auto space) {
                 return new(space) StringLiteral{token, std::move(value)};
             });
         }
 
-        const string& getValue() const {
+        const String& getValue() const {
             return value;
         }
 
@@ -784,22 +669,22 @@ namespace AST {
 
     class CallExpression : public Expression {
         Expression *NONNULL target;
-        vector<Expression *NONNULL> arguments;
+        Span<Expression *NONNULL> arguments;
 
     protected:
-        CallExpression(Token token, Expression *NONNULL target, vector<Expression *NONNULL>&& arguments) 
+        CallExpression(Token token, Expression *NONNULL target, Span<Expression *NONNULL> arguments) 
             : Expression{NK_Expr_Call, token}
             , target{target}
-            , arguments{std::move(arguments)} {}
+            , arguments{arguments} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static CallExpression *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, vector<Expression *NONNULL>&& arguments) {
+        static CallExpression *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Span<Expression *NONNULL> arguments) {
             return allocate(allocator, [&](auto space) {
-                return new(space) CallExpression{token, target, std::move(arguments)};
+                return new(space) CallExpression{token, target, arguments};
             });
         }
 
@@ -947,16 +832,22 @@ namespace AST {
 
     class InitializerExpression : public Expression {
     public:
-        using Pair = std::pair<InferredMemberAccessExpression *NONNULL, Expression *NONNULL>;
+        struct Pair {
+            InferredMemberAccessExpression *NONNULL name;
+            Expression *NONNULL value;
+
+            Pair(InferredMemberAccessExpression *NONNULL name, Expression *NONNULL value)
+                : name{name}, value{value} {}
+        };
     private:       
         // This is a typename. Could contain a type parameter in the future. We should find a better type.
         Identifier *NULLABLE identifier;
-        vector<Pair> pairs;
+        Span<Pair> pairs;
     protected:
-        InitializerExpression(Token token, Identifier *NULLABLE identifier, vector<Pair>&& pairs) 
+        InitializerExpression(Token token, Identifier *NULLABLE identifier, Span<Pair> pairs) 
             : Expression{NK_Expr_Initializer, token}
             , identifier{identifier}
-            , pairs{std::move(pairs)}
+            , pairs{pairs}
             {}
 
     public:
@@ -964,9 +855,9 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static InitializerExpression *NONNULL create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, vector<Pair>&& pairs) {
+        static InitializerExpression *NONNULL create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, Span<Pair> pairs) {
             return allocate(allocator, [&](auto space) {
-                return new(space) InitializerExpression{token, identifier, std::move(pairs)};
+                return new(space) InitializerExpression{token, identifier, pairs};
             });
         }
 
@@ -1145,23 +1036,23 @@ namespace AST {
         const bool hasCall;
     private:
         // TODO: These vectors should be arrays, with LBO for size <= 1.
-        vector<TypeNode *NONNULL> typeArguments;
-        vector<Expression *NONNULL> arguments;
+        Span<TypeNode *NONNULL> typeArguments;
+        Span<Expression *NONNULL> arguments;
         Symbol& name;
 
         IntrinsicExpression(
             Token token, 
             Symbol& name, 
             bool hasTypeArguments, 
-            vector<TypeNode *NONNULL>&& typeArguments, 
+            Span<TypeNode *NONNULL> typeArguments, 
             bool hasCall,
-            vector<Expression *NONNULL>&& arguments
+            Span<Expression *NONNULL> arguments
         ) : Expression{NK_Expr_Intrinsic, token}
           , name{name}
           , hasTypeArguments{hasTypeArguments}
-          , typeArguments{std::move(typeArguments)}
+          , typeArguments{typeArguments}
           , hasCall{hasCall}
-          , arguments{std::move(arguments)} {}
+          , arguments{arguments} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -1173,12 +1064,12 @@ namespace AST {
             Token token, 
             Symbol& name, 
             bool hasTypeArguments,
-            vector<TypeNode *NONNULL>&& typeArguments, 
+            Span<TypeNode *NONNULL> typeArguments, 
             bool hasCall,
-            vector<Expression *NONNULL>&& arguments
+            Span<Expression *NONNULL> arguments
         ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IntrinsicExpression(token, name, hasTypeArguments, std::move(typeArguments), hasCall, std::move(arguments));
+                return new(space) IntrinsicExpression(token, name, hasTypeArguments, typeArguments, hasCall, arguments);
             });
         }
 
@@ -1194,15 +1085,15 @@ namespace AST {
             return name;
         }
 
-        const vector<TypeNode *NONNULL>& getTypeArguments() const {
+        const Span<TypeNode *NONNULL>& getTypeArguments() const {
             return typeArguments;
         }
 
-        vector<Expression *NONNULL>& getArguments() {
+        Span<Expression *NONNULL>& getArguments() {
             return arguments;
         }
 
-        const vector<Expression *NONNULL>& getArguments() const {
+        const Span<Expression *NONNULL>& getArguments() const {
             return arguments;
         }
     };
@@ -1382,11 +1273,11 @@ namespace AST {
     class IfStatement : public Statement {
     public:
         class Branch {
-            vector<Condition> conditions;
+            Span<Condition> conditions;
             Block block;
 
         public:
-            Branch(vector<Condition>&& conditions, Block&& block) : conditions{std::move(conditions)}, block{std::move(block)} {}
+            Branch(Span<Condition> conditions, Block block) : conditions{conditions}, block{block} {}
 
             size_t getNumConditions() const {
                 return conditions.size();
@@ -1396,11 +1287,7 @@ namespace AST {
                 return conditions[i];
             }
 
-            vector<Condition>& getConditions() {
-                return conditions;
-            }
-
-            const vector<Condition>& getConditions() const {
+            Span<Condition> getConditions() const {
                 return conditions;
             }
 
@@ -1416,14 +1303,14 @@ namespace AST {
         };
     protected:
         // TODO: Rename to branches
-        vector<Branch> branches;
+        Span<Branch> branches;
         std::optional<Block> fallback;
 
         // NOTE: this would be safer if it took a conditional, and a vector of subsequent ones, but initialization becomes more troublesome that way.
-        IfStatement(Token token, vector<Branch>&& branches, std::optional<Block>&& fallback) 
+        IfStatement(Token token, Span<Branch> branches, std::optional<Block> fallback) 
             : Statement{NK_Stmt_If, token}
-            , branches{std::move(branches)}
-            , fallback{std::move(fallback)}
+            , branches{branches}
+            , fallback{fallback}
         {
             assert(this->branches.size() > 0 && "if statement must have at least one condition.");
         }
@@ -1433,9 +1320,9 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static IfStatement *NONNULL create(Allocator& allocator, Token token, vector<Branch>&& branches, std::optional<Block>&& fallback) {
+        static IfStatement *NONNULL create(Allocator& allocator, Token token, Span<Branch> branches, std::optional<Block> fallback) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IfStatement{token, std::move(branches), std::move(fallback)};
+                return new(space) IfStatement{token, branches, fallback};
             });
         }
 
@@ -1444,20 +1331,20 @@ namespace AST {
         }
 
         Branch& getBranch(size_t i) {
-            return branches.at(i);
+            return branches[i];
         }
 
         const Branch& getBranch(size_t i) const {
-            return branches.at(i);
+            return branches[i];
         }
 
         // TODO: Remove these
         Branch& getCondition(size_t i) {
-            return branches.at(i);
+            return branches[i];
         }
 
         const Branch& getCondition(size_t i) const {
-            return branches.at(i);
+            return branches[i];
         }
 
         Block *NULLABLE getFallback() {
@@ -1484,27 +1371,27 @@ namespace AST {
     };
 
     class GuardStatement : public Statement {
-        vector<Condition> conditions;
+        Span<Condition> conditions;
         Block block;
     protected:
-        GuardStatement(Token token, vector<Condition>&& conditions, Block&& block) : Statement{NK_Stmt_Guard, token}, conditions{std::move(conditions)}, block{std::move(block)} {}
+        GuardStatement(Token token, Span<Condition> conditions, Block block) : Statement{NK_Stmt_Guard, token}, conditions{conditions}, block{block} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static GuardStatement *NONNULL create(Allocator& allocator, Token token, vector<Condition>&& conditions, Block&& block) {
+        static GuardStatement *NONNULL create(Allocator& allocator, Token token, Span<Condition> conditions, Block block) {
             return allocate(allocator, [&](auto space) {
-                return new(space) GuardStatement{token, std::move(conditions), std::move(block)};
+                return new(space) GuardStatement{token, conditions, block};
             });
         }
 
-        vector<Condition>& getConditions() {
+        Span<Condition>& getConditions() {
             return conditions;
         }
 
-        const vector<Condition>& getConditions() const {
+        const Span<Condition>& getConditions() const {
             return conditions;
         }
 
@@ -1554,13 +1441,13 @@ namespace AST {
 
     class WhileStatement : public Statement {
     protected:
-        vector<Condition> conditions;
+        Span<Condition> conditions;
         Block code;
 
-        WhileStatement(Token token, vector<Condition>&& conditions, Block&& code) 
+        WhileStatement(Token token, Span<Condition> conditions, Block code) 
             : Statement{NK_Stmt_While, token}
-            , conditions{std::move(conditions)}
-            , code{std::move(code)} 
+            , conditions{conditions}
+            , code{code} 
         {}
     
     public:
@@ -1568,9 +1455,9 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static WhileStatement *NONNULL create(Allocator& allocator, Token token, vector<Condition>&& conditions, Block&& code) {
+        static WhileStatement *NONNULL create(Allocator& allocator, Token token, Span<Condition> conditions, Block code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) WhileStatement{token, std::move(conditions), std::move(code)};
+                return new(space) WhileStatement{token, conditions, code};
             });
         }
 
@@ -1582,11 +1469,11 @@ namespace AST {
             return conditions[i];
         }
 
-        vector<Condition>& getConditions() {
+        Span<Condition>& getConditions() {
             return conditions;
         }
 
-        const vector<Condition>& getConditions() const {
+        const Span<Condition>& getConditions() const {
             return conditions;
         }
 
@@ -1851,12 +1738,10 @@ namespace AST {
     };
 
     struct FunctionParameter {
-        Symbol& name;
+        Symbol *name;
         TypeNode *NONNULL typeDeclaration;
         
-        FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{name}, typeDeclaration{type} {}
-        //Parameter(Parameter&& parameter) : name{std::move(parameter.name)}, type{std::move(parameter.type)} {}
-        //Parameter& operator=(Parameter&& parameter) = default;
+        FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{&name}, typeDeclaration{type} {}
     };
 
     class FunctionName {
@@ -1868,11 +1753,11 @@ namespace AST {
         const char *NONNULL base;
         u32 length;
         u32 root;
-        vector<Label> labels;
+        Span<Label> labels;
     };
 
     class InitializerDeclaration : public Declaration {
-        vector<FunctionParameter> parameters;
+        Span<FunctionParameter> parameters;
         Block code;
 
 
@@ -1881,20 +1766,20 @@ namespace AST {
     class FunctionDeclaration : public Declaration {
     protected:
         Symbol& name;
-        vector<FunctionParameter> parameters;
+        Span<FunctionParameter> parameters;
         u32 arity;
         u32 closingBracket;
         TypeNode *NULLABLE returnTypeDeclaration;
         Block code;
 
-        FunctionDeclaration(Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) 
+        FunctionDeclaration(Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, Span<FunctionParameter> parameters, TypeNode *NULLABLE returnType, Block code) 
             : Declaration{NK_Decl_Function, token, modifiers}
             , name{name}
             , parameters{parameters}
             , arity{u32(this->parameters.size())}
             , closingBracket{closingBracket}
             , returnTypeDeclaration{returnType}
-            , code{std::move(code)} {}
+            , code{code} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -1902,10 +1787,9 @@ namespace AST {
         FileLocation getClosingBracketLocation() const;
 
         template <Allocator A>
-        static FunctionDeclaration *NONNULL create(A& allocator, Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, vector<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block&& code) {
+        static FunctionDeclaration *NONNULL create(A& allocator, Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, Span<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) FunctionDeclaration(token, closingBracket, modifiers, name, std::move(parameters), returnType, std::move(code));
-
+                return new(space) FunctionDeclaration(token, closingBracket, modifiers, name, parameters, returnType, code);
             });
         }
 
@@ -1950,20 +1834,23 @@ namespace AST {
     class StructDeclaration : public Declaration {
     protected:
         Symbol& name;
-        vector<Declaration *NONNULL> declarations;
+        Span<Declaration *NONNULL> declarations;
 
-        StructDeclaration(Token token, Modifiers modifiers, Symbol& name, vector<Declaration *NONNULL>&& declarations)
+        using iterator = Span<Declaration *NONNULL>::iterator::dereferencing_iterator;
+        using const_iterator = Span<Declaration *NONNULL>::const_iterator::dereferencing_iterator;
+
+        StructDeclaration(Token token, Modifiers modifiers, Symbol& name, Span<Declaration *NONNULL> declarations)
             : Declaration{NK_Decl_Struct, token, modifiers}
             , name{name}
-            , declarations{std::move(declarations)} {}
+            , declarations{declarations} {}
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Modifiers modifiers, Symbol& name, vector<Declaration *NONNULL>&& declarations) {
+        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Modifiers modifiers, Symbol& name, Span<Declaration *NONNULL>&& declarations) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StructDeclaration{token, modifiers, name, std::move(declarations)};
+                return new(space) StructDeclaration{token, modifiers, name, declarations};
             });
         }
 
@@ -1975,20 +1862,28 @@ namespace AST {
             return node->getKind() == NK_Decl_Struct;
         }
 
-        iterator<Declaration> begin() {
-            return iterator<Declaration>(declarations.begin());
+        iterator begin() {
+            return iterator(declarations.begin());
         }
 
-        iterator<Declaration> end() {
-            return iterator<Declaration>(declarations.end());
+        iterator end() {
+            return iterator(declarations.end());
         }
 
-        const_iterator<Declaration> cbegin() const {
-            return const_iterator<Declaration>(declarations.cbegin());
+        const_iterator begin() const {
+            return const_iterator(declarations.begin());
         }
 
-        const_iterator<Declaration> cend() const {
-            return const_iterator<Declaration>(declarations.cend());
+        const_iterator end() const {
+            return const_iterator(declarations.end());
+        }
+
+        const_iterator cbegin() const {
+            return const_iterator(declarations.cbegin());
+        }
+
+        const_iterator cend() const {
+            return const_iterator(declarations.cend());
         }
 
         using enum Modifiers::Modifier;
@@ -2014,19 +1909,17 @@ namespace AST {
                     return *type;
                 }
             };
+
+            using iterator = Span<Member>::iterator;
+            using const_iterator = Span<Member>::const_iterator;
         private:
-            Symbol& name;
-            vector<Member> members;
+            Symbol *NONNULL name;
+            Span<Member> members;
         public:
-            Case(Token token, Symbol& name, ArrayAllocator<Member> allocator) : name{name}, members{allocator} {}
-            Case(Token token, Symbol& name, vector<Member>&& members) : name{name}, members{std::move(members)} {}
-            Case(Case&) = default;
-            Case& operator=(Case&) = delete;
-            Case(Case&&) = default;
-            Case& operator=(Case&&) = delete;
+            Case(Token token, Symbol& name, Span<Member> members) : name{&name}, members{std::move(members)} {}
 
             const Symbol& getName() const {
-                return name;
+                return *name;
             }
 
             const size_t getMemberCount() const {
@@ -2034,46 +1927,49 @@ namespace AST {
             }
 
             const bool hasMembers() const {
-                return !members.empty();
+                return !members.isEmpty();
             }
 
-            value_iterator<Member> begin() {
-                return value_iterator<Member>(members.begin());
+            iterator begin() {
+                return members.begin();
             }
 
-            value_iterator<Member> end() {
-                return value_iterator<Member>(members.end());
+            iterator end() {
+                return members.end();
             }
 
-            const_value_iterator<Member> begin() const {
-                return const_value_iterator<Member>(members.cbegin());
+            const_iterator begin() const {
+                return members.begin();
             }
 
-            const_value_iterator<Member> end() const {
-                return const_value_iterator<Member>(members.cend());
+            const_iterator end() const {
+                return members.end();
             }
         };
     protected:
         Symbol& name;
         TypeNode *NULLABLE rawType;
-        vector<Case> cases;
-        vector<Declaration *NONNULL> declarations;
+        Span<Case> cases;
+        Span<Declaration *NONNULL> declarations;
 
         EnumDeclaration(
             Token token, 
             Modifiers modifiers,
             Symbol& name, 
             TypeNode *NULLABLE rawType, 
-            vector<Case>&& cases, 
-            vector<Declaration *NONNULL>&& declarations
+            Span<Case> cases, 
+            Span<Declaration *NONNULL> declarations
         ) 
             : Declaration{NK_Decl_Enum, token, modifiers}
             , name{name}
-            , cases{std::move(cases)}
-            , declarations{std::move(declarations)}
+            , cases{cases}
+            , declarations{declarations}
         {}
 
     public:
+        using iterator = Span<Case>::iterator;
+        using const_iterator = Span<Case>::const_iterator;
+
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
@@ -2084,11 +1980,11 @@ namespace AST {
             Modifiers modifiers,
             Symbol& name, 
             TypeNode *NULLABLE rawType, 
-            vector<Case>&& cases, 
-            vector<Declaration *NONNULL>&& declarations
+            Span<Case>&& cases, 
+            Span<Declaration *NONNULL>&& declarations
         ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) EnumDeclaration{token, modifiers, name, rawType, std::move(cases), std::move(declarations)};
+                return new(space) EnumDeclaration{token, modifiers, name, rawType, cases, declarations};
             });
         }
 
@@ -2096,20 +1992,20 @@ namespace AST {
             return cases.size();
         }
 
-        value_iterator<Case> begin() {
-            return value_iterator<Case>(cases.begin());
+        iterator begin() {
+            return cases.begin();
         }
 
-        value_iterator<Case> end() {
-            return value_iterator<Case>(cases.end());
+        iterator end() {
+            return cases.end();
         }
 
-        const_value_iterator<Case> begin() const {
-            return const_value_iterator<Case>(cases.cbegin());
+        const_iterator begin() const {
+            return cases.begin();
         }
 
-        const_value_iterator<Case> end() const {
-            return const_value_iterator<Case>(cases.cend());
+        const_iterator end() const {
+            return cases.end();
         }
 
         const Symbol& getName() const {
@@ -2191,8 +2087,8 @@ namespace AST {
 
         PrintContext& operator<<(const Node& value);
 
-        PrintContext& operator<<(const string& str) {
-            os << str;
+        PrintContext& operator<<(String string) {
+            os << string.stringView();
             return *this;
         }
 

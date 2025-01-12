@@ -270,35 +270,35 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
 
-            auto [resolution, memberType] = structType->resolveMember(pair.first->getMemberName());
+            auto [resolution, memberType] = structType->resolveMember(pair.name->getMemberName());
             if (!resolution) {
-                Diagnostic::error(*pair.first, "Unable to resolve member in initializer expression.");
+                Diagnostic::error(*pair.name, "Unable to resolve member in initializer expression.");
                 return {};
             }
-            pair.first->setResolution(resolution);
+            pair.name->setResolution(resolution);
             if (resolution.getKind() != MemberResolution::Kind::StructField) {
-                Diagnostic::error(*pair.first, "Cannot assign to [GET FIELD TYPE] in struct initializer expression.");
+                Diagnostic::error(*pair.name, "Cannot assign to [GET FIELD TYPE] in struct initializer expression.");
                 return {};
             }
 
             auto fieldType = memberType.getPointer();
-            auto valueType = typeCheckExpression(*pair.second, fieldType);
+            auto valueType = typeCheckExpression(*pair.value, fieldType);
             if (!valueType) {
                 return {};
             } else if (valueType.isConstraint()) {
-                Diagnostic::error(*pair.second, "Unable to determine type of expression.");
+                Diagnostic::error(*pair.value, "Unable to determine type of expression.");
                 return {};
             }
 
-            auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.second);
+            auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.value);
         
             if (wrapped) {
-                pair.second = wrapped;
+                pair.value = wrapped;
             }
 
             auto fieldIndex = resolution.as.structField.index;
             if (!definedFields.set(fieldIndex)) {
-                Diagnostic::error(*pair.first, "Duplicate definition of field in struct initializer.");
+                Diagnostic::error(*pair.name, "Duplicate definition of field in struct initializer.");
                 result |= ERROR;
             }
 
