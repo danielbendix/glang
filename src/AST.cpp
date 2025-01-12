@@ -397,13 +397,13 @@ namespace AST {
         return pc;
     }
 
-    PrintContext& operator<<(PrintContext& pc, const vector<Condition>& conditions) {
+    PrintContext& operator<<(PrintContext& pc, const Span<Condition>& conditions) {
         pc.withSeparator(", ", conditions);
         return pc;
     }
 
     PrintContext& operator<<(PrintContext& pc, const FunctionParameter& parameter) {
-        return pc << parameter.name << ": " << *parameter.typeDeclaration;
+        return pc << *parameter.name << ": " << *parameter.typeDeclaration;
     }
 
     void Block::print(PrintContext& pc) const {
@@ -515,7 +515,7 @@ namespace AST {
     void StructDeclaration::print(PrintContext& pc) const {
         pc << "struct " << name << " {\n";
         pc.indent();
-        for (auto& declaration : declarations) {
+        for (auto declaration : declarations) {
             pc << *declaration;
         }
         pc.outdent();
@@ -711,7 +711,7 @@ namespace AST {
 
         for (const auto& pair : pairs) {
             pc.startLine();
-            pc << pair.first->getMemberName() << " = " << *pair.second << ",\n";
+            pc << pair.name->getMemberName() << " = " << *pair.value << ",\n";
         }
 
         pc.outdent();

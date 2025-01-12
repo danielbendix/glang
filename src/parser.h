@@ -6,6 +6,7 @@
 #include "context.h"
 
 #include "containers/symbol_table.h"
+#include "containers/span.h"
 
 struct ParsedFile {
     //std::string path;
@@ -115,7 +116,7 @@ class Parser {
     SymbolTable& symbols;
 
     BumpAllocator nodeAllocator;
-    Heap heap;
+    ArrayArenaAllocator arrayAllocator;
     Scanner scanner;
     Token previous;
     Token current;
@@ -162,7 +163,7 @@ class Parser {
     AST::StatementDeclaration *statementDeclaration();
 
     [[nodiscard]]
-    AST::vector<AST::Condition> conditions();
+    Span<AST::Condition> conditions();
 
     // Statement
     [[nodiscard]]
@@ -253,11 +254,6 @@ class Parser {
     std::string_view toStringView(Token token) const {
         return token.string_view(scanner._string.data());
     };
-
-    template <typename T>
-    ArrayAllocator<T> allocator() {
-        return heap.allocator<T>();
-    }
 
     friend class ParseRule;
 public:

@@ -54,7 +54,7 @@ public:
             if (effect > Continues) {
                 if (i + 1 < block.size()) {
                     Diagnostic::warning(block[i + 1], "Code after [[GET STATEMENT NAME]] will not be executed");
-                    block.resize(i + 1);
+                    block.shrinkTo(i + 1);
                 }
                 return effect;
             }

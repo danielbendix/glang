@@ -110,8 +110,8 @@ struct UntypedConstantFolder : public AST::ExpressionVisitorT<UntypedConstantFol
         for (int pi = 0; pi < initializer.getNumberOfPairs(); ++pi) {
             auto& pair = initializer.getPair(pi);
 
-            if (auto *foldedValue = foldExpression(*pair.second)) {
-                pair.second = foldedValue;
+            if (auto *foldedValue = foldExpression(*pair.value)) {
+                pair.value = foldedValue;
             }
         }
         return nullptr;

@@ -2,9 +2,19 @@
 #define LANG_context_h
 
 #include "memory.h"
+#include "array_allocator.h"
 #include "containers/symbol_table.h"
 
 #include <filesystem>
+
+/// Represents the memory resources of the AST from a single file.
+struct ASTHandle {
+    BumpAllocator nodeAllocator;
+    ArrayArenaAllocator arrayAllocator;
+
+    ASTHandle(BumpAllocator&& nodeAllocator, ArrayArenaAllocator&& arrayAllocator) 
+        : nodeAllocator{std::move(nodeAllocator)}, arrayAllocator{std::move(arrayAllocator)} {}
+};
 
 struct File {
     const char *path;

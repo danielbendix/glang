@@ -209,7 +209,7 @@ Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression&
         toType = declaredType;
     }
 
-    AST::Expression *argument = intrinsic.getArguments().front();
+    AST::Expression *argument = intrinsic.getArguments()[0];
 
     // NOTE: At this point we might want to introduce a size constraint when type checking,
     // as this would allow bitcasting e.g. an integer literal to a double or i8 x 8.
