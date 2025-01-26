@@ -1547,7 +1547,7 @@ public:
         } else {
             auto printFunction = function.getPrintFunction(*argument->getType());
             llvm::Value *value = visitExpressionAsValue(argument);
-            auto returnValue = function.builder.CreateCall(printFunction, {value});
+            returnValue = function.builder.CreateCall(printFunction, {value});
         }
         auto putchar = function.getPutchar();
         function.builder.CreateCall(putchar, {function.getIntegerConstant(32, 10)});
