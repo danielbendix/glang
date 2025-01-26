@@ -1,0 +1,1 @@
+fn returns() -> i32 { }

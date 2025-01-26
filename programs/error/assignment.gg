@@ -1,0 +1,16 @@
+fn function() -> i64 {
+    let b = 2;
+    b = 3;
+    return 1;
+}
+
+fn cannot_assign_function() -> i64 {
+
+    var number = 1;
+
+    var a = 3;
+    let b = &number;
+    a = &function;
+    a = number;
+    return a * *b;
+}

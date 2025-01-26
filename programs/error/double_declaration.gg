@@ -1,0 +1,11 @@
+fn double_var() {
+    var a: i64 = 1;
+    var a: i64 = 2;
+}
+
+fn unreachable_var(a: i64) {
+    if a == 0 {
+        var b: i64 = 0;
+    }
+    return b;
+}

@@ -1,0 +1,7 @@
+public private static fn conflictingAccess() {
+
+}
+
+struct Test {
+    public private var a: i64;
+}

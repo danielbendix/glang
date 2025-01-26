@@ -1,0 +1,22 @@
+fn main() -> i8 {
+
+    var head = List {
+        data = Data { test = 100 }
+    };
+
+    var second = List {
+        data = Data { test = 200 }
+    };
+
+    var third = List {
+        data = Data { test = 300 }
+    };
+
+    head.next = &second;
+    second.next = &third;
+
+    let total = sum(&head);
+    #print(total);
+
+    return 1;
+}
