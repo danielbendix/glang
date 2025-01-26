@@ -186,9 +186,12 @@ LValueTypeResult ExpressionLValueTypeChecker::visitIdentifier(AST::Identifier& i
                 llvm_unreachable("UNDEFINED resolution in type check.");
                 break;
             case IdentifierResolution::Kind::Global: {
-
                 auto *binding = resolution.as.global.binding;
                 if (binding->hasType() || (globalHandler && (*globalHandler)(resolution.as.global.bindingIndex).ok())) {
+                    bool isMutable = binding->getIsMutable();
+                    if (!isMutable) {
+                        Diagnostic::error(identifier, "Cannot assign 'let' constant.");
+                    }
                     return LValueTypeResult{binding->getType(), binding->getIsMutable()};
                 } else {
                     return {};
@@ -204,6 +207,10 @@ LValueTypeResult ExpressionLValueTypeChecker::visitIdentifier(AST::Identifier& i
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;
+                bool isMutable = binding->getIsMutable();
+                if (!isMutable) {
+                    Diagnostic::error(identifier, "Cannot assign to 'let' constant.");
+                }
                 return {binding->getType(), binding->getIsMutable()};
             }
             case IdentifierResolution::Kind::Type: {
