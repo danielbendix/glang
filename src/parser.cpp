@@ -1,36 +1,119 @@
 #include "parser.h"
+#include "parser/errors.h"
 
 #include <cstdlib>
 #include <cmath>
+#include <fstream>
+#include <iostream>
 #include <charconv>
 #include <cmath>
 
-ParsedFile parseString(std::string&& string) {
-    Parser parser{*ThreadContext::get()->symbols, std::move(string)};
+struct NoneValue {
+    template <typename T>
+    constexpr operator T*() const noexcept { return nullptr; }
+};
 
-    return parser.parse();
+struct ErrorValue {
+    template <typename T>
+    constexpr operator T*() const noexcept { return nullptr; }
+};
+
+constexpr NoneValue NONE{};
+constexpr ErrorValue ERROR{};
+
+// NOTE: Should only be used within functions that return values where the
+// error case is created by {}, e.g. pointers.
+#define TRY(expression) ({        \
+    auto _result = (expression);  \
+    if (!_result) [[unlikely]] {  \
+        return {};                \
+    }                             \
+    _result;                      \
+})
+
+#define TRY_OPTIONAL(expression) ({        \
+    auto _result = (expression);  \
+    if (!_result) [[unlikely]] {  \
+        return {};                \
+    }                             \
+    *_result;                     \
+})
+
+std::optional<std::string> readFile(const char *path) {
+    std::ifstream file(path, std::ios::in | std::ios::binary);
+    if (file.fail()) {
+        return {};
+    }
+
+    file.seekg(0, std::ifstream::end);
+    size_t file_size = file.tellg();
+    file.seekg(0, std::ifstream::beg);
+
+    std::string contents(file_size, '\0');
+
+    file.read(contents.data(), file_size);
+    file.close();
+
+    return contents;
+}
+
+ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer) {
+    auto contents = readFile(file.path);
+
+    if (!contents) {
+        // TODO: Create top-level diagnostic type.
+        std::cout << "error: file '" << file.path << "' does not exist.\n";
+        return ParsedFile{0, ParseResult::FATAL, {}, {}, {}, {}};
+    }
+
+    Parser parser{fileHandle, *ThreadContext::get()->symbols, std::move(*contents)};
+
+    return parser.parse(writer);
 }
 
 /* TODO:
- * - Implement error messages
+ * - Implement error messages emitted during parsing:
+ *   - Every return of nullptr (when indicating error), should.
  * - Implement error recovery to parse entire file.
+ * - Consider making stringly typed errors into error cases/enums.
  */
 
-ParsedFile Parser::parse() 
+ParsedFile Parser::parse(DiagnosticWriter& writer) 
 {
     std::vector<AST::Declaration *NONNULL> declarations;
 
-    while (!match(TokenType::EndOfFile)) {
-        declarations.emplace_back(declaration());
+    int returnValue = sigsetjmp(startPoint, 0);
+
+    if (returnValue == 0) {
+        while (!match(TokenType::EndOfFile)) {
+            declarations.emplace_back(declaration());
+        }
+        u32 size = previous.offset;
+
+        auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
+        return ParsedFile(size, ParseResult::OK, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics));
+    } else [[unlikely]] { // We're bailing out due to a fatal error
+        auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
+        return ParsedFile{0, ParseResult::FATAL, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics)};
     }
-
-    u32 size = previous.offset;
-
-    auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
-    return ParsedFile(size, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle));
 }
 
 // Utilities
+
+void Parser::error(std::string&& message, DiagnosticLocation location) {
+    diagnostics.error(message, fileHandle, location.offset, location);
+    // TODO: Implement synchronization and recoverable (nonfatal) parsing.
+    earlyExit();
+}
+
+Optional<Token> Parser::consume(TokenType type) {
+    if (!match(type)) [[unlikely]] {
+        ParsingError::unexpectedToken(*this, current, type);
+        return {};
+    }
+    return previous;
+}
+
 Parser::Modifiers Parser::parseModifiers()
 {
     Modifiers result = {
@@ -68,17 +151,21 @@ Parser::Modifiers Parser::parseModifiers()
     }
 }
 
-void Parser::checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed)
+bool Parser::checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed)
 {
     AST::Modifiers notAllowed = modifiers.disablingAllIn(allowed);
 
     if (notAllowed.isNonEmpty()) {
-        throw ParserException(previous, ParserException::Cause::InvalidModifier);
+        ParsingError::disallowedModifiers(*this, notAllowed);
+        return false;
     }
 
     if (auto accessModifiers = modifiers.maskedBy(AST::accessModifiers); accessModifiers.count() > 1) {
-        throw ParserException(previous, ParserException::Cause::ConflictingAccessModifiers);
+        ParsingError::conflictingAccessModifiers(*this, accessModifiers);
+        return false;
     }
+    
+    return true;
 }
 
 AST::Block Parser::block() 
@@ -98,7 +185,7 @@ AST::Block Parser::block()
 
 AST::TypeNode *Parser::type(bool hasIdentifier) 
 {
-    Token nameToken = hasIdentifier ? previous : consume(TokenType::Identifier);
+    Token nameToken = hasIdentifier ? previous : TRY_OPTIONAL(consume(TokenType::Identifier));
     Symbol& name = symbols.getSymbol(toStringView(nameToken));
 
     std::vector<AST::TypeModifier::Modifier> typeModifiers{};
@@ -161,33 +248,36 @@ AST::Binding *Parser::binding()
 
 AST::Declaration *Parser::declaration() 
 {
+    Token modifierToken = current;
     auto modifiers = parseModifiers();
+
     if (match(TokenType::Fn)) return functionDeclaration(modifiers);
     if (match(TokenType::Struct)) return structDeclaration(modifiers);
     if (match(TokenType::Var)) return variableDeclaration(modifiers);
     if (match(TokenType::Let)) return variableDeclaration(modifiers);
     if (match(TokenType::Enum)) return enumDeclaration(modifiers);
 
-    if (modifiers.modifiers.isEmpty()) {
-        return statementDeclaration();
-    } else {
-        throw ParserException(current, ParserException::Cause::StatementModifiers);
+    if (!modifiers.modifiers.isEmpty()) {
+        error("A statement cannot have modifiers.", modifierToken);
     }
+    return statementDeclaration();
 }
 
-AST::FunctionParameter Parser::parameter()
+Optional<AST::FunctionParameter> Parser::parameter()
 {
-    auto nameToken = consume(TokenType::Identifier);
+    auto nameToken = TRY(consume(TokenType::Identifier));
     auto& name = symbols.getSymbol(toStringView(nameToken));
     consume(TokenType::Colon);
-    auto tp = type();
+    auto *type_ = TRY(type());
 
-    return AST::FunctionParameter(name, tp);
+    return AST::FunctionParameter(name, type_);
 }
 
 AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 {
-    checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers);
+    if (!checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers)) {
+        return ERROR;
+    }
 
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -195,15 +285,15 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
     consume(TokenType::LeftParenthesis);
 
     GrowingSpan<AST::FunctionParameter> parameters{arrayAllocator};
-    if (!check(TokenType::RightParenthesis)) parameters.append(parameter());
+    if (!check(TokenType::RightParenthesis)) parameters.append(TRY(parameter()));
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
-        parameters.append(parameter());
+        parameters.append(TRY(parameter()));
     }
 
     consume(TokenType::RightParenthesis);
 
-    AST::TypeNode *returnType = nullptr;
+    AST::TypeNode *returnType = NONE;
     if (match(TokenType::Arrow)) {
         returnType = type();
     }
@@ -228,10 +318,10 @@ AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
     consume(TokenType::LeftParenthesis);
 
     GrowingSpan<AST::FunctionParameter> parameters{arrayAllocator};
-    if (!check(TokenType::RightParenthesis)) parameters.append(parameter());
+    if (!check(TokenType::RightParenthesis)) parameters.append(TRY(parameter()));
     while (!check(TokenType::RightParenthesis)) {
         consume(TokenType::Comma);
-        parameters.append(parameter());
+        parameters.append(TRY(parameter()));
     }
 
     consume(TokenType::RightParenthesis);
@@ -273,7 +363,7 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
-    AST::TypeNode *rawType = nullptr;
+    AST::TypeNode *rawType = NONE;
     if (match(TokenType::Colon)) {
         rawType = type();
     }
@@ -343,12 +433,12 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool 
     bool isMutable = token.type == TokenType::Var;
 
     auto variableBinding = binding();
-    AST::TypeNode *tp = nullptr;
+    AST::TypeNode *tp = NONE;
     if (match(TokenType::Colon)) {
         tp = type();
     }
 
-    AST::Expression *initial = nullptr;
+    AST::Expression *initial = NONE;
     if (match(TokenType::Equal)) {
         initial = expression({.allowInitializer = !isPattern});
     }
@@ -426,7 +516,7 @@ AST::IfStatement *Parser::ifStatement()
 
         if (match(TokenType::Else)) {
             if (!match(TokenType::If)) {
-                fallback = std::move(block());
+                fallback = block();
                 break;
             }
         } else {
@@ -441,15 +531,15 @@ AST::ForStatement *Parser::forStatement()
 {
     auto token = previous;
 
-    auto loopBinding = binding();
+    auto *loopBinding = binding();
 
     consume(TokenType::In);
 
-    auto iterable = expression({.allowInitializer = false});
+    auto *iterable = expression({.allowInitializer = false});
 
     auto code = block();
 
-    return AST::ForStatement::create(nodeAllocator, token, std::move(loopBinding), std::move(iterable), std::move(code));
+    return AST::ForStatement::create(nodeAllocator, token, loopBinding, iterable, code);
 }
 
 AST::GuardStatement *Parser::guardStatement() 
@@ -462,13 +552,13 @@ AST::GuardStatement *Parser::guardStatement()
 
     auto code = block();
 
-    return AST::GuardStatement::create(nodeAllocator, token, std::move(conds), std::move(code));
+    return AST::GuardStatement::create(nodeAllocator, token, conds, code);
 }
 
 AST::ReturnStatement *Parser::returnStatement()
 {
     auto token = previous;
-    auto expr = expression({});
+    auto *expr = expression({});
     consume(TokenType::Semicolon);
     return AST::ReturnStatement::create(nodeAllocator, token, expr);
 }
@@ -601,7 +691,7 @@ AST::Expression *Parser::expression(ExpressionRules rules)
 {
     ExpressionRules saved = expressionRules;
     expressionRules = rules;
-    auto result = parseExpression(Precedence::LogicalOr);
+    auto *result = parseExpression(Precedence::LogicalOr);
     expressionRules = saved;
     return result;
 }
@@ -611,16 +701,18 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
     advance();
     ParseRule rule = ParseRule::expressionRules[static_cast<int>(previous.type)];
 
-    if (!rule.prefixHandler) {
-        if (previous.type == TokenType::Error) {
-            // TODO: Use scanner error.
-            throw ParserException(previous, ParserException::Cause::ExpectedExpression);
-        } else {
-            throw ParserException(previous, ParserException::Cause::ExpectedExpression);
+    if (rule.prefixHandler == nullptr) [[unlikely]] {
+        if (previous.type == TokenType::EndOfFile) {
+            ParsingError::unexpectedEndOfFile(*this, previous);
         }
+        if (previous.type != TokenType::Error) {
+            ParsingError::expectedExpression(*this, previous);
+        }
+        // If none of the preceding statements emitted errors, the scanner did.
+        return ERROR;
     }
 
-    auto expr = (this->*rule.prefixHandler)();
+    auto *expr = (this->*rule.prefixHandler)();
 
     while (true) {
         rule = ParseRule::expressionRules[static_cast<int>(current.type)];
@@ -723,9 +815,9 @@ AST::Expression *Parser::binary(AST::Expression *left)
     auto token = previous;
     auto [op, newPrecedence] = operatorFromToken(previous);
     ++newPrecedence;
-    auto right = parseExpression(newPrecedence);
+    auto *right = parseExpression(newPrecedence);
 
-    return AST::BinaryExpression::create(nodeAllocator, token, op, std::move(left), std::move(right));
+    return AST::BinaryExpression::create(nodeAllocator, token, op, left, right);
 }
 
 template <int skip, int base>
@@ -752,14 +844,14 @@ llvm::APInt parseInteger(std::string_view chars) {
     return llvm::APInt{bits, {chars}, base};
 }
 
-double parseDouble(std::string_view chars)
+std::optional<double> parseDouble(std::string_view chars)
 {
     char *end = nullptr;
+    // NOTE: Depending on what the string view is backed by, this could read OOB in the future.
     double value = strtod(chars.data(), &end);
-    if (end == (chars.end())) {
-        return value;
+    if (end != (chars.end())) [[unlikely]] {
+        return {};
     }
-    // FIXME: Raise exception if all of string was not consumed
     return value;
 }
 
@@ -775,14 +867,16 @@ std::optional<char> escapeCharacter(char c)
     }
 }
 
-template <int length>
-static inline void checkLength(const Token& token, std::string_view characters) {
+template <u32 length>
+static inline bool checkCharacterLiteralLength(Token token, std::string_view characters, Parser& parser) {
     if (characters.length() != length) {
-        throw ParserException(token, ParserException::Cause::InvalidCharacterLiteral);
+        ParsingError::invalidCharacterLiteral(parser, token);
+        return false;
     }
+    return true;
 }
 
-AST::Literal *Parser::createCharacterLiteral(const Token& token) 
+AST::Literal *Parser::createCharacterLiteral(const Token token) 
 {
     // NOTE: Assumption of single quote delimiters.
     std::string_view characters = toStringView(token);
@@ -797,32 +891,33 @@ AST::Literal *Parser::createCharacterLiteral(const Token& token)
     if (c == '\\') {
 
     } else if (c <= 0x7F) {
-        checkLength<1>(token, characters);
+        TRY(checkCharacterLiteralLength<1>(token, characters, *this));
         value = c;
     } else {
         int length = std::countl_one(c);
         switch (length) {
             case 2:
-                checkLength<2>(token, characters);
+                TRY(checkCharacterLiteralLength<2>(token, characters, *this));
                 value = (characters[0] & 0x1F) << 6 | (characters[1] & 0x3F);
                 break;
             case 3:
-                checkLength<3>(token, characters);
+                TRY(checkCharacterLiteralLength<3>(token, characters, *this));
                 value = (characters[0] & 0xF) << 12 | (characters[1] & 0x3F) << 6 | (characters[2] & 0x3F);
                 break;
             case 4:
-                checkLength<4>(token, characters);
+                TRY(checkCharacterLiteralLength<4>(token, characters, *this));
                 value = (characters[0] & 0x7) << 18 | (characters[1] & 0x3F) << 12 | (characters[2] & 0x3F) << 6 | (characters[3] & 0x3F);
                 break;
             default:
-                throw ParserException(token, ParserException::Cause::InvalidCharacterLiteral);
+                ParsingError::invalidCharacterLiteral(*this, token);
+                return ERROR;
         }
     }
 
     return AST::CharacterLiteral::create(nodeAllocator, token, value);
 }
 
-AST::Literal *Parser::createStringLiteral(const Token& token)
+AST::Literal *Parser::createStringLiteral(Token token)
 {
     GrowingString string{arrayAllocator};
     string.reserve(token.length - 2); // Don't reserve for quotes
@@ -832,7 +927,7 @@ AST::Literal *Parser::createStringLiteral(const Token& token)
     characters.remove_prefix(1);
     characters.remove_suffix(1);
 
-    for (auto it = characters.cbegin(); it != characters.cend(); ++it) {
+    for (const auto *it = characters.cbegin(); it != characters.cend(); ++it) {
         char c = *it;
         if (c == '\\') {
             ++it;
@@ -840,7 +935,8 @@ AST::Literal *Parser::createStringLiteral(const Token& token)
             if (escaped.has_value()) {
                 string.append(escaped.value());
             } else {
-                throw ParserException(token, ParserException::Cause::InvalidEscapeSequence);
+                ParsingError::invalidEscapeSequence(*this, token);
+                return ERROR;
             }
         } else {
             string.append(c);
@@ -894,7 +990,15 @@ AST::Expression *Parser::literal()
                 previous.length
             );
 
-        case Floating: return FloatingPointLiteral::create(nodeAllocator, previous, parseDouble(toStringView(previous)));
+        case Floating: {
+            double value = 0.0;
+            if (auto parsed = parseDouble(toStringView(previous))) {
+                value = *parsed;
+            } else {
+                ParsingError::invalidFPLiteral(*this, previous);
+            }
+            return FloatingPointLiteral::create(nodeAllocator, previous, value);
+        }
 
         case Character: return createCharacterLiteral(previous);
 
@@ -907,8 +1011,6 @@ AST::Expression *Parser::literal()
 
         default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
     }
-
-    return nullptr;
 }
 
 std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type)
@@ -928,9 +1030,9 @@ AST::Expression *Parser::prefixUnary()
     auto token = previous;
     auto [op, precedence] = unaryOperator(previous.type);
 
-    auto target = parseExpression(precedence);
+    auto *target = parseExpression(precedence);
 
-    return AST::UnaryExpression::create(nodeAllocator, token, op, std::move(target));
+    return AST::UnaryExpression::create(nodeAllocator, token, op, target);
 }
 
 AST::Expression *Parser::postfixUnary(AST::Expression *expression)
@@ -961,9 +1063,9 @@ AST::Expression *Parser::identifier()
 {
     auto token = previous;
     auto& name = symbols.getSymbol(toStringView(token));
-    auto identifier = AST::Identifier::create(nodeAllocator, token, name);
+    auto *identifier = AST::Identifier::create(nodeAllocator, token, name);
     if (expressionRules.allowInitializer && match(TokenType::LeftBracket)) {
-        return initializer(std::move(identifier));
+        return initializer(identifier);
     }
     return identifier;
 }
@@ -991,7 +1093,7 @@ AST::Expression *Parser::intrinsic()
         hasTypeArguments = true;
 
         if (match(TokenType::Greater)) {
-            // TODO: Error: empty type paramters are not allowed.
+            // TODO: Error: empty type parameters are not allowed.
         }
         do {
             typeArguments.append(type());
@@ -1026,7 +1128,7 @@ AST::Expression *Parser::intrinsic()
 
 AST::Expression *Parser::inferredInitializer()
 {
-    return initializer(nullptr);
+    return initializer(NONE);
 }
 
 AST::Expression *Parser::initializer(AST::Identifier *identifier)
@@ -1037,8 +1139,8 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
         auto nameToken = consume(TokenType::Identifier);
         auto& name = symbols.getSymbol(toStringView(nameToken));
         consume(TokenType::Equal);
-        auto member = AST::InferredMemberAccessExpression::create(nodeAllocator, nameToken, name);
-        auto value = expression({});
+        auto *member = AST::InferredMemberAccessExpression::create(nodeAllocator, nameToken, name);
+        auto *value = expression({});
         pairs.append({member, value});
         if (!match(TokenType::Comma)) {
             consume(TokenType::RightBracket);
@@ -1046,88 +1148,83 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
         }
     }
 
-    return AST::InitializerExpression::create(nodeAllocator, token, std::move(identifier), pairs.freeze());
+    return AST::InitializerExpression::create(nodeAllocator, token, identifier, pairs.freeze());
 }
 
 // For improve cache-friendliness, this should probably be a "struct of arrays".
 ParseRule ParseRule::expressionRules[] = {
     // FIXME: Figure out the precedence.
-    [static_cast<int>(LeftBrace)]             = {NULL,                         &Parser::subscript,    Precedence::Call},
-    [static_cast<int>(RightBrace)]            = {NULL,                         NULL,                  Precedence::None},
+    [static_cast<int>(LeftBrace)]             = {nullptr,                      &Parser::subscript,    Precedence::Call},
+    [static_cast<int>(RightBrace)]            = {nullptr,                      nullptr,               Precedence::None},
 
     [static_cast<int>(LeftParenthesis)]       = {&Parser::grouping,            &Parser::call,         Precedence::Call},
-    [static_cast<int>(RightParenthesis)]      = {NULL,                         NULL,                  Precedence::None},
+    [static_cast<int>(RightParenthesis)]      = {nullptr,                      nullptr,               Precedence::None},
 
-    [static_cast<int>(LeftBracket)]           = {&Parser::inferredInitializer, NULL,                  Precedence::None},
-    [static_cast<int>(RightBracket)]          = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Comma)]                 = {NULL,                         NULL,                  Precedence::None},
+    [static_cast<int>(LeftBracket)]           = {&Parser::inferredInitializer, nullptr,               Precedence::None},
+    [static_cast<int>(RightBracket)]          = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Comma)]                 = {nullptr,                      nullptr,               Precedence::None},
     [static_cast<int>(Dot)]                   = {&Parser::inferredMember,      &Parser::member,       Precedence::Call},
 
-    [static_cast<int>(DotDotDot)]             = {NULL,                         &Parser::binary,       Precedence::Range},
-    [static_cast<int>(DotDotLess)]            = {NULL,                         &Parser::binary,       Precedence::Range},
+    [static_cast<int>(DotDotDot)]             = {nullptr,                      &Parser::binary,       Precedence::Range},
+    [static_cast<int>(DotDotLess)]            = {nullptr,                      &Parser::binary,       Precedence::Range},
 
-    [static_cast<int>(Bang)]                  = {NULL,                         &Parser::postfixUnary, Precedence::Unary},
-    [static_cast<int>(At)]                    = {NULL,                         &Parser::postfixUnary, Precedence::Unary},
+    [static_cast<int>(Bang)]                  = {nullptr,                      &Parser::postfixUnary, Precedence::Unary},
+    [static_cast<int>(At)]                    = {nullptr,                      &Parser::postfixUnary, Precedence::Unary},
 
-    [static_cast<int>(Plus)]                  = {NULL,                         &Parser::binary,       Precedence::Term},
+    [static_cast<int>(Plus)]                  = {nullptr,                      &Parser::binary,       Precedence::Term},
     [static_cast<int>(Minus)]                 = {&Parser::prefixUnary,         &Parser::binary,       Precedence::Term},
     [static_cast<int>(Star)]                  = {&Parser::prefixUnary,         &Parser::binary,       Precedence::Factor},
-    [static_cast<int>(Slash)]                 = {NULL,                         &Parser::binary,       Precedence::Factor},
-    [static_cast<int>(Percent)]               = {NULL,                         &Parser::binary,       Precedence::Factor},
+    [static_cast<int>(Slash)]                 = {nullptr,                      &Parser::binary,       Precedence::Factor},
+    [static_cast<int>(Percent)]               = {nullptr,                      &Parser::binary,       Precedence::Factor},
 
-    [static_cast<int>(LessLess)]              = {NULL,                         &Parser::binary,       Precedence::Shift},
-    [static_cast<int>(GreaterGreater)]        = {NULL,                         &Parser::binary,       Precedence::Shift},
+    [static_cast<int>(LessLess)]              = {nullptr,                      &Parser::binary,       Precedence::Shift},
+    [static_cast<int>(GreaterGreater)]        = {nullptr,                      &Parser::binary,       Precedence::Shift},
 
-    [static_cast<int>(Tilde)]                 = {&Parser::prefixUnary,         NULL,                  Precedence::None},
+    [static_cast<int>(Tilde)]                 = {&Parser::prefixUnary,         nullptr,               Precedence::None},
     [static_cast<int>(Ampersand)]             = {&Parser::prefixUnary,         &Parser::binary,       Precedence::BitwiseAnd},
-    [static_cast<int>(Caret)]                 = {NULL,                         &Parser::binary,       Precedence::BitwiseXor},
-    [static_cast<int>(Pipe)]                  = {NULL,                         &Parser::binary,       Precedence::BitwiseOr},
+    [static_cast<int>(Caret)]                 = {nullptr,                      &Parser::binary,       Precedence::BitwiseXor},
+    [static_cast<int>(Pipe)]                  = {nullptr,                      &Parser::binary,       Precedence::BitwiseOr},
 
-    [static_cast<int>(And)]                   = {NULL,                         &Parser::binary,       Precedence::LogicalAnd},
-    [static_cast<int>(Or)]                    = {NULL,                         &Parser::binary,       Precedence::LogicalOr},
+    [static_cast<int>(And)]                   = {nullptr,                      &Parser::binary,       Precedence::LogicalAnd},
+    [static_cast<int>(Or)]                    = {nullptr,                      &Parser::binary,       Precedence::LogicalOr},
 
-    [static_cast<int>(BangEqual)]             = {NULL,                         &Parser::binary,       Precedence::Equality},
-    [static_cast<int>(EqualEqual)]            = {NULL,                         &Parser::binary,       Precedence::Equality},
+    [static_cast<int>(BangEqual)]             = {nullptr,                      &Parser::binary,       Precedence::Equality},
+    [static_cast<int>(EqualEqual)]            = {nullptr,                      &Parser::binary,       Precedence::Equality},
 
-    [static_cast<int>(Greater)]               = {NULL,                         &Parser::binary,       Precedence::Comparison},
-    [static_cast<int>(GreaterEqual)]          = {NULL,                         &Parser::binary,       Precedence::Comparison},
-    [static_cast<int>(Less)]                  = {NULL,                         &Parser::binary,       Precedence::Comparison},
-    [static_cast<int>(LessEqual)]             = {NULL,                         &Parser::binary,       Precedence::Comparison},
+    [static_cast<int>(Greater)]               = {nullptr,                      &Parser::binary,       Precedence::Comparison},
+    [static_cast<int>(GreaterEqual)]          = {nullptr,                      &Parser::binary,       Precedence::Comparison},
+    [static_cast<int>(Less)]                  = {nullptr,                      &Parser::binary,       Precedence::Comparison},
+    [static_cast<int>(LessEqual)]             = {nullptr,                      &Parser::binary,       Precedence::Comparison},
 
-    [static_cast<int>(Not)]                   = {&Parser::prefixUnary,         NULL,                  Precedence::None},
+    [static_cast<int>(Not)]                   = {&Parser::prefixUnary,         nullptr,               Precedence::None},
 
-    [static_cast<int>(Nil)]                   = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(True)]                  = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(False)]                 = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Integer)]               = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Binary)]                = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Octal)]                 = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Hexadecimal)]           = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Floating)]              = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(Character)]             = {&Parser::literal,             NULL,                  Precedence::None},
-    [static_cast<int>(String)]                = {&Parser::literal,             NULL,                  Precedence::None},
+    [static_cast<int>(Nil)]                   = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(True)]                  = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(False)]                 = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Integer)]               = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Binary)]                = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Octal)]                 = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Hexadecimal)]           = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Floating)]              = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(Character)]             = {&Parser::literal,             nullptr,               Precedence::None},
+    [static_cast<int>(String)]                = {&Parser::literal,             nullptr,               Precedence::None},
 
-    [static_cast<int>(Identifier)]            = {&Parser::identifier,          NULL,                  Precedence::None},
-    [static_cast<int>(HashIdentifier)]        = {&Parser::intrinsic,           NULL,                  Precedence::None},
-    [static_cast<int>(Self)]                  = {&Parser::self,                NULL,                  Precedence::None},
+    [static_cast<int>(Identifier)]            = {&Parser::identifier,          nullptr,               Precedence::None},
+    [static_cast<int>(HashIdentifier)]        = {&Parser::intrinsic,           nullptr,               Precedence::None},
+    [static_cast<int>(Self)]                  = {&Parser::self,                nullptr,               Precedence::None},
 
-    [static_cast<int>(Equal)]                 = {NULL,                         NULL,                  Precedence::None},
+    [static_cast<int>(Equal)]                 = {nullptr,                      nullptr,               Precedence::None},
 
-    [static_cast<int>(Semicolon)]             = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(EndOfFile)]             = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Enum)]                  = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Struct)]                = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Var)]                   = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(If)]                    = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Else)]                  = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Fn)]                    = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(For)]                   = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(While)]                 = {NULL,                         NULL,                  Precedence::None},
-    [static_cast<int>(Return)]                = {NULL,                         NULL,                  Precedence::None},
-
-/*
-    [TOKEN_SUPER]         = {super_,   NULL,   PREC_NONE},
-    [TOKEN_SELF]          = {this_,    NULL,   PREC_NONE},
-*/
+    [static_cast<int>(Semicolon)]             = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(EndOfFile)]             = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Enum)]                  = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Struct)]                = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Var)]                   = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(If)]                    = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Else)]                  = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Fn)]                    = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(For)]                   = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(While)]                 = {nullptr,                      nullptr,               Precedence::None},
+    [static_cast<int>(Return)]                = {nullptr,                      nullptr,               Precedence::None},
 };
 

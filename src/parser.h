@@ -4,23 +4,50 @@
 #include "scanner.h"
 #include "AST.h"
 #include "context.h"
+#include "location.h"
+#include "diagnostic.h"
 
 #include "containers/symbol_table.h"
 #include "containers/span.h"
+#include "containers/optional.h"
+
+#include <csetjmp>
+
+enum class ParseResult {
+    OK = 0,
+    INVALID = 1,
+    FATAL = 2,
+};
 
 struct ParsedFile {
-    //std::string path;
 public:
     const u32 size;
+    const ParseResult result;
     std::vector<AST::Declaration *> declarations;
     std::vector<u32> lineBreaks;
     std::unique_ptr<ASTHandle> astHandle;
+    DiagnosticBuffer diagnostics;
 
-    ParsedFile(u32 size, std::vector<AST::Declaration *>&& declarations, std::vector<u32>&& lineBreaks, std::unique_ptr<ASTHandle>&& astHandle)
-        : size{size}, declarations{std::move(declarations)}, lineBreaks{std::move(lineBreaks)}, astHandle{std::move(astHandle)} {}
+    ParsedFile(
+        u32 size, 
+        ParseResult result, 
+        std::vector<AST::Declaration *>&& declarations, 
+        std::vector<u32>&& lineBreaks, 
+        std::unique_ptr<ASTHandle>&& astHandle,
+        DiagnosticBuffer&& diagnostics
+    )   : size{size}
+        , result{result}
+        , declarations{std::move(declarations)}
+        , lineBreaks{std::move(lineBreaks)}
+        , astHandle{std::move(astHandle)} 
+        , diagnostics{std::move(diagnostics)}
+        {}
+
+    ParsedFile(const ParsedFile&) = delete;
+    ParsedFile(ParsedFile&&) = default;
 };
 
-ParsedFile parseString(std::string&& string);
+ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer);
 
 struct ParserState {
     enum class Kind {
@@ -38,74 +65,6 @@ struct ParserState {
 
 enum class Precedence : int;
 
-class ParserException {
-public:
-    enum class During {
-        Declaration,
-        Statement,
-        Expression,
-    };
-    enum class Cause {
-        FailedExpectation,
-        ExpectedExpression,
-        ExpectedFunctionName,
-        InvalidInteger,
-        InvalidFloating,
-        InvalidCharacterLiteral,
-        InvalidEscapeSequence,
-        InvalidModifier,
-        StatementModifiers,
-        ConflictingAccessModifiers,
-    };
-//private:
-    Cause cause;
-    Token token;
-    union Data {
-        struct {} nothing;
-        TokenType expected;
-    } data;
-
-    std::string _description;
-
-    const std::string_view description() const {
-        switch (cause) {
-            case Cause::FailedExpectation:
-                return _description;
-            case Cause::ExpectedExpression:
-                return "Expected expression.";
-            case Cause::ExpectedFunctionName:
-                return "Expected function name.";
-            case Cause::InvalidInteger:
-                return "Invalid integer.";
-            case Cause::InvalidFloating:
-                return "Invalid floating-point number.";
-            case Cause::InvalidCharacterLiteral:
-                return "Invalid character literal.";
-            case Cause::InvalidEscapeSequence:
-                return "Invalid escape sequence in string.";
-            case Cause::InvalidModifier:
-                return "Invalid modifier for declaration.";
-            case Cause::StatementModifiers:
-                return "Statements cannot be preceded by modifiers.";
-            case Cause::ConflictingAccessModifiers:
-                return "Conflicting access modifiers.";
-        }
-    }
-
-    ParserException(Token token, Cause cause, std::string&& description, Data data) 
-        : cause{cause}, token{token}, _description{std::move(description)}, data{data}  {}
-public:
-    ParserException(Token token, Cause cause) 
-        : cause{cause}, token{token}, data{.nothing = {}} {}
-    ParserException(Token token, Cause cause, std::string& description) 
-        : cause{cause}, token{token}, data{.nothing = {}}, _description{std::move(description)} {}
-
-    static ParserException failedExpectation(Token token, std::string_view tokenString, TokenType expected) {
-        auto description = std::string{"Expected '"} + tokenTypeToString(expected) + "', found '" + std::string{tokenString} + "'.";
-        return ParserException(token, Cause::FailedExpectation, std::move(description), {.expected = expected});
-    }
-};
-
 class Parser {
     struct Modifiers {
         u32 offset = 0;
@@ -121,6 +80,11 @@ class Parser {
     Token previous;
     Token current;
 
+    u32 fileHandle;
+
+    jmp_buf startPoint;
+    DiagnosticBuffer diagnostics;
+
     struct ExpressionRules {
         bool allowInitializer = true;
     } expressionRules;
@@ -128,11 +92,12 @@ class Parser {
     // Utilities
     [[nodiscard]]
     Modifiers parseModifiers();
-    void checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
+    [[nodiscard]]
+    bool checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
     [[nodiscard]]
     AST::Block block();
     [[nodiscard]]
-    AST::FunctionParameter parameter();
+    Optional<AST::FunctionParameter> parameter();
 
     // Types
     [[nodiscard]]
@@ -204,9 +169,9 @@ class Parser {
     [[nodiscard]]
     AST::Expression *literal();
     [[nodiscard]]
-    AST::Literal *createCharacterLiteral(const Token& token);
+    AST::Literal *createCharacterLiteral(Token token);
     [[nodiscard]]
-    AST::Literal *createStringLiteral(const Token& token);
+    AST::Literal *createStringLiteral(Token token);
     [[nodiscard]]
     AST::Expression *identifier();
     [[nodiscard]]
@@ -227,43 +192,52 @@ class Parser {
     [[nodiscard]]
     AST::Expression *postfixUnary(AST::Expression *expression);
 
+    void error(std::string&& message, DiagnosticLocation location);
+
     void advance() {
         previous = current;
         current = scanner.next();
     }
 
     [[nodiscard]]
-    bool check(TokenType type) {
+    bool check(TokenType type) const {
         return current.type == type;
     }
 
     [[nodiscard]]
     bool match(TokenType type) {
-        if (!check(type)) return false;
+        if (!check(type)) {
+            return false;
+        }
         advance();
         return true;
     }
    
-    Token consume(TokenType type) {
-        if (!match(type)) {
-            throw ParserException::failedExpectation(current, toStringView(current), type);
-        }
-        return previous;
-    }
+    Optional<Token> consume(TokenType type);
 
+    [[nodiscard]]
     std::string_view toStringView(Token token) const {
         return token.string_view(scanner._string.data());
     };
 
+    /// End parsing early due to an unrecoverable error.
+    [[noreturn]]
+    void earlyExit() {
+        siglongjmp(startPoint, 1);
+    }
+
     friend class ParseRule;
 public:
-    Parser(SymbolTable& symbols, std::string&& string) 
-        : symbols{symbols}
+    Parser(u32 fileHandle, SymbolTable& symbols, std::string&& string) 
+        : fileHandle{fileHandle}
+        , symbols{symbols}
         , scanner{std::move(string)}
         , previous{scanner.next()}
         , current{previous} {}
 
-    ParsedFile parse();
+    ParsedFile parse(DiagnosticWriter& writer);
+
+    friend struct ParsingError;
 };
 
 #endif

@@ -27,6 +27,8 @@ add_subdirectory(typecheck)
 add_subdirectory(sema)
 add_subdirectory(containers)
 add_subdirectory(target)
+add_subdirectory(parser)
+
 
 include_directories(.)
 

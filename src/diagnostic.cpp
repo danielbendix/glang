@@ -40,22 +40,6 @@ public:
         files.clear();
     }
 
-    virtual void error(ParserException& parserException, u32 fileHandle) override {
-        auto& file = globalContext.files[fileHandle];
-        auto token = parserException.token;
-        auto location = Location::fromToken(token, file.lineBreaks);
-
-        out 
-            << std::string_view{file.path, file.pathSize} 
-            << ":" 
-            << location.line
-            << ":" 
-            << location.column
-            << ": error: " 
-            << parserException.description() 
-            << '\n';
-    }
-
     OpenFile getOpenFile(u32 fileHandle) {
         for (auto openFile : files) {
             if (fileHandle == openFile.handle) {
@@ -99,6 +83,20 @@ public:
         return {line, size_t(result - line)};
     }
 
+    std::span<char> readUntilNewlineOrEOF(FILE *file) {
+        char *line = nullptr;
+        size_t allocated = 0;
+        // TODO: Use something available on more platforms.
+        u32 count = getline(&line, &allocated, file);
+        return {line, count - 1};
+    }
+
+    std::span<char> readLine(FILE *file, u32 lineSize) {
+        char *line = (char *) malloc(lineSize * sizeof(char));
+        fread(line, sizeof(char), lineSize, file);
+        return {line, lineSize};
+    }
+
     virtual void writeDiagnostic(BufferedDiagnostic& diagnostic, DiagnosticLocation *locations) override {
         assert(diagnostic.extraLocations == 0);
 
@@ -117,22 +115,26 @@ public:
         u32 lineSize = end - start;
         fseek(openFile.file, start, SEEK_SET);
 
-        assert(end > start);
+        std::span<char> line;
 
-        char *line = (char *) malloc(lineSize * sizeof(char));
-        fread(line, sizeof(char), lineSize, openFile.file);
+        if (end == 0) {
+            line = readUntilNewlineOrEOF(openFile.file);
+            end = start + line.size();
+        } else {
+            line = readLine(openFile.file, end - start);
+        }
 
-        out << std::string_view{line, lineSize} << '\n';
+        out << std::string_view{line.data(), line.size()} << '\n';
 
         u32 offset = locations[0].offset;
         u32 length = locations[0].length;
 
-        auto underline = createUnderlineString(start, end, offset, length, line);
+        auto underline = createUnderlineString(start, end, offset, length, line.data());
         out << underline << '\n';
 
         // TODO: Handle tabs and unicode characters.
 
-        free(line);
+        free(line.data());
     }
 };
 
@@ -146,15 +148,6 @@ public:
 
     void printLocation(Location location) {
         out << R"({"line": )" << location.line << R"(, "column": )" << (location.column - 1) << R"(, "length": )" << location.length << R"(})";
-    }
-
-    virtual void error(ParserException& parserException, u32 fileHandle) override {
-        out << R"({"kind": "error", "message": ")" << parserException.description() << R"(", "location": )";
-        auto& file = globalContext.files[fileHandle];
-        auto token = parserException.token;
-        auto location = Location::fromToken(token, file.lineBreaks);
-        printLocation(location);
-        out << R"(})" << '\n';
     }
 
     void write(std::string_view kind, std::string_view message, std::string_view path, Location location) {
@@ -206,8 +199,6 @@ void enableStdoutDiagnostics() {
 class NoopWriter : public DiagnosticWriter {
     virtual void start() override {}
     virtual void end() override {}
-
-    virtual void error(ParserException& parserException, u32 fileHandle) override {}
 
     virtual void writeDiagnostic(BufferedDiagnostic& diagnostic, DiagnosticLocation *locations) override {}
 };

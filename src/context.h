@@ -31,6 +31,7 @@ struct File {
 };
 
 struct GlobalContext {
+    // TODO: Implement container with stable addresses.
     std::vector<File> files;
     BumpAllocator filenameAllocator;
     std::mutex lock;

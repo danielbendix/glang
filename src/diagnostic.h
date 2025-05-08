@@ -3,7 +3,6 @@
 
 #include "AST.h"
 #include "location.h"
-#include "parser.h"
 
 #include "llvm/Support/Allocator.h"
 
@@ -46,8 +45,6 @@ public:
     virtual void start() = 0;
     virtual void end() = 0;
 
-    virtual void error(ParserException& parserException, u32 fileHandle) = 0;
-
     virtual void writeDiagnostic(BufferedDiagnostic& diagnostic, DiagnosticLocation *locations) = 0;
 
     virtual ~DiagnosticWriter() = default;
@@ -67,6 +64,8 @@ class DiagnosticBuffer {
     }
 
 public:
+    DiagnosticBuffer() = default;
+    DiagnosticBuffer(DiagnosticBuffer&&) = default;
 
     void error(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
         u32 locationsIndex = pushLocation(location);

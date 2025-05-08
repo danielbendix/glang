@@ -353,18 +353,22 @@ namespace AST {
             return iterator(declarations.end());
         }
 
+        [[nodiscard]]
         const_iterator begin() const {
             return const_iterator(declarations.begin());
         }
 
+        [[nodiscard]]
         const_iterator end() const {
             return const_iterator(declarations.end());
         }
 
+        [[nodiscard]]
         const_iterator cbegin() const {
             return const_iterator(declarations.cbegin());
         }
 
+        [[nodiscard]]
         const_iterator cend() const {
             return const_iterator(declarations.cend());
         }
@@ -380,6 +384,7 @@ namespace AST {
         template <typename Subclass, typename ReturnType, typename... Args>
         ReturnType acceptVisitor(ExpressionVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
+        [[nodiscard]]
         Type *NONNULL getType() const {
             return type;
         }
@@ -1496,11 +1501,11 @@ namespace AST {
         Expression *NONNULL iterable;
         Block code;
 
-        ForStatement(Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block&& code)
+        ForStatement(Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block code)
             : Statement{NK_Stmt_For, token}
             , binding{binding}
             , iterable{iterable}
-            , code{std::move(code)}
+            , code{code}
         {}
 
     public:
@@ -1508,9 +1513,9 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static ForStatement *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block&& code) {
+        static ForStatement *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ForStatement{token, binding, iterable, std::move(code)};
+                return new(space) ForStatement{token, binding, iterable, code};
             });
         }
 
@@ -1737,11 +1742,23 @@ namespace AST {
         static constexpr Modifiers allowedModifersInStruct = {Static,Public, Private};
     };
 
+    // This function has an inline optional representation for parsing.
+    // A well-formed AST should never always contain the necessary properties.
     struct FunctionParameter {
         Symbol *name;
         TypeNode *NONNULL typeDeclaration;
-        
-        FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{&name}, typeDeclaration{type} {}
+    
+        FunctionParameter() : name{nullptr}, typeDeclaration{nullptr} {}
+
+        FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{&name}, typeDeclaration{type} {
+            assert(type != nullptr);
+        }
+
+        operator bool() const {
+            return typeDeclaration != nullptr;
+        }
+
+        static constexpr auto OptionalDiscriminantPointer = &FunctionParameter::typeDeclaration;
     };
 
     class FunctionName {
@@ -2133,5 +2150,12 @@ namespace AST {
         friend class Node;
     };
 }
+
+template<>
+struct OptionalDiscriminant<AST::FunctionParameter> {
+    static constexpr auto OptionalDiscriminantPointer = &AST::FunctionParameter::typeDeclaration;
+    using OptionalDiscriminantType = decltype(AST::FunctionParameter::typeDeclaration);
+    static constexpr size_t OptionalDiscriminantOffset = offsetof(AST::FunctionParameter, typeDeclaration);
+};
 
 #endif // LANG_ast_h
