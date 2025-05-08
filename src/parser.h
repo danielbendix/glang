@@ -227,6 +227,8 @@ class Parser {
     [[nodiscard]]
     AST::Expression *postfixUnary(AST::Expression *expression);
 
+    void error(std::string&& string);
+
     void advance() {
         previous = current;
         current = scanner.next();

@@ -4,6 +4,29 @@
 #include <cmath>
 #include <charconv>
 
+struct NoneValue {
+    template <typename T>
+    constexpr operator T*() const noexcept { return nullptr; }
+};
+
+struct ErrorValue {
+    template <typename T>
+    constexpr operator T*() const noexcept { return nullptr; }
+};
+
+constexpr NoneValue NONE{};
+constexpr ErrorValue ERROR{};
+
+// NOTE: Should only be used within functions that return values where the
+// error case is created by {}, e.g. pointers.
+#define TRY(expression) ({ \
+    auto _result = (expr)  \
+    if (!_result) {        \
+        return {};    \
+    }                      \
+    return _result;        \
+})
+
 ParsedFile parseString(std::string&& string) {
     Parser parser{*ThreadContext::get()->symbols, std::move(string)};
 
@@ -11,8 +34,10 @@ ParsedFile parseString(std::string&& string) {
 }
 
 /* TODO:
- * - Implement error messages
+ * - Implement error messages emitted during parsing:
+ *   - Every return of nullptr (when indicating error), should.
  * - Implement error recovery to parse entire file.
+ * - Consider making stringly typed errors into error cases/enums.
  */
 
 ParsedFile Parser::parse() 
@@ -171,6 +196,8 @@ AST::Declaration *Parser::declaration()
         return statementDeclaration();
     } else {
         throw ParserException(current, ParserException::Cause::StatementModifiers);
+        error("A statement cannot have modifiers.");
+        return ERROR;
     }
 }
 
@@ -202,7 +229,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 
     consume(TokenType::RightParenthesis);
 
-    AST::TypeNode *returnType = nullptr;
+    AST::TypeNode *returnType = NONE;
     if (match(TokenType::Arrow)) {
         returnType = type();
     }
@@ -272,7 +299,7 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
-    AST::TypeNode *rawType = nullptr;
+    AST::TypeNode *rawType = NONE;
     if (match(TokenType::Colon)) {
         rawType = type();
     }
@@ -342,12 +369,12 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool 
     bool isMutable = token.type == TokenType::Var;
 
     auto variableBinding = binding();
-    AST::TypeNode *tp = nullptr;
+    AST::TypeNode *tp = NONE;
     if (match(TokenType::Colon)) {
         tp = type();
     }
 
-    AST::Expression *initial = nullptr;
+    AST::Expression *initial = NONE;
     if (match(TokenType::Equal)) {
         initial = expression({.allowInitializer = !isPattern});
     }
@@ -906,8 +933,6 @@ AST::Expression *Parser::literal()
 
         default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
     }
-
-    return nullptr;
 }
 
 std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type)
