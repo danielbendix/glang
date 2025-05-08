@@ -2,11 +2,16 @@
 #define LANG_token_h
 
 #include "common.h"
+#include "containers/optional.h"
 
 #include <string_view>
 #include <cstdint>
+#include <cassert>
+
 
 enum class TokenType : u8 {
+    // Used for empty tokens.
+    Empty = 0,
     // Brackets
     /// []
     LeftBrace, RightBrace,
@@ -134,8 +139,16 @@ struct Token final {
         return {fileStart + offset, length};
     }
 
+    Token() : type{TokenType::Empty}, length{0}, offset{0} {}
+
     Token(TokenType type, u32 length, u32 offset) 
         : type{type}, length{length}, offset{offset} {}
+};
+
+template<>
+struct OptionalDiscriminant<Token> {
+    using OptionalDiscriminantType = decltype(Token::type);
+    static constexpr size_t OptionalDiscriminantOffset = offsetof(Token, type);
 };
 
 #endif // LANG_token_h

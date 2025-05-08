@@ -9,6 +9,8 @@ struct DiagnosticLocation {
     const u32 offset;
     const u32 length;
 
+    DiagnosticLocation(Token token) : offset{token.offset}, length{token.length} {}
+
     DiagnosticLocation(u32 offset, u32 length)
         : offset{offset}, length{length} {}
 

@@ -23,32 +23,6 @@ void initialize(SymbolTable& symbols)
     setupBuiltins(symbols, Architecture::current());
 }
 
-enum class FileError {
-    FileNotFound,
-};
-
-std::variant<ParsedFile, FileError, ParserException> parseFile(const char *path) {
-    std::ifstream file(path, std::ios::in | std::ios::binary);
-    if (file.fail()) {
-        return FileError::FileNotFound;
-    }
-
-    file.seekg(0, file.end);
-    size_t file_size = file.tellg();
-    file.seekg(0, file.beg);
-
-    std::string contents(file_size, '\0');
-
-    file.read(contents.data(), file_size);
-    file.close();
-
-    try {
-        return parseString(std::move(contents));
-    } catch (ParserException exception) {
-        return exception;
-    }
-}
-
 void validate(Module& module, bool verbose = false) {
     if (typecheckModule(module).failed()) {
         Diagnostic::flush();
@@ -97,31 +71,23 @@ int main(int argc, char **argv)
 
     ModuleBuilder builder;
 
-    for (auto *file : options.files) {
-        u32 fileHandle = globalContext.addFile(file);
+    for (auto *filePath : options.files) {
+        u32 fileHandle = globalContext.addFile(filePath);
+        File& file = globalContext.files[fileHandle];
 
-        auto result = parseFile(file);
+        ParsedFile parsed = parseFile(fileHandle, file, Diagnostic::writer());
 
-        std::visit(overloaded {
-            [&](ParsedFile& parsedFile) {
-                File& file = globalContext.files[fileHandle];
-                file.size = parsedFile.size;
-                file.lineBreaks = std::move(parsedFile.lineBreaks);
-                file.astHandle = std::move(parsedFile.astHandle);
-                builder.addDeclarations(parsedFile.declarations, fileHandle);
-            },
-            [&](FileError error) {
-                switch (error) {
-                    case FileError::FileNotFound:
-                        std::cout << "error: file '" << file << "' does not exist.\n";
-                        hadError = true;
-                }
-            },
-            [&](ParserException& exception) {
-                Diagnostic::writer().error(exception, fileHandle);
-                hadError = true;
-            }
-        }, result);
+        file.lineBreaks = std::move(parsed.lineBreaks);
+        parsed.diagnostics.flush(Diagnostic::writer());
+
+        if (parsed.result != ParseResult::OK) {
+            hadError = true;
+            continue;
+        }
+
+        file.size = parsed.size;
+        file.astHandle = std::move(parsed.astHandle);
+        builder.addDeclarations(parsed.declarations, fileHandle);
     }
 
     auto module = builder.finalize();

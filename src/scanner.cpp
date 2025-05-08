@@ -59,8 +59,11 @@ void Scanner::multilineComment() {
                 break;
             case '\n':
                 newline();
+                advance();
+                break;
             default:
                 advance();
+                break;
         }
     }
 }
