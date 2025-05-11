@@ -7,6 +7,13 @@
 
 #include "containers/symbol_table.h"
 #include "containers/span.h"
+#include "containers/optional.h"
+
+enum class ParseResult {
+    OK = 0,
+    INVALID = 1,
+    FATAL = 2,
+};
 
 struct ParsedFile {
     //std::string path;
@@ -128,11 +135,12 @@ class Parser {
     // Utilities
     [[nodiscard]]
     Modifiers parseModifiers();
-    void checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
+    [[nodiscard]]
+    bool checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
     [[nodiscard]]
     AST::Block block();
     [[nodiscard]]
-    AST::FunctionParameter parameter();
+    Optional<AST::FunctionParameter> parameter();
 
     // Types
     [[nodiscard]]
@@ -204,9 +212,9 @@ class Parser {
     [[nodiscard]]
     AST::Expression *literal();
     [[nodiscard]]
-    AST::Literal *createCharacterLiteral(const Token& token);
+    AST::Literal *createCharacterLiteral(Token token);
     [[nodiscard]]
-    AST::Literal *createStringLiteral(const Token& token);
+    AST::Literal *createStringLiteral(Token token);
     [[nodiscard]]
     AST::Expression *identifier();
     [[nodiscard]]
@@ -227,7 +235,7 @@ class Parser {
     [[nodiscard]]
     AST::Expression *postfixUnary(AST::Expression *expression);
 
-    void error(std::string&& string);
+    void error(std::string&& message);
 
     void advance() {
         previous = current;
@@ -235,24 +243,28 @@ class Parser {
     }
 
     [[nodiscard]]
-    bool check(TokenType type) {
+    bool check(TokenType type) const {
         return current.type == type;
     }
 
     [[nodiscard]]
     bool match(TokenType type) {
-        if (!check(type)) return false;
+        if (!check(type)) {
+            return false;
+        }
         advance();
         return true;
     }
    
-    Token consume(TokenType type) {
-        if (!match(type)) {
-            throw ParserException::failedExpectation(current, toStringView(current), type);
+    Optional<Token> consume(TokenType type) {
+        if (!match(type)) [[unlikely]] {
+            error("FIXME: Expectation string");
+            return {};
         }
         return previous;
     }
 
+    [[nodiscard]]
     std::string_view toStringView(Token token) const {
         return token.string_view(scanner._string.data());
     };
@@ -266,6 +278,8 @@ public:
         , current{previous} {}
 
     ParsedFile parse();
+
+    friend struct ParsingError;
 };
 
 #endif

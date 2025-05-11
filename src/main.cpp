@@ -27,26 +27,22 @@ enum class FileError {
     FileNotFound,
 };
 
-std::variant<ParsedFile, FileError, ParserException> parseFile(const char *path) {
+std::variant<ParsedFile, FileError> parseFile(const char *path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (file.fail()) {
         return FileError::FileNotFound;
     }
 
-    file.seekg(0, file.end);
+    file.seekg(0, std::ifstream::end);
     size_t file_size = file.tellg();
-    file.seekg(0, file.beg);
+    file.seekg(0, std::ifstream::beg);
 
     std::string contents(file_size, '\0');
 
     file.read(contents.data(), file_size);
     file.close();
 
-    try {
-        return parseString(std::move(contents));
-    } catch (ParserException exception) {
-        return exception;
-    }
+    return parseString(std::move(contents));
 }
 
 void validate(Module& module, bool verbose = false) {

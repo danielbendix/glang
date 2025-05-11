@@ -9,6 +9,7 @@
 const char *tokenTypeToString(TokenType tokenType) {
     using enum TokenType;
     switch (tokenType) {
+        TOKEN_TYPE_CASE(Empty)
         TOKEN_TYPE_CASE(LeftBrace)
         TOKEN_TYPE_CASE(RightBrace)
         TOKEN_TYPE_CASE(LeftBracket)

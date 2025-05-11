@@ -5,13 +5,13 @@ project(glang)
 option(ENABLE_UBSAN "Enable UB Sanitizer" OFF)
 if(ENABLE_UBSAN)
     message("Enabling UB Sanitizer")
-    set(CMAKE_C_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds)
-    set(CMAKE_CXX_FLAGS -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=nullability-arg,nullability-assign,nullability-return,enum,return,bounds")
 endif()
 
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nullability-completeness -Werror=return-type -Wmissing-field-initializers")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -Wno-nullability-completeness -Werror=return-type -Wmissing-field-initializers")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
