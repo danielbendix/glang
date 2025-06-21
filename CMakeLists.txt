@@ -11,7 +11,9 @@ endif()
 
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wunused-variable -Wno-nullability-completeness -Werror=return-type -Wmissing-field-initializers")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -Wno-nullability-completeness -Werror=return-type -Wmissing-field-initializers")
+    #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-nullability-completeness -Werror=return-type -Wmissing-field-initializers")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
