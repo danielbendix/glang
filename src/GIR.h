@@ -11,11 +11,13 @@
  * e.g. `and`, `or`, and `try`. Everything else is encoded with blocks and branch instructions.
  */
 
+// TODO: Pointers are still used in this, so base size is kept at 16 bytes.
+// TODO: This should be changed to 8 bytes, by only using references.
+// TODO: This will require some changes in how other things are referenced and laid out,
+// TODO: particularly functions and types.
+
 namespace GIR {
     enum class Opcode : u8 {
-        /// Used for instructions that take more than 1 slot.
-        CONTINUED = 0, 
-
         ARGUMENT,
 
         INTCAST,
@@ -45,11 +47,12 @@ namespace GIR {
         BITWISE_XOR,
         BITWISE_NOT,
 
-        SUBSCRIPT,
+        // Extract success value from error union.
+        EXTRACT_SUCCESS,
+        // Extract error value from error union.
+        EXTRACT_ERROR,
 
-        LOGICAL_AND,
-        LOGICAL_OR,
-        LOGICAL_NOT,
+        SUBSCRIPT,
 
         GET_LOCAL,
         SET_LOCAL,
@@ -60,12 +63,19 @@ namespace GIR {
         CALL,
 
         // Terminators
-        COND_BR,
-        SWITCH_BR,
+        JUMP,
+        BRANCH,
+        SWITCH, // For low-level switches, e.g. individual values => cases, not ranges etc.
         RETURN,
+        TRY,
 
         // Debugging
         DEBUG_STMT,
+    };
+
+    struct Op {
+        u8 cached;
+        Opcode op;
     };
 
     struct InstIndex {
@@ -73,7 +83,7 @@ namespace GIR {
 
         explicit InstIndex(u32 offset) : offset{offset} {}
 
-        operator u32() {
+        operator u32() const {
             return offset;
         }
     };
@@ -89,7 +99,7 @@ namespace GIR {
 
         explicit BlockIndex(u32 offset) : offset{offset} {}
 
-        operator u32() {
+        operator u32() const {
             return offset;
         }
     };
@@ -99,7 +109,17 @@ namespace GIR {
 
         explicit LocalIndex(u32 index) : index{index} {}
 
-        operator u32() {
+        operator u32() const {
+            return index;
+        }
+    };
+
+    struct ExtraIndex {
+        u32 index;
+
+        explicit ExtraIndex(u32 index) : index{index} {}
+
+        operator u32() const {
             return index;
         }
     };
@@ -111,7 +131,15 @@ namespace GIR {
             InstIndex right;
         };
 
-        static_assert(sizeof(BinaryOp) <= 8);
+        struct IntCast {
+            InstIndex operand;
+            IntegerType *to;
+        };
+
+        struct Truncate {
+            InstIndex operand;
+            NumericType *to;
+        };
 
         struct Subscript {
             InstIndex target;
@@ -127,15 +155,22 @@ namespace GIR {
             InstIndex value;
         };
 
-        struct CondBr {
-            InstIndex condition;
-            BlockIndex onTrue;
-            BlockIndex onFalse;
+        struct ExtractResult {
+            InstIndex value;
+            // TODO: Make this a function reference.
+            InstIndex call;
         };
 
         struct Jump {
             InstIndex to;
         };
+
+        struct Branch {
+            InstIndex condition;
+            BlockIndex onTrue;
+            BlockIndex onFalse;
+        };
+
 
         // TODO: The next block could always be after this one, eliding the success block index.
         struct Try {
@@ -151,28 +186,23 @@ namespace GIR {
             // TODO: Point to function struct.
             using Function = void;
             Function *function;
-            Argument arguments[];
-
-            using Child = Argument;
-            static constexpr size_t ChildOffset() {
-                return offsetof(Call, arguments);
-            }
         };
 
-        struct SwitchBr {
-            struct Case {
-                u64 __reserve;
-            };
+        struct Switch {
             u32 count;
-            Case cases[0];
+            ExtraIndex extra;
 
-            using Child = Case;
+            // Stored in extra
+            struct Case {
+                InstIndex value;
+                BlockIndex target;
+            };
         };
 
         struct Return {
+            // is 0 on void return.
             InstIndex value;
         };
-
 
         struct Store {
             InstIndex target;
@@ -181,7 +211,6 @@ namespace GIR {
 
         struct Load {
             InstIndex target;
-            InstIndex target2;
         };
 
         struct MemberLookup {
@@ -192,32 +221,36 @@ namespace GIR {
         union alignas(void *) {
             Block block;
 
-            u64 _data;
             BinaryOp binary;
             GetLocal getLocal;
             SetLocal setLocal;
 
+            IntCast intCast;
+            Truncate truncate;
+
             MemberLookup memberLookup;
             Load load;
+            Store store;
+
+            ExtractResult extractResult;
     
             Call call;
 
-            CondBr condBr;
             Jump jump;
-            SwitchBr _switch;
+            Branch branch;
+            Switch switch_;
+            Try try_;
+            Return return_;
+
+            struct {
+                void *a;
+                void *b;
+            } _;
         } as;
 
-        union __SingleSlot {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-declarations"
-            BinaryOp _01;
-            Block _00;
-
-#pragma clang diagnostic pop
-        };
-
-        static_assert(sizeof(__SingleSlot) <= 8);
     };
+
+    static_assert(sizeof(Data) <= 16);
 
 
 
@@ -236,15 +269,54 @@ namespace GIR {
 
     static_assert(sizeof(ConditionalBranch) <= 3 * sizeof(Data));
 
-    class OpArray {
+    class ExtraArray {
         static constexpr size_t INITIAL_CAPACITY = 8;
-        size_t size = 0;
-        size_t capacity = 0;
+        using Storage = u64;
+        u32 _size = 0;
+        u32 capacity = 0;
+        Storage *extra = nullptr;
+    public:
+        ExtraArray() = default;
+
+        void resize(u32 newCapacity) {
+            size_t newSize = newCapacity * sizeof(Storage);
+            extra = (Storage *) realloc(extra, newSize);
+        }
+
+        void ensureCapacity(u32 newSlots) {
+            if (_size + newSlots > capacity) {
+                resize(capacity == 0 ? INITIAL_CAPACITY : capacity << 1);
+            }
+        }
+
+        template <typename Extra>
+        [[nodiscard]]
+        ExtraIndex push(Extra *extra, u32 count) {
+            u32 slots = (count * sizeof(Extra) + (sizeof(Storage) - 1)) / sizeof(Storage);
+            ensureCapacity(slots);
+
+            memcpy(&this->extra[_size], extra, slots * sizeof(Storage));
+
+            auto index = ExtraIndex{_size};
+            _size += slots;
+            return index;
+        }
+
+        ~ExtraArray() {
+            free(extra);
+        }
+    };
+
+    class OpArray {
+        static constexpr size_t INITIAL_CAPACITY = 16;
+        u32 _size = 0;
+        u32 capacity = 0;
         Opcode *ops = nullptr;
         Data *datas = nullptr;
+        ExtraArray extras;
 
     public:
-        OpArray() {}
+        OpArray() = default;
 
         OpArray(OpArray&) = delete;
         OpArray& operator=(OpArray&) = delete;
@@ -260,8 +332,8 @@ namespace GIR {
 
             Opcode *ops = (Opcode *) allocated;
             Data *datas = (Data *) ((std::byte *) allocated) + dataOffset;
-            memcpy(ops, this->ops, size * sizeof(Opcode));
-            memcpy(datas, this->datas, size * sizeof(Data));
+            memcpy(ops, this->ops, _size * sizeof(Opcode));
+            memcpy(datas, this->datas, _size * sizeof(Data));
 
             free(ops);
             this->ops = ops;
@@ -269,46 +341,56 @@ namespace GIR {
         }
 
         void ensureCapacity(u32 newSlots) {
-            if (size + newSlots > capacity) {
+            if (_size + newSlots > capacity) {
                 resize(capacity == 0 ? INITIAL_CAPACITY : capacity << 1);
             }
         }
 
-
         template <typename Payload>
-        requires std::is_trivial_v<Payload> && requires { alignof(Payload) == 8; }
-        InstIndex push(Opcode op, Payload payload) {
-            size_t slots = sizeof(Payload) / sizeof(Data);
-            ensureCapacity(slots);
-
-            ops[size] = op;
-            memset(&ops[size + 1], u8(Opcode::CONTINUED), slots - 1);
-            Payload *data = reinterpret_cast<Payload *>(&datas[size]);
+        requires std::is_trivial_v<Payload> && requires { alignof(Payload) <= alignof(void *); }
+        [[nodiscard]]
+        InstIndex push(Opcode opcode, Payload payload) {
+            ops[_size] = opcode;
+            Payload *data = reinterpret_cast<Payload *>(&datas[_size]);
             *data = payload;
 
-            auto index = InstIndex(size);
-            size += slots;
+            auto index = InstIndex(_size);
+            _size += 1;
             return index;
         }
 
-        template <typename Payload>
-        requires std::is_trivial_v<Payload> && requires { alignof(Payload) == 8; }
-        InstIndex pushVariable(Opcode op, Payload payload, Payload::Child *children, u32 count) {
-            using Child = Payload::Child;
+        template <typename Payload, typename Extra>
+        requires std::is_trivial_v<Payload> && requires { alignof(Payload) == alignof(uint64_t); }
+        [[nodiscard]]
+        InstIndex pushVariable(Opcode opcode, Payload payload, Extra *extra, u32 count) {
+            using Child = typename Payload::Child;
             size_t slots = (sizeof(Payload) + sizeof(Child) * count) / sizeof(Data);
             ensureCapacity(slots);
 
-            ops[size] = op;
-            memset(&ops[size + 1], u8(Opcode::CONTINUED), slots - 1);
-            Payload *data = reinterpret_cast<Payload *>(&datas[size]);
+            ops[_size] = opcode;
+            Payload *data = reinterpret_cast<Payload *>(&datas[_size]);
             *data = payload;
 
-            Child *childData = (Child *) (((std::byte *) &datas[size]) + Payload::ChildOffset());
-            memcpy(childData, children, sizeof(Child) * count);
+            payload.extra = extras.push(extra, count);
 
-            auto index = InstIndex(size);
-            size += slots;
+            auto index = InstIndex(_size);
+            _size += 1;
             return index;
+        }
+
+        [[nodiscard]]
+        Opcode getOp(u32 index) const {
+            return ops[index];
+        }
+
+        [[nodiscard]]
+        Data getData(u32 index) const {
+            return datas[index];
+        }
+
+        [[nodiscard]]
+        u32 size() const {
+            return _size;
         }
         
 //        template <>
@@ -340,11 +422,39 @@ namespace GIR {
 
         ~OpArray() {
             free(ops);
+            free(extra);
         }
     };
 
     class GIR {
         OpArray ops;
+    };
+
+    struct Function {
+        struct Parameter {
+            Type *type;
+        };
+
+        struct Local {
+            llvm::PointerIntPair<Type *, 1, bool> type;
+            AST::IdentifierBinding *binding;
+        };
+
+        std::vector<Parameter> parameters;
+        std::vector<Local> locals;
+        std::vector<Block> blocks;
+
+        OpArray ops;
+
+        u32 addParameter(Type *type) {
+            parameters.push_back({ .type = type });
+            return parameters.size() - 1;
+        }
+
+        u32 addLocal(AST::IdentifierBinding *binding, Type *type, bool isMutable) {
+            locals.push_back({ .type = {type, isMutable}, .binding = binding});
+            return locals.size() - 1;
+        }
     };
 }
 
