@@ -6,6 +6,9 @@
 
 #include "llvm/ADT/PointerUnion.h"
 
+using llvm::isa;
+using llvm::cast;
+
 extern BooleanType *boolean;
 extern IntegerType *signed64;
 
@@ -28,19 +31,19 @@ public:
     }
 
     bool isType() const {
-        return pointer.is<Type *>();
+        return isa<Type *>(pointer);
     }
 
     bool isConstraint() const {
-        return pointer.is<TypeConstraint *>();
+        return isa<TypeConstraint *>(pointer);
     }
 
     Type *type() const {
-        return pointer.get<Type *>();
+        return cast<Type *>(pointer);
     }
 
     Type *asType() const {
-        return pointer.get<Type *>();
+        return cast<Type *>(pointer);
     }
 
     Type *asTypeOrNull() const {
@@ -52,15 +55,15 @@ public:
     }
 
     TypeConstraint *constraint() const {
-        return pointer.get<TypeConstraint *>();
+        return cast<TypeConstraint *>(pointer);
     }
 
     TypeConstraint *asConstraint() const {
-        return pointer.get<TypeConstraint *>();
+        return cast<TypeConstraint *>(pointer);
     }
 
     operator TypeConstraint*() {
-        return pointer.get<TypeConstraint *>();
+        return cast<TypeConstraint *>(pointer);
     }
 
     operator bool() {

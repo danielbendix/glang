@@ -305,7 +305,7 @@ public:
     void patchTrapBlocks() {
         for (auto trapBlock : trapBlocks) {
             patchOrphanedBlock(*trapBlock);
-            llvm::Function *trap = llvm::Intrinsic::getDeclaration(&context.llvmModule, llvm::Intrinsic::trap);
+            llvm::Function *trap = llvm::Intrinsic::getOrInsertDeclaration(&context.llvmModule, llvm::Intrinsic::trap);
             builder.CreateCall(trap);
             builder.CreateUnreachable();
         }
@@ -426,7 +426,7 @@ llvm::Function *Context::createPrintFunction(Type& type) {
                 format[2] = '\0';
             }
 
-            auto string = function.builder.CreateGlobalStringPtr(format);
+            auto string = function.builder.CreateGlobalString(format);
             return function.builder.CreateCall(printf, {string, value});
         },
         [&](FPType& type) -> llvm::Value * {
@@ -437,30 +437,30 @@ llvm::Function *Context::createPrintFunction(Type& type) {
                 case FPType::Precision::Double:
                     break;
             }
-            auto string = function.builder.CreateGlobalStringPtr("%f");
+            auto string = function.builder.CreateGlobalString("%f");
             return function.builder.CreateCall(printf, {string, value});
         },
         [&](BooleanType& _) -> llvm::Value * {
-            auto trueString = function.builder.CreateGlobalStringPtr("true");
-            auto falseString = function.builder.CreateGlobalStringPtr("false");
+            auto trueString = function.builder.CreateGlobalString("true");
+            auto falseString = function.builder.CreateGlobalString("false");
             value = function.builder.CreateSelect(value, trueString, falseString);
             return function.builder.CreateCall(printf, {value});
         },
         [&](PointerType& type) -> llvm::Value * {
-            auto string = function.builder.CreateGlobalStringPtr("%p");
+            auto string = function.builder.CreateGlobalString("%p");
             return function.builder.CreateCall(printf, {string, value});
         },
         [&](StructType& type) -> llvm::Value * {
             auto& fields = type.getFields();
 
             if (fields.empty()) {
-                auto string = function.builder.CreateGlobalStringPtr(type.makeName() + " {}");
+                auto string = function.builder.CreateGlobalString(type.makeName() + " {}");
                 return function.builder.CreateCall(printf, {string});
             }
 
             auto prefix = type.makeName();
             prefix += " { ";
-            auto prefixString = function.builder.CreateGlobalStringPtr(prefix);
+            auto prefixString = function.builder.CreateGlobalString(prefix);
             function.builder.CreateCall(printf, {prefixString});
 
             bool needsSeparator = false;
@@ -477,14 +477,14 @@ llvm::Function *Context::createPrintFunction(Type& type) {
                 leader += binding.getIdentifier();
                 leader += " = ";
 
-                auto leaderString = function.builder.CreateGlobalStringPtr(leader);
+                auto leaderString = function.builder.CreateGlobalString(leader);
                 function.builder.CreateCall(printf, {leaderString});
                 auto printFunction = function.getPrintFunction(*field->getType());
                 auto element = function.builder.CreateExtractValue(value, {(unsigned int)i});
                 function.builder.CreateCall(printFunction, {element});
             }
 
-            auto suffixString = function.builder.CreateGlobalStringPtr(" }");
+            auto suffixString = function.builder.CreateGlobalString(" }");
             return function.builder.CreateCall(printf, {suffixString});
         },
         [&](OptionalType& type) -> llvm::Value * {
@@ -496,7 +496,7 @@ llvm::Function *Context::createPrintFunction(Type& type) {
             function.builder.CreateCondBr(isNil, &onNil, &onSome);
 
             function.patchOrphanedBlock(onNil);
-            auto nilString = function.builder.CreateGlobalStringPtr("nil");
+            auto nilString = function.builder.CreateGlobalString("nil");
             auto nilCall = function.builder.CreateCall(printf, {nilString});
             function.builder.CreateBr(&end);
 
@@ -1511,9 +1511,9 @@ public:
             // We should probably constrain this to only string literals.
             returnValue = AST::visitLiteral(*literal, overloaded {
                 [&](StringLiteral& stringLiteral) {
-                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
+                    auto formatString = function.builder.CreateGlobalString("%s");
                     auto& stringLiteralValue = stringLiteral.getValue();
-                    auto string = function.builder.CreateGlobalStringPtr({stringLiteralValue.data(), stringLiteralValue.size()});
+                    auto string = function.builder.CreateGlobalString({stringLiteralValue.data(), stringLiteralValue.size()});
                     return function.builder.CreateCall(printf, {formatString, string});
                 },
                 [&](IntegerLiteral& integerLiteral) {
@@ -1521,23 +1521,23 @@ public:
                     llvm::SmallVector<char, 18> literalString;
                     value.toString(literalString, 10, false);
 
-                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
-                    auto string = function.builder.CreateGlobalStringPtr({literalString.data(), literalString.size()});
+                    auto formatString = function.builder.CreateGlobalString("%s");
+                    auto string = function.builder.CreateGlobalString({literalString.data(), literalString.size()});
                     return function.builder.CreateCall(printf, {formatString, string});
                 },
                 [&](FloatingPointLiteral& fpLiteral) {
                     auto fpValue = fpLiteral.getValue();
                     auto value = llvm::ConstantFP::get(function.getFPType(FPType::Precision::Double), fpValue);
-                    auto formatString = function.builder.CreateGlobalStringPtr("%s");
+                    auto formatString = function.builder.CreateGlobalString("%s");
                     return function.builder.CreateCall(printf, {formatString, value});
 
                 },
                 [&](NilLiteral& nilLiteral) {
-                    auto string = function.builder.CreateGlobalStringPtr("nil");
+                    auto string = function.builder.CreateGlobalString("nil");
                     return function.builder.CreateCall(printf, {string});
                 },
                 [&](BooleanLiteral& booleanLiteral) {
-                    auto string = function.builder.CreateGlobalStringPtr(booleanLiteral.getValue() ? "true" : "false");
+                    auto string = function.builder.CreateGlobalString(booleanLiteral.getValue() ? "true" : "false");
                     return function.builder.CreateCall(printf, {string});
                 },
                 [&](auto& _) -> llvm::CallInst * {
