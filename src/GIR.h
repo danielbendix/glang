@@ -1,4 +1,4 @@
-#include "AST.h"
+#include "location.h"
 
 #include <cstdint>
 #include <memory>
@@ -11,10 +11,13 @@
  * e.g. `and`, `or`, and `try`. Everything else is encoded with blocks and branch instructions.
  */
 
-// TODO: Pointers are still used in this, so base size is kept at 16 bytes.
+// TODO: Pointers are still used in this, so slot size is kept at 16 bytes.
 // TODO: This should be changed to 8 bytes, by only using references.
 // TODO: This will require some changes in how other things are referenced and laid out,
 // TODO: particularly functions and types.
+
+// Things to think about:
+// Using extra instruction slots vs easier calculation and printing.
 
 namespace GIR {
     enum class Opcode : u8 {
@@ -49,13 +52,13 @@ namespace GIR {
 
         // Extract success value from error union.
         EXTRACT_SUCCESS,
+        EXTRACT_SUCCESS_OR_NIL,
         // Extract error value from error union.
         EXTRACT_ERROR,
 
         SUBSCRIPT,
 
-        GET_LOCAL,
-        SET_LOCAL,
+        WRITE_LOCAL,
 
         LOAD,
         STORE,
@@ -74,44 +77,52 @@ namespace GIR {
     };
 
     struct Op {
-        u8 cached;
+        u8 hint;
         Opcode op;
     };
+
+    inline constexpr u32 NO_INDEX = ~0U;
 
     struct InstIndex {
         u32 offset;
 
-        explicit InstIndex(u32 offset) : offset{offset} {}
+        explicit constexpr InstIndex(u32 offset) : offset{offset} {}
 
         operator u32() const {
             return offset;
+        }
+    };
+    inline constexpr InstIndex NO_INSTRUCTION = InstIndex(NO_INDEX);
+
+    struct BlockIndex {
+        u32 offset;
+
+        explicit constexpr BlockIndex(u32 offset) : offset{offset} {}
+
+        operator u32() const {
+            return offset;
+        }
+    };
+    inline constexpr BlockIndex NO_BLOCK = BlockIndex(NO_INDEX);
+
+    struct LocalIndex {
+        u32 index;
+
+        explicit constexpr LocalIndex(u32 index) : index{index} {}
+
+        operator u32() const {
+            return index;
         }
     };
 
     /// A basic block. If entered, all instructions are executed.
     struct Block {
         InstIndex entry;
-        InstIndex terminator;
-    };
-
-    struct BlockIndex {
-        u32 offset;
-
-        explicit BlockIndex(u32 offset) : offset{offset} {}
-
-        operator u32() const {
-            return offset;
-        }
-    };
-
-    struct LocalIndex {
-        u32 index;
-
-        explicit LocalIndex(u32 index) : index{index} {}
-
-        operator u32() const {
-            return index;
-        }
+        InstIndex terminator = InstIndex(~0U);
+        LocalIndex localsStart;
+        u32 localsCount = 0;
+        
+        Block(InstIndex entry, LocalIndex localsStart) : entry{entry}, localsStart{localsStart} {}
     };
 
     struct ExtraIndex {
@@ -422,7 +433,6 @@ namespace GIR {
 
         ~OpArray() {
             free(ops);
-            free(extra);
         }
     };
 
@@ -433,11 +443,14 @@ namespace GIR {
     struct Function {
         struct Parameter {
             Type *type;
+            Symbol *symbol;
+            DiagnosticLocation location;
         };
 
         struct Local {
             llvm::PointerIntPair<Type *, 1, bool> type;
-            AST::IdentifierBinding *binding;
+            Symbol *symbol;
+            DiagnosticLocation location;
         };
 
         std::vector<Parameter> parameters;
@@ -446,14 +459,14 @@ namespace GIR {
 
         OpArray ops;
 
-        u32 addParameter(Type *type) {
-            parameters.push_back({ .type = type });
+        u32 addParameter(Type *type, Symbol *symbol, DiagnosticLocation location) {
+            parameters.push_back({ .type = type, .symbol = symbol, .location = location });
             return parameters.size() - 1;
         }
 
-        u32 addLocal(AST::IdentifierBinding *binding, Type *type, bool isMutable) {
-            locals.push_back({ .type = {type, isMutable}, .binding = binding});
-            return locals.size() - 1;
+        LocalIndex addLocal(Type *type, Symbol *symbol, DiagnosticLocation location, bool isMutable) {
+            locals.push_back({ .type = {type, isMutable}, .symbol = symbol, .location = location});
+            return LocalIndex(locals.size() - 1);
         }
     };
 }
@@ -465,31 +478,31 @@ enum class CallingConvention {
 };
 
 
-struct Function {
-    struct Parameter {
-        Type *type;
-    };
-
-    struct Local {
-        llvm::PointerIntPair<Type *, 1> type;
-        AST::IdentifierBinding *binding;
-    };
-
-    AST::FunctionDeclaration *declaration;
-    CallingConvention callingConvention;
-    std::vector<Parameter> parameters;
-    std::vector<Local> locals;
-    std::vector<GIR::Block> blocks;
-
-    GIR::OpArray ops;
-
-    u32 addParameter(Type *type) {
-        parameters.push_back({ .type = type });
-        return parameters.size() - 1;
-    }
-
-    u32 addLocal(AST::IdentifierBinding *binding, Type *type, bool isMutable) {
-        locals.push_back({ .type = {type, isMutable}, .binding = binding});
-        return locals.size() - 1;
-    }
-};
+//struct Function {
+//    struct Parameter {
+//        Type *type;
+//    };
+//
+//    struct Local {
+//        llvm::PointerIntPair<Type *, 1> type;
+//        AST::IdentifierBinding *binding;
+//    };
+//
+//    AST::FunctionDeclaration *declaration;
+//    CallingConvention callingConvention;
+//    std::vector<Parameter> parameters;
+//    std::vector<Local> locals;
+//    std::vector<GIR::Block> blocks;
+//
+//    GIR::OpArray ops;
+//
+//    u32 addParameter(Type *type) {
+//        parameters.push_back({ .type = type });
+//        return parameters.size() - 1;
+//    }
+//
+//    u32 addLocal(AST::IdentifierBinding *binding, Type *type, bool isMutable) {
+//        locals.push_back({ .type = {type, isMutable}, .binding = binding});
+//        return locals.size() - 1;
+//    }
+//};
