@@ -74,17 +74,18 @@ struct Optional {
         Internal(T data) : data{data} {}
     } internal;
 
-    //using MemberType = decltype(std::declval<T>().*T::OptionalDiscriminantPointer);
-
     using MemberType = typename OptionalDiscriminant<T>::OptionalDiscriminantType;
-    //using MemberType = OptionalTemplateHelpers::remove_clang_nullability<
-    //    typename OptionalTemplateHelpers::member_pointer_traits<decltype(T::OptionalDiscriminantPointer)>::member_type
-    //>;
-    //static constexpr size_t MemberOffset = std::bit_cast<size_t>(&((T*)nullptr)->*T::OptionalDiscriminantPointer);
+    using ConstMemberType = std::add_const_t<MemberType>;
+
     static constexpr size_t MemberOffset = OptionalDiscriminant<T>::OptionalDiscriminantOffset;
 
-    MemberType *pointerToDiscriminant() const {
-        MemberType *pointer = (MemberType *) internal.bytes + MemberOffset;
+    MemberType *pointerToDiscriminant() {
+        MemberType *pointer = reinterpret_cast<MemberType *>(internal.bytes + MemberOffset);
+        return pointer;
+    }
+
+    ConstMemberType *pointerToDiscriminant() const {
+        ConstMemberType *pointer = reinterpret_cast<ConstMemberType *>(internal.bytes + MemberOffset);
         return pointer;
     }
 

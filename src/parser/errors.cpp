@@ -102,12 +102,14 @@ void ParsingError::unexpectedToken(Parser& parser, Token encountered, TokenType 
     parser.error("Expected " + tokenTypeToHumanReadableString(expected), encountered);
 }
 
-void ParsingError::disallowedModifiers(Parser& parser, AST::Modifiers disallowedModifiers) {
-    
+void ParsingError::disallowedModifiers(Parser& parser, Parser::Modifiers modifiers, AST::Modifiers disallowedModifiers) {
+    // TODO: Provide more context.
+    parser.error("Disallowed modifier for declaration", DiagnosticLocation{modifiers.offset, modifiers.length});
 }
 
-void ParsingError::conflictingAccessModifiers(Parser& parser, AST::Modifiers accessModifiers) {
-    
+void ParsingError::conflictingAccessModifiers(Parser& parser, Parser::Modifiers modifiers, AST::Modifiers accessModifiers) {
+    // TODO: Provide more context.
+    parser.error("Conflicting access modifiers.", DiagnosticLocation{modifiers.offset, modifiers.length});
 }
 
 void ParsingError::invalidCharacterLiteral(Parser& parser, Token token) {

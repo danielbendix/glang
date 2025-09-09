@@ -151,17 +151,18 @@ Parser::Modifiers Parser::parseModifiers()
     }
 }
 
-bool Parser::checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed)
+/// Returns true if modifiers are allowed
+bool Parser::checkModifiers(Modifiers modifiers, AST::Modifiers allowed)
 {
-    AST::Modifiers notAllowed = modifiers.disablingAllIn(allowed);
+    AST::Modifiers notAllowed = modifiers.modifiers.disablingAllIn(allowed);
 
     if (notAllowed.isNonEmpty()) {
-        ParsingError::disallowedModifiers(*this, notAllowed);
+        ParsingError::disallowedModifiers(*this, modifiers, notAllowed);
         return false;
     }
 
-    if (auto accessModifiers = modifiers.maskedBy(AST::accessModifiers); accessModifiers.count() > 1) {
-        ParsingError::conflictingAccessModifiers(*this, accessModifiers);
+    if (auto accessModifiers = modifiers.modifiers.maskedBy(AST::accessModifiers); accessModifiers.count() > 1) {
+        ParsingError::conflictingAccessModifiers(*this, modifiers, accessModifiers);
         return false;
     }
     
@@ -275,9 +276,7 @@ Optional<AST::FunctionParameter> Parser::parameter()
 
 AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 {
-    if (!checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers)) {
-        return ERROR;
-    }
+    checkModifiers(modifiers, AST::FunctionDeclaration::allowedModifiers);
 
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -310,7 +309,7 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
 
 AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
 {
-    checkModifiers(modifiers.modifiers, AST::FunctionDeclaration::allowedModifiers);
+    checkModifiers(modifiers, AST::FunctionDeclaration::allowedModifiers);
     if (match(TokenType::Question)) {
         assert(false && "TODO: Implement failable initializers");
     }
@@ -340,7 +339,7 @@ AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
 
 AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
 {
-    checkModifiers(modifiers.modifiers, AST::StructDeclaration::allowedModifiers);
+    checkModifiers(modifiers, AST::StructDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -358,7 +357,7 @@ AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
 
 AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
 {
-    checkModifiers(modifiers.modifiers, AST::EnumDeclaration::allowedModifiers);
+    checkModifiers(modifiers, AST::EnumDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -428,7 +427,7 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
 
 AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool isPattern)
 {
-    checkModifiers(modifiers.modifiers, AST::VariableDeclaration::allowedModifiers);
+    checkModifiers(modifiers, AST::VariableDeclaration::allowedModifiers);
     auto token = previous;
     bool isMutable = token.type == TokenType::Var;
 

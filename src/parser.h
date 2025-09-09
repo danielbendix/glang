@@ -93,7 +93,7 @@ class Parser {
     [[nodiscard]]
     Modifiers parseModifiers();
     [[nodiscard]]
-    bool checkModifiers(AST::Modifiers modifiers, AST::Modifiers allowed);
+    bool checkModifiers(Modifiers modifiers, AST::Modifiers allowed);
     [[nodiscard]]
     AST::Block block();
     [[nodiscard]]
