@@ -63,11 +63,14 @@ class DiagnosticBuffer {
         return locationsIndex;
     }
 
-public:
-    DiagnosticBuffer() = default;
-    DiagnosticBuffer(DiagnosticBuffer&&) = default;
-
-    void error(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+    void diagnostic(
+        BufferedDiagnostic::Kind kind,
+        std::string_view message, 
+        u32 sourceFile, 
+        u32 sourceOffset,
+        u32 file,
+        DiagnosticLocation location
+    ) {
         u32 locationsIndex = pushLocation(location);
 
         char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
@@ -75,45 +78,7 @@ public:
         messageBuffer[message.size()] = '\0';
 
         diagnostics.push_back(BufferedDiagnostic {
-            BufferedDiagnostic::Kind::Error,
-            messageBuffer,
-            u32(message.size()),
-            sourceFile,
-            sourceFile,
-            sourceOffset, 
-            locationsIndex,
-            0
-        });
-    }
-
-    void warning(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation locations) {
-        u32 locationsIndex = pushLocation(locations);
-
-        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
-        memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
-        messageBuffer[message.size()] = '\0';
-
-        diagnostics.push_back(BufferedDiagnostic {
-            BufferedDiagnostic::Kind::Warning,
-            messageBuffer,
-            u32(message.size()),
-            sourceFile,
-            sourceFile,
-            sourceOffset, 
-            locationsIndex,
-            0
-        });
-    }
-
-    void note(std::string_view message, u32 sourceFile, u32 sourceOffset, u32 file, DiagnosticLocation location) {
-        u32 locationsIndex = pushLocation(location);
-
-        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
-        memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
-        messageBuffer[message.size()] = '\0';
-
-        diagnostics.push_back(BufferedDiagnostic {
-            BufferedDiagnostic::Kind::Note,
+            kind,
             messageBuffer,
             u32(message.size()),
             file,
@@ -122,6 +87,22 @@ public:
             locationsIndex,
             0
         });
+    }
+
+public:
+    DiagnosticBuffer() = default;
+    DiagnosticBuffer(DiagnosticBuffer&&) = default;
+
+    void error(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+        diagnostic(BufferedDiagnostic::Kind::Error, message, sourceFile, sourceOffset, sourceFile, location);
+    }
+
+    void warning(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+        diagnostic(BufferedDiagnostic::Kind::Warning, message, sourceFile, sourceOffset, sourceFile, location);
+    }
+
+    void note(std::string_view message, u32 sourceFile, u32 sourceOffset, u32 file, DiagnosticLocation location) {
+        diagnostic(BufferedDiagnostic::Kind::Note, message, sourceFile, sourceOffset, file, location);
     }
 
     void flush(DiagnosticWriter& writer) {

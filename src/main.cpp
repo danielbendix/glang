@@ -16,6 +16,32 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 
+static bool verbose = false;
+
+template <typename Step, typename... Parameters>
+auto exitOnFailure(std::string&& name, Step step, Parameters&&... parameters) {
+    auto result = step(parameters...);
+    bool failed;
+    if constexpr (std::is_same_v<decltype(result), PassResult>) {
+        failed = result.failed();
+    } else {
+        failed = !result;
+    }
+    if (failed) {
+        Diagnostic::flush();
+        if (verbose) {
+            std::cout << name << " failed. Exiting...\n";
+        }
+        exit(1);
+    } else {
+        Diagnostic::flush();
+        if (verbose) {
+            std::cout << name << " succeeded\n";
+        }
+        return result;
+    }
+}
+
 void initialize(SymbolTable& symbols)
 {
     auto cpu = detectCPU();
@@ -24,36 +50,25 @@ void initialize(SymbolTable& symbols)
 }
 
 void validate(Module& module, bool verbose = false) {
-    if (typecheckModule(module).failed()) {
-        Diagnostic::flush();
-        if (verbose) std::cout << "Sema phase failed. Exiting...\n";
-        exit(1);
-    }
-    if (verbose) std::cout << "Sema phase succeeded.\n";
-    if (analyzeControlFlow(module).failed()) {
-        Diagnostic::flush();
-        if (verbose) std::cout << "Control flow analysis failed. Exiting...\n";
-        exit(1);
-    }
-    Diagnostic::flush();
-    if (verbose) std::cout << "Control flow analysis succeeded\n";
+    exitOnFailure("Sema phase", [](Module& module) {
+        return typecheckModule(module);
+    }, module);
+    exitOnFailure("Control flow analysis", [](Module& module) {
+        return analyzeControlFlow(module);
+    }, module);
 }
 
 std::unique_ptr<llvm::Module> codegen(Module& module, bool verbose = false) {
-    auto llvmModule = generateCode(module);
-    if (!llvmModule) {
-        if (verbose) std::cout << "Codegen failed. Exiting...\n";
-        exit(1);
-    }
-    if (verbose) std::cout << "Code generation succeeded.\n";
-
-    return llvmModule;
+    return exitOnFailure("Code generation", [](Module& module) {
+        return generateCode(module);
+    }, module);
 }
 
 int main(int argc, char **argv)
 {
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
+    verbose = options.flags.verbose;
     if (options.flags.json) {
         enableJSONDiagnostics();
     } else {
@@ -67,37 +82,37 @@ int main(int argc, char **argv)
 
     globalContext.files.reserve(options.files.size());
 
-    bool hadError = false;
 
-    ModuleBuilder builder;
 
-    for (auto *filePath : options.files) {
-        u32 fileHandle = globalContext.addFile(filePath);
-        File& file = globalContext.files[fileHandle];
+    auto module = exitOnFailure("Building namespace", [](std::vector<const char *>& files) -> std::unique_ptr<Module> {
+        ModuleBuilder builder;
+        bool hadError = false;
 
-        ParsedFile parsed = parseFile(fileHandle, file, Diagnostic::writer());
+        for (auto *filePath : files) {
+            u32 fileHandle = globalContext.addFile(filePath);
+            File& file = globalContext.files[fileHandle];
 
-        file.lineBreaks = std::move(parsed.lineBreaks);
-        parsed.diagnostics.flush(Diagnostic::writer());
+            ParsedFile parsed = parseFile(fileHandle, file, Diagnostic::writer());
 
-        if (parsed.result != ParseResult::OK) {
-            hadError = true;
-            continue;
+            file.lineBreaks = std::move(parsed.lineBreaks);
+            parsed.diagnostics.flush(Diagnostic::writer());
+
+            if (parsed.result != ParseResult::OK) {
+                hadError = true;
+                continue;
+            }
+
+            file.size = parsed.size;
+            file.astHandle = std::move(parsed.astHandle);
+            builder.addDeclarations(parsed.declarations, fileHandle);
         }
 
-        file.size = parsed.size;
-        file.astHandle = std::move(parsed.astHandle);
-        builder.addDeclarations(parsed.declarations, fileHandle);
-    }
-
-    auto module = builder.finalize();
-
-    if (!module) {
-        if (options.flags.verbose) {
-            std::cout << "Exiting...\n";
+        if (hadError) {
+            return nullptr;
         }
-        exit(1);
-    }
+
+        return builder.finalize();
+    }, options.files);
 
     std::visit(overloaded {
         [&](Validate& _) {
@@ -116,6 +131,7 @@ int main(int argc, char **argv)
                     llvm::raw_fd_ostream output(*arg.outputFile, error);
 
                     if (error) {
+                        
                         std::cerr << "Could not open file '" << *arg.outputFile << "' for writing.";
                     } else {
                         llvm::WriteBitcodeToFile(*llvmModule, output);

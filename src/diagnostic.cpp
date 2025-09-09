@@ -3,6 +3,26 @@
 
 #include <cstdio>
 
+#define RED_COLOR "\033[31m"
+#define RESET_COLOR "\033[0m"
+#define MAGENTA_COLOR "\033[95m"
+#define CYAN_COLOR "\033[96m"
+
+#define BOLD_TEXT "\033[1m"
+#define RESET_WEIGHT "\033[22m"
+
+const char *diagnosticColorString(BufferedDiagnostic::Kind kind) {
+    using enum BufferedDiagnostic::Kind;
+    switch (kind) {
+        case Error:
+            return RED_COLOR;
+        case Warning:
+            return MAGENTA_COLOR; 
+        case Note:
+            return CYAN_COLOR;
+    }
+}
+
 
 const char *diagnosticKindString(BufferedDiagnostic::Kind kind) {
     using enum BufferedDiagnostic::Kind;
@@ -105,8 +125,22 @@ public:
 
         std::string_view filepath = {file.path, file.pathSize};
 
-        const char *description = diagnosticKindString(diagnostic.kind);
-        out << filepath << ':' << location.line << ':' << location.column << ": " << description << ": " << std::string_view{diagnostic.description, diagnostic.descriptionLength} << '\n';
+        const char *color = diagnosticColorString(diagnostic.kind);
+        const char *label = diagnosticKindString(diagnostic.kind);
+        out << BOLD_TEXT 
+            << filepath 
+            << ':' 
+            << location.line 
+            << ':' 
+            << location.column 
+            << ": " 
+            << color
+            << label
+            << ": " 
+            << RESET_COLOR
+            << std::string_view{diagnostic.description, diagnostic.descriptionLength} 
+            << RESET_WEIGHT 
+            << '\n';
 
         auto openFile = getOpenFile(diagnostic.file);
         u32 start = location.line == 1 ? 0 : file.lineBreaks[location.line - 2] + 1;
