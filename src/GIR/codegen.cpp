@@ -22,6 +22,7 @@ struct GIRCodegen {
         }
 
         std::vector<llvm::Instruction *> instructions{function.ops.size(), nullptr};
+        std::vector<Type *> types{function.ops.size(), nullptr};
 
         auto getInstruction = [&instructions](GIR::InstIndex index) -> llvm::Value * {
             assert(index < instructions.size());
