@@ -204,8 +204,6 @@ namespace AST {
         Node& operator=(const Node&) = delete;
         ~Node() = default;
 
-        Kind getKind() const { return kind; }
-
         void print(std::ostream& os) const;
 
         // TODO: Implement lldb output
@@ -237,7 +235,7 @@ namespace AST {
         ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() >= NK_Type_Literal && node->getKind() <= NK_Type_Modifier;;
+            return node->kind >= NK_Type_Literal && node->kind <= NK_Type_Modifier;;
         }
     };
 
@@ -267,7 +265,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Type_Literal;
+            return node->kind == NK_Type_Literal;
         }
     };
 
@@ -311,7 +309,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Type_Modifier;
+            return node->kind == NK_Type_Modifier;
         }
     };
 
@@ -398,7 +396,7 @@ namespace AST {
         Type *NULLABLE type = nullptr;
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() >= NK_Expr_Identifier && node->getKind() <= NK_Expr_Inferred_Member_Access;
+            return node->kind >= NK_Expr_Identifier && node->kind <= NK_Expr_Inferred_Member_Access;
         }
     };
 
@@ -434,7 +432,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Identifier;
+            return node->kind == NK_Expr_Identifier;
         }
     };
 
@@ -453,7 +451,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Self;
+            return node->kind == NK_Expr_Self;
         }
     };
 
@@ -463,7 +461,7 @@ namespace AST {
 
     public:
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() >= NK_Expr_Literal_Nil && node->getKind() <= NK_Expr_Literal_String;
+            return node->kind >= NK_Expr_Literal_Nil && node->kind <= NK_Expr_Literal_String;
         }
     };
 
@@ -482,7 +480,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_Nil;
+            return node->kind == NK_Expr_Literal_Nil;
         }
     };
 
@@ -512,11 +510,11 @@ namespace AST {
         }
 
         bool getValue() const {
-            return getKind() == NK_Expr_Literal_True;
+            return kind == NK_Expr_Literal_True;
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_False || node->getKind() == NK_Expr_Literal_True;
+            return node->kind == NK_Expr_Literal_False || node->kind == NK_Expr_Literal_True;
         }
     };
 
@@ -595,7 +593,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_Integer;
+            return node->kind == NK_Expr_Literal_Integer;
         }
     };
 
@@ -621,7 +619,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_Floating;
+            return node->kind == NK_Expr_Literal_Floating;
         }
     };
     
@@ -644,7 +642,7 @@ namespace AST {
         }
         
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_Character;
+            return node->kind == NK_Expr_Literal_Character;
         }
     };
 
@@ -668,7 +666,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Literal_String;
+            return node->kind == NK_Expr_Literal_String;
         }
     };
 
@@ -715,7 +713,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Call;
+            return node->kind == NK_Expr_Call;
         }
     };
 
@@ -752,7 +750,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Subscript;
+            return node->kind == NK_Expr_Subscript;
         }
     };
 
@@ -794,7 +792,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Member_Access;
+            return node->kind == NK_Expr_Member_Access;
         }
     };
 
@@ -831,7 +829,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Inferred_Member_Access;
+            return node->kind == NK_Expr_Inferred_Member_Access;
         }
     };
 
@@ -941,7 +939,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Unary;
+            return node->kind == NK_Expr_Unary;
         }
     };
 
@@ -1025,7 +1023,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Expr_Binary;
+            return node->kind == NK_Expr_Binary;
         }
     };
 
@@ -1125,7 +1123,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() >= NK_Binding_Identifier && node->getKind() <= NK_Binding_Identifier;
+            return node->kind >= NK_Binding_Identifier && node->kind <= NK_Binding_Identifier;
         }
     };
 
@@ -1163,7 +1161,7 @@ namespace AST {
         }
     
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Binding_Identifier;
+            return node->kind == NK_Binding_Identifier;
         }
     };
 
@@ -1371,7 +1369,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_If;
+            return node->kind == NK_Stmt_If;
         }
     };
 
@@ -1440,7 +1438,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_Return;
+            return node->kind == NK_Stmt_Return;
         }
     };
 
@@ -1491,7 +1489,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_While;
+            return node->kind == NK_Stmt_While;
         }
     };
 
@@ -1564,7 +1562,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_Break;
+            return node->kind == NK_Stmt_Break;
         }
     };
 
@@ -1584,7 +1582,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_Continue;
+            return node->kind == NK_Stmt_Continue;
         }
     };
 
@@ -1615,7 +1613,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Stmt_Expression;
+            return node->kind == NK_Stmt_Expression;
         }
     };
 
@@ -1642,7 +1640,7 @@ namespace AST {
 
         static bool classof(const Node *NONNULL node) {
             // TODO: Ensure starting kind is correct
-            return node->getKind() >= NK_Decl_Variable && node->getKind() <= NK_Decl_Statement;
+            return node->kind >= NK_Decl_Variable && node->kind <= NK_Decl_Statement;
         }
     };
 
@@ -1732,7 +1730,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Decl_Variable;
+            return node->kind == NK_Decl_Variable;
         }
 
         using enum Modifiers::Modifier;
@@ -1839,7 +1837,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Decl_Function;
+            return node->kind == NK_Decl_Function;
         }
 
         using enum Modifiers::Modifier;
@@ -1876,7 +1874,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Decl_Struct;
+            return node->kind == NK_Decl_Struct;
         }
 
         iterator begin() {
@@ -2056,7 +2054,7 @@ namespace AST {
         }
         
         static bool classof(const Node *NONNULL node) {
-            return node->getKind() == NK_Decl_Statement;
+            return node->kind == NK_Decl_Statement;
         }
     };
 

@@ -7,7 +7,7 @@ using llvm::TypeSwitch;
 
 namespace AST {
     void Node::deleteNode(AST::Node *node) {
-        switch (node->getKind()) {
+        switch (node->kind) {
             case NK_Decl_Variable:
                 return delete static_cast<VariableDeclaration *>(node);
             case NK_Decl_Function:
