@@ -148,6 +148,8 @@ class Parser {
     [[nodiscard]]
     AST::ContinueStatement *continueStatement();
     [[nodiscard]]
+    AST::DeferStatement *deferStatement();
+    [[nodiscard]]
     AST::Statement *assignmentOrExpression();
 
     // Expression

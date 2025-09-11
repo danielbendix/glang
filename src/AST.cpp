@@ -270,6 +270,10 @@ namespace AST {
         return {offset, 8};
     }
 
+    FileLocation DeferStatement::getFileLocation() const {
+        return {offset, 5};
+    }
+
     FileLocation ExpressionStatement::getFileLocation() const {
         return expression->getFileLocation();
     }
@@ -604,6 +608,14 @@ namespace AST {
     void ContinueStatement::print(PrintContext& pc) const {
         pc.startLine();
         pc << "continue;\n";
+    }
+
+    void DeferStatement::print(PrintContext& pc) const {
+        pc.startLine();
+        pc << "defer {\n";
+        code.print(pc);
+        pc.startLine();
+        pc << "}\n";
     }
 
     void ExpressionStatement::print(PrintContext& pc) const {

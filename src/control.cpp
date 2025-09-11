@@ -146,6 +146,10 @@ public:
         }
         return EndsBlock;
     }
+
+    ControlFlowEffect visitDeferStatement(AST::DeferStatement& deferStatement) {
+        llvm_unreachable("TODO: Handle defer in control flow analysis");
+    }
     
     ControlFlowEffect visitAssignmentStatement(AST::AssignmentStatement& assignment) { return Continues; }
     ControlFlowEffect visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) { return Continues; }

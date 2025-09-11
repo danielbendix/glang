@@ -8,6 +8,8 @@
 #include <charconv>
 #include <cmath>
 
+// TODO: Parse block failure.
+
 struct NoneValue {
     template <typename T>
     constexpr operator T*() const noexcept { return nullptr; }
@@ -249,14 +251,16 @@ AST::Binding *Parser::binding()
 
 AST::Declaration *Parser::declaration() 
 {
+    using enum TokenType;
+
     Token modifierToken = current;
     auto modifiers = parseModifiers();
 
-    if (match(TokenType::Fn)) return functionDeclaration(modifiers);
-    if (match(TokenType::Struct)) return structDeclaration(modifiers);
-    if (match(TokenType::Var)) return variableDeclaration(modifiers);
-    if (match(TokenType::Let)) return variableDeclaration(modifiers);
-    if (match(TokenType::Enum)) return enumDeclaration(modifiers);
+    if (match(Fn)) return functionDeclaration(modifiers);
+    if (match(Struct)) return structDeclaration(modifiers);
+    if (match(Var)) return variableDeclaration(modifiers);
+    if (match(Let)) return variableDeclaration(modifiers);
+    if (match(Enum)) return enumDeclaration(modifiers);
 
     if (!modifiers.modifiers.isEmpty()) {
         error("A statement cannot have modifiers.", modifierToken);
@@ -451,7 +455,8 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool 
 
 AST::StatementDeclaration *Parser::statementDeclaration()
 {
-    return AST::StatementDeclaration::create(nodeAllocator, statement());
+    AST::Statement *statement_ = TRY(statement());
+    return AST::StatementDeclaration::create(nodeAllocator, statement_);
 }
 
 // Statements
@@ -476,13 +481,16 @@ bool isAssignmentOperator(TokenType tokenType)
 
 AST::Statement *Parser::statement()
 {
-    if (match(TokenType::If)) return ifStatement();
-    if (match(TokenType::For)) return forStatement();
-    if (match(TokenType::Return)) return returnStatement();
-    if (match(TokenType::While)) return whileStatement();
-    if (match(TokenType::Guard)) return guardStatement();
-    if (match(TokenType::Break)) return breakStatement();
-    if (match(TokenType::Continue)) return continueStatement();
+    using enum TokenType;
+
+    if (match(If)) return ifStatement();
+    if (match(For)) return forStatement();
+    if (match(Return)) return returnStatement();
+    if (match(While)) return whileStatement();
+    if (match(Guard)) return guardStatement();
+    if (match(Break)) return breakStatement();
+    if (match(Continue)) return continueStatement();
+    if (match(Defer)) return deferStatement();
     return assignmentOrExpression();
 }
 
@@ -583,6 +591,13 @@ AST::ContinueStatement *Parser::continueStatement()
     auto token = previous;
     consume(TokenType::Semicolon);
     return AST::ContinueStatement::create(nodeAllocator, token);
+}
+
+AST::DeferStatement *Parser::deferStatement()
+{
+    auto token = previous;
+    auto code = block();
+    return AST::DeferStatement::create(nodeAllocator, token, std::move(code));
 }
 
 std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)

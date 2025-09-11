@@ -101,6 +101,7 @@ enum class TokenType : u8 {
     Repeat,
     Break,
     Continue,
+    Defer,
     Return,
 
     LastKeyWord = Return,

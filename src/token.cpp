@@ -81,6 +81,7 @@ const char *tokenTypeToString(TokenType tokenType) {
         TOKEN_TYPE_CASE(Repeat)
         TOKEN_TYPE_CASE(Break)
         TOKEN_TYPE_CASE(Continue)
+        TOKEN_TYPE_CASE(Defer)
         TOKEN_TYPE_CASE(Return)
         TOKEN_TYPE_CASE(Try)
         TOKEN_TYPE_CASE(TryQuestion)

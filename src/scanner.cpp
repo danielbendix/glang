@@ -141,6 +141,7 @@ TokenType Scanner::identifierType()
                     }
             }
             break;
+        case 'd': return testKeyword(it, current, "efer", 4, TokenType::Defer);
         case 'e':
             switch (*it++) {
                 case 'l': return testKeyword(it, current, "se", 2, TokenType::Else);

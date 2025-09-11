@@ -166,6 +166,7 @@ namespace AST {
             NK_Stmt_For,
             NK_Stmt_Break,
             NK_Stmt_Continue,
+            NK_Stmt_Defer,
             NK_Stmt_Expression,
 
             // Expression
@@ -1583,6 +1584,35 @@ namespace AST {
 
         static bool classof(const Node *NONNULL node) {
             return node->kind == NK_Stmt_Continue;
+        }
+    };
+
+    class DeferStatement : public Statement {
+    protected:
+        Block code;
+
+        DeferStatement(Token token, Block&& code) : Statement{NK_Stmt_Defer, token}, code{code} {}
+    public: 
+        void print(PrintContext& pc) const;
+        FileLocation getFileLocation() const;
+
+        template <Allocator Allocator>
+        static DeferStatement *NONNULL create(Allocator& allocator, Token token, Block&& block) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) DeferStatement{token, std::move(block)};
+            });
+        }
+
+        Block& getCode() {
+            return code;
+        }
+
+        const Block& getCode() const {
+            return code;
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->kind == NK_Stmt_Defer;
         }
     };
 

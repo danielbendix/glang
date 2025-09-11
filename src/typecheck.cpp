@@ -577,6 +577,10 @@ public:
     void visitBreakStatement(AST::BreakStatement&) {}
     void visitContinueStatement(AST::ContinueStatement&) {}
 
+    void visitDeferStatement(AST::DeferStatement& defer) {
+        visitBlock(defer.getCode());
+    }
+
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
         TypeCheckResult typeResult = typeChecker.typeCheckExpressionRequiringInferredType(&expression.getExpression());

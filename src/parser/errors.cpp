@@ -77,6 +77,7 @@ std::string tokenTypeToHumanReadableString(TokenType tokenType) {
     case Repeat: return "'repeat'";
     case Break: return "'break'";
     case Continue: return "'continue'";
+    case Defer: return "'defer'";
     case Return: return "'return'";
     case Try: return "'try'";
     case TryQuestion: return "'try?'";

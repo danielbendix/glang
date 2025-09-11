@@ -38,6 +38,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<BreakStatement *>(&node));
             case NK_Stmt_Continue:
                 return std::invoke(visitor, *static_cast<ContinueStatement *>(&node));
+            case NK_Stmt_Defer:
+                return std::invoke(visitor, *static_cast<DeferStatement *>(&node));
             case NK_Stmt_Expression:
                 return std::invoke(visitor, *static_cast<ExpressionStatement *>(&node));
             case NK_Expr_Identifier:
@@ -116,6 +118,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const BreakStatement *>(&node));
             case NK_Stmt_Continue:
                 return std::invoke(visitor, *static_cast<const ContinueStatement *>(&node));
+            case NK_Stmt_Defer:
+                return std::invoke(visitor, *static_cast<const DeferStatement *>(&node));
             case NK_Stmt_Expression:
                 return std::invoke(visitor, *static_cast<const ExpressionStatement *>(&node));
             case NK_Expr_Identifier:
@@ -284,6 +288,8 @@ namespace AST {
                     return subclass().visitBreakStatement(*static_cast<BreakStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_Continue:
                     return subclass().visitContinueStatement(*static_cast<ContinueStatement *>(&statement), std::forward<Args>(args)...);
+                case NK_Stmt_Defer:
+                    return subclass().visitDeferStatement(*static_cast<DeferStatement *>(&statement), std::forward<Args>(args)...);
                 case NK_Stmt_Expression:
                     return subclass().visitExpressionStatement(*static_cast<ExpressionStatement *>(&statement), std::forward<Args>(args)...);
                 default:

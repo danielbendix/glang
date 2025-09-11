@@ -978,6 +978,10 @@ public:
         function.builder.CreateBr(&currentLoop->continueBlock);
     }
 
+    void visitDeferStatement(AST::DeferStatement& defer) {
+        llvm_unreachable("TODO: implement defer codegen");
+    }
+
     void visitExpressionStatement(AST::ExpressionStatement& expression) {
         expression.getExpression().acceptVisitor(*this);
     }
