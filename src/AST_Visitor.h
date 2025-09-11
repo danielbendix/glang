@@ -7,7 +7,7 @@ namespace AST {
     template <typename Func>
     auto visit(Node& node, Func&& visitor) {
         using enum Node::Kind;
-        switch (node.getKind()) {
+        switch (node.kind) {
             case NK_Decl_Variable:
                 return std::invoke(visitor, *static_cast<VariableDeclaration *>(&node));
             case NK_Decl_Function:
@@ -85,7 +85,7 @@ namespace AST {
     template <typename Func>
     auto visit(const Node& node, Func&& visitor) {
         using enum Node::Kind;
-        switch (node.getKind()) {
+        switch (node.kind) {
             case NK_Decl_Variable:
                 return std::invoke(visitor, *static_cast<const VariableDeclaration *>(&node));
             case NK_Decl_Function:
@@ -165,7 +165,7 @@ namespace AST {
     template <typename Func>
     auto visitLiteral(Literal& node, Func&& visitor) {
         using enum Node::Kind;
-        switch (node.getKind()) {
+        switch (node.kind) {
             case NK_Expr_Literal_Nil:
                 return std::invoke(visitor, *static_cast<NilLiteral *>(&node));
             case NK_Expr_Literal_False:
@@ -187,7 +187,7 @@ namespace AST {
     template <typename Func>
     auto visitLiteral(const Literal& node, Func&& visitor) {
         using enum Node::Kind;
-        switch (node.getKind()) {
+        switch (node.kind) {
             case NK_Expr_Literal_Nil:
                 return std::invoke(visitor, *static_cast<const NilLiteral *>(&node));
             case NK_Expr_Literal_False:
@@ -237,7 +237,7 @@ namespace AST {
     public:
         ReturnType visit(AST::Declaration& declaration, Args&&... args) {
             using enum Node::Kind;
-            switch (declaration.getKind()) {
+            switch (declaration.kind) {
                 case NK_Decl_Variable:
                     return subclass().visitVariableDeclaration(*static_cast<VariableDeclaration *>(&declaration), std::forward<Args>(args)...);
                 case NK_Decl_Function:
@@ -263,7 +263,7 @@ namespace AST {
         }
     public:
         ReturnType visit(AST::Statement& statement, Args&&... args) {
-            switch (statement.getKind()) {
+            switch (statement.kind) {
                 // TODO: Reorder
                 using enum Node::Kind;
                 case NK_Stmt_If:
@@ -301,7 +301,7 @@ namespace AST {
     public:
         ReturnType visit(AST::Expression& expression, Args&&... args) {
             using enum Node::Kind;
-            switch (expression.getKind()) {
+            switch (expression.kind) {
                 case NK_Expr_Literal_Nil:
                 case NK_Expr_Literal_False:
                 case NK_Expr_Literal_True:
@@ -343,7 +343,7 @@ namespace AST {
     public:
         ReturnType visit(AST::TypeNode& typeNode, Args&&... args) {
             using enum Node::Kind;
-            switch (typeNode.getKind()) {
+            switch (typeNode.kind) {
                 case NK_Type_Literal:
                     return subclass().visitTypeLiteral(*static_cast<TypeLiteral *>(&typeNode), std::forward<Args>(args)...);
                 case NK_Type_Modifier:

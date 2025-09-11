@@ -29,8 +29,8 @@ AST::Literal *NULLABLE foldBinaryHelper(AST::BinaryExpression& binary, AST::Lite
 }
 
 AST::Literal *NULLABLE foldLiteralsBinary(AST::BinaryExpression& binary, AST::Literal& left, AST::Literal& right) {
-    if (left.getKind() == right.getKind()) {
-        switch (left.getKind()) {
+    if (left.kind == right.kind) {
+        switch (left.kind) {
             case NK_Expr_Literal_Integer:
                 return foldBinaryHelper<AST::IntegerLiteral>(binary, left, right, IntegerFold::binary);
             default:
