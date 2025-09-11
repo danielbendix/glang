@@ -211,9 +211,6 @@ namespace AST {
 
         void print(PrintContext& pc) const {}
         FileLocation getFileLocation() const;
-
-        static void deleteNode(AST::Node *NONNULL node);
-        static void deleteValue(AST::Node *NONNULL node) { deleteNode(node); }
     };
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);

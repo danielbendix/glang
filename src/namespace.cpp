@@ -135,15 +135,14 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
 
     Result visitProtocolDeclaration(AST::ProtocolDeclaration& protocolDeclaration) {
         Diagnostic::error(protocolDeclaration, "Protocols are not currently supported.");
-        AST::Node::deleteValue(&protocolDeclaration);
         return ERROR;
     }
 
     Result visitStatementDeclaration(AST::StatementDeclaration& statement) {
         Diagnostic::error(statement, "Top-level statements are not allowed.");
-        AST::Node::deleteValue(&statement);
         return ERROR;
     }
+
     ModuleInserter(Module& module, u32 file) : module{module}, currentFile{file} {}
 
     static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, u32 file, Module& module) {
