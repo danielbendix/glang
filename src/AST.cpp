@@ -216,13 +216,11 @@ namespace AST {
     }
 
     FileLocation CharacterLiteral::getFileLocation() const {
-        // TODO: Needs length.
-        llvm_unreachable(__FUNCTION__);
+        return {offset, length};
     }
 
     FileLocation StringLiteral::getFileLocation() const {
-        // TODO: Needs length.
-        llvm_unreachable(__FUNCTION__);
+        return {offset, length};
     }
 
     FileLocation CallExpression::getFileLocation() const {

@@ -623,10 +623,14 @@ namespace AST {
     class CharacterLiteral : public Literal {
     public:
         using Character = u32;
-    private:
         const Character value;
-
-        CharacterLiteral(Token token, Character value) : Literal{NK_Expr_Literal_Character, token}, value{value} {}
+        /// Source length of the literal.
+        const u32 length;
+    private:
+        CharacterLiteral(Token token, Character value) 
+            : Literal{NK_Expr_Literal_Character, token}
+            , value{value} 
+            , length{token.length} {}
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -645,8 +649,14 @@ namespace AST {
 
     class StringLiteral : public Literal {
         String value;
-
-        StringLiteral(Token token, String value) : Literal{NK_Expr_Literal_String, token}, value{std::move(value)} {}
+    public:
+        /// The length of the string literal itself.
+        const u32 length; // TODO: Wasted space due to padding
+    private:
+        StringLiteral(Token token, String value) 
+            : Literal{NK_Expr_Literal_String, token}
+            , value{std::move(value)}
+            , length{token.length} {}
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -654,7 +664,7 @@ namespace AST {
         template <Allocator Allocator>
         static StringLiteral *NONNULL create(Allocator& allocator, Token token, String value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StringLiteral{token, std::move(value)};
+                return new(space) StringLiteral{token, value};
             });
         }
 
@@ -1035,7 +1045,6 @@ namespace AST {
         const bool hasTypeArguments;
         const bool hasCall;
     private:
-        // TODO: These vectors should be arrays, with LBO for size <= 1.
         Span<TypeNode *NONNULL> typeArguments;
         Span<Expression *NONNULL> arguments;
         Symbol& name;
