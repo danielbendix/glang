@@ -102,7 +102,7 @@ Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& i
     }
     auto& arguments = intrinsic.getArguments();
     if (arguments.size() > 1) {
-        Diagnostic::error(intrinsic, "#print intrinsic takes only one argument..");
+        Diagnostic::error(intrinsic, "#print intrinsic takes only one argument.");
         return nullptr;
     }
 
@@ -162,6 +162,78 @@ Type *ExpressionTypeChecker::typeCheckAssertIntrinsic(AST::IntrinsicExpression& 
     }
 
     return typeResolver.voidType();
+}
+
+bool typesSupportCast(Type& from, Type& to, AST::IntrinsicExpression& intrinsic) {
+    return TypeVisitor::visit(from, overloaded {
+        [&](PointerType& fromPointer) -> bool {
+            return TypeVisitor::visit(to, overloaded {
+                [&](PointerType& toPointer) -> bool {
+                    return true;
+                },
+                [&](IntegerType& toInteger) -> bool {
+                    Diagnostic::error(intrinsic, "Cannot cast from " + fromPointer.makeName() + " to " + toInteger.makeName() + ". Use #bitcast instead.");
+                    return false;
+                },
+                [&](auto& to) {
+                    Diagnostic::error(intrinsic, "Cannot cast from " + fromPointer.makeName() + " to " + to.makeName() + ".");
+                    return false;
+                }
+            });
+        },
+        [&](auto& type) -> bool {
+            Diagnostic::error(intrinsic, "Cannot use #cast to cast from " + from.makeName());
+            return false;
+        }
+    });
+}
+
+Type *ExpressionTypeChecker::typeCheckCastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (!intrinsic.hasCall || intrinsic.getArguments().size() != 1) {
+        Diagnostic::error(intrinsic, "#cast intrinsic takes exactly one argument.");
+        return nullptr;
+    }
+    auto* target = intrinsic.getArguments()[0];
+
+    Type *destinationType = nullptr;
+    if (intrinsic.hasTypeArguments) {
+        auto typeArguments = intrinsic.getTypeArguments();
+        switch (typeArguments.size()) {
+            case 0: break;
+            case 1:
+                destinationType = typeResolver.resolveType(*typeArguments[0]);
+                if (!destinationType) {
+                    return {};
+                }
+                break;
+            default:
+                Diagnostic::error(intrinsic, "#cast intrinsic takes only a single type argument.");
+                return {};
+        }
+    }
+
+    if (!destinationType) {
+        if (declaredType) {
+            destinationType = declaredType;
+        } else {
+            Diagnostic::error(intrinsic, "Unable to determine destination type in #cast intrinsic.");
+            return {};
+        }
+    }
+
+    Type *sourceType = typeCheckExpression(*target);
+    if (!sourceType) {
+        Diagnostic::error(intrinsic, "Unable to determine source type in #cast intrinsic.");
+        return {};
+    }
+    
+    intrinsic.setType(destinationType);
+
+    if (!typesSupportCast(*sourceType, *destinationType, intrinsic)) {
+        return {};
+    }
+
+    return destinationType;
 }
 
 bool typeSupportsBitcast(Type& type) {
@@ -224,6 +296,11 @@ Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression&
     }
     auto fromType = argumentResult.type();
 
+    if (isa<PointerType>(fromType) && isa<PointerType>(toType)) {
+        Diagnostic::error(intrinsic, "Cannot bitcast between pointer types. Use #cast instead.");
+        return nullptr;
+    }
+
     if (!typeSupportsBitcast(*fromType)) {
         Diagnostic::error(intrinsic, "Cannot bitcast from " + fromType->makeName());
         return nullptr;
@@ -257,14 +334,18 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
 
     intrinsic.setIntrinsic(*kind);
 
+    using enum IntrinsicKind;
+
     switch (*kind) {
-        case IntrinsicKind::Truncate:
+        case Truncate:
             return typeCheckTruncateIntrinsic(intrinsic, declaredType);
-        case IntrinsicKind::Print:
+        case Print:
             return typeCheckPrintIntrinsic(intrinsic, declaredType);
-        case IntrinsicKind::Assert:
+        case Assert:
             return typeCheckAssertIntrinsic(intrinsic, declaredType);
-        case IntrinsicKind::Bitcast:
+        case Cast:
+            return typeCheckCastIntrinsic(intrinsic, declaredType);
+        case Bitcast:
             return typeCheckBitcastIntrinsic(intrinsic, declaredType);
     }
 

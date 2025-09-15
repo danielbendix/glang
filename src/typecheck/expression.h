@@ -258,6 +258,7 @@ public:
     Type *typeCheckTruncateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     Type *typeCheckPrintIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     Type *typeCheckAssertIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    Type *typeCheckCastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     Type *typeCheckBitcastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     TypeResult visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType);
 
