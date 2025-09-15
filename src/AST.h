@@ -1406,23 +1406,22 @@ namespace AST {
 
     class ReturnStatement : public Statement {
     protected:
-        Expression *NONNULL value;
+        Expression *NULLABLE value;
 
-        ReturnStatement(Token token, Expression *NONNULL value) : Statement{NK_Stmt_Return, token}, value{value} {}
+        ReturnStatement(Token token, Expression *NULLABLE value) : Statement{NK_Stmt_Return, token}, value{value} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static ReturnStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL expression) {
+        static ReturnStatement *NONNULL create(Allocator& allocator, Token token, Expression *NULLABLE expression) {
             return allocate(allocator, [&](auto space) {
                 return new(space) ReturnStatement{token, expression};
-
             });
         }
 
-        Expression *NONNULL getValue() const {
+        Expression *NULLABLE getValue() const {
             return value;
         }
 

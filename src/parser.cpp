@@ -557,9 +557,14 @@ AST::GuardStatement *Parser::guardStatement()
 AST::ReturnStatement *Parser::returnStatement()
 {
     auto token = previous;
-    auto *expr = expression({});
-    consume(TokenType::Semicolon);
-    return AST::ReturnStatement::create(nodeAllocator, token, expr);
+    AST::Expression *NULLABLE returnValue;
+    if (match(TokenType::Semicolon)) {
+        returnValue = nullptr;
+    } else {
+        returnValue = expression({});
+        consume(TokenType::Semicolon);
+    }
+    return AST::ReturnStatement::create(nodeAllocator, token, returnValue);
 }
 
 AST::WhileStatement *Parser::whileStatement()
