@@ -47,8 +47,8 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
         case PrefixDereference:
         case PostfixDereference: {
             type = typeCheckDereferenceOperator(unary);
-            unary.setType(type);
             if (type) {
+                unary.setType(type);
                 return {type, true};
             }
             break;

@@ -292,6 +292,11 @@ public:
                 type = declaredType;
             }
         } else {
+            // NOTE: We may want to allow some binding to set a value before reading.
+            // But the complexity of this outweighs the value right now.
+            Diagnostic::error(variable, "Declaration must have initial value.");
+            // TODO: This could be a non-fatal error.
+            result = ERROR;
             type = declaredType;
         }
         

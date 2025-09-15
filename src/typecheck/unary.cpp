@@ -119,7 +119,13 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
 
     Type *targetType = target.asType();
     if (auto pointerType = dyn_cast<PointerType>(targetType)) {
-        return pointerType->getPointeeType();
+        // TODO: This is a lot of indirection. We might want to compare to a cached pointer to the right type.
+        if (pointerType->getPointeeType()->isVoid()) {
+            Diagnostic::error(unary, "Cannot dereference void pointer value. Cast to a concrete type before derferencing.");
+            return {};
+        } else {
+            return pointerType->getPointeeType();
+        }
     }
 
     if (auto optionalType = dyn_cast<OptionalType>(targetType)) {
