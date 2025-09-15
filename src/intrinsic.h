@@ -4,13 +4,18 @@
 #include "common.h"
 
 enum class IntrinsicKind: u8 {
+    /// Truncation of integer values.
     Truncate,
+    /// Intermittent support for printing.
     Print,
+    /// Assert a condition, trapping or breaking if false.
     Assert,
+    /// Cast a value to another, e.g. from one pointer type to another.
+    Cast,
+    /// Reinterpret a value as another in a bitwise manner, e.g. `i64` to `double`.
     Bitcast,
-//    SignExtend,
-//    ZeroExtend,
-//    Memory,
+    /// Intermittent support for heap allocation, calls `malloc` under the hood.
+    Allocate,
 };
 
 #endif // LANG_intrinsic_h

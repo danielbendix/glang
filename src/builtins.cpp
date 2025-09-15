@@ -57,6 +57,14 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Arc
     UINT_TYPE(64);
 #undef INT_TYPE
 
+    Symbol& usizeName = symbols.getSymbol("usize");
+    auto usizeType = createType<IntegerType>(allocator, usizeName, architecture.bits, false, architecture.pointer);
+    table.insert(usizeName, usizeType);
+
+    Symbol& isizeName = symbols.getSymbol("usize");
+    auto isizeType = createType<IntegerType>(allocator, isizeName, architecture.bits, true, architecture.pointer);
+    table.insert(isizeName, isizeType);
+
     assert(defaultIntegerType && "The default integer type should not be NULL.");
 
     _builtins.voidType = voidType;
@@ -75,6 +83,9 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
 
     auto& assertName = symbols.getSymbol("assert");
     intrinsics.insert(assertName, IntrinsicKind::Assert);
+
+    auto& castName = symbols.getSymbol("cast");
+    intrinsics.insert(castName, IntrinsicKind::Cast);
 
     auto& bitcastName = symbols.getSymbol("bitcast");
     intrinsics.insert(bitcastName, IntrinsicKind::Bitcast);

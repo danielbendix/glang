@@ -1574,6 +1574,10 @@ public:
                 function.patchOrphanedBlock(next);
                 return nullptr;
             }
+            case IntrinsicKind::Cast: {
+                auto target = visitExpressionAsValue(intrinsic.getArguments()[0]);
+                return target;
+            }
             case IntrinsicKind::Bitcast: {
                 auto from = visitExpressionAsValue(intrinsic.getArguments()[0]);
                 auto type = function.getLLVMType(intrinsic.getType());

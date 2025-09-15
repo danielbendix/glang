@@ -15,6 +15,8 @@ void setupX86_64() {
         .fpSingle = Layout{Align{2}, 4},
         .fpDouble = Layout{Align{3}, 8},
 
+        .bits = 64,
+
         .registerSize = 8,
         .registerPackSize = 3,
     };

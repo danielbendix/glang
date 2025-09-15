@@ -31,10 +31,11 @@ struct alignas(128) Architecture {
     /// How many register-sized slots to use to pass or return an aggregate value.
     u8 registerPackSize;
 
+    u8 bits;
+
     static void populate(CPU cpu);
 
     static const Architecture& current();
-
 };
 
 extern Architecture currentArchitecture;
