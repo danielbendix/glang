@@ -175,7 +175,9 @@ Layout Type::getLayout() const {
             auto arrayType = static_cast<const ArrayType *>(this);
             // TODO: Precompute this.
             if (arrayType->isBounded) {
-
+                // TODO: Make this more rigorous.
+                Layout layout = Architecture::current().pointer;
+                return incorporateLayoutAsField(layout, Architecture::current().intptr).first;
             } else {
                 return Architecture::current().pointer;
             }

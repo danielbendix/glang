@@ -260,6 +260,8 @@ public:
     Type *typeCheckAssertIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     Type *typeCheckCastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     Type *typeCheckBitcastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    Type *typeCheckAllocateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
+    Type *typeCheckFreeIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType);
     TypeResult visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType);
 
     TypeResult visitCallExpression(AST::CallExpression& call, Type *declaredType);

@@ -71,6 +71,8 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Arc
     _builtins.booleanType = booleanType;
     _builtins.defaultFPType = f64Type;
     _builtins.defaultIntegerType = defaultIntegerType;
+    _builtins.usizeType = usizeType;
+    _builtins.isizeType = isizeType;
 }
 
 void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
@@ -89,6 +91,12 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
 
     auto& bitcastName = symbols.getSymbol("bitcast");
     intrinsics.insert(bitcastName, IntrinsicKind::Bitcast);
+
+    auto& allocateName = symbols.getSymbol("allocate");
+    intrinsics.insert(allocateName, IntrinsicKind::Allocate);
+
+    auto& freeName = symbols.getSymbol("free");
+    intrinsics.insert(freeName, IntrinsicKind::Free);
 }
 
 void setupBuiltins(SymbolTable& symbols, const Architecture& architecture)

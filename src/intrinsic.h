@@ -16,6 +16,8 @@ enum class IntrinsicKind: u8 {
     Bitcast,
     /// Intermittent support for heap allocation, calls `malloc` under the hood.
     Allocate,
+    /// Intermittent support for freeing values return from #allocate.
+    Free,
 };
 
 #endif // LANG_intrinsic_h
