@@ -29,7 +29,7 @@ Type::TypeIndex& Type::getTypeIndex() {
 }
 
 ArrayType *Type::getBoundedArrayType() {
-    auto index = getTypeIndex();
+    auto& index = getTypeIndex();
 
     if (index.boundedArrayType) {
         return index.boundedArrayType;
@@ -41,7 +41,7 @@ ArrayType *Type::getBoundedArrayType() {
 }
 
 ArrayType *Type::getUnboundedArrayType() {
-    auto index = getTypeIndex();
+    auto& index = getTypeIndex();
 
     if (index.unboundedArrayType) {
         return index.unboundedArrayType;
@@ -53,7 +53,7 @@ ArrayType *Type::getUnboundedArrayType() {
 }
 
 RangeType *IntegerType::getOpenRangeType() {
-    auto index = getTypeIndex();
+    auto& index = getTypeIndex();
 
     if (index.openRangeType) {
         return index.openRangeType;
@@ -65,7 +65,7 @@ RangeType *IntegerType::getOpenRangeType() {
 }
 
 RangeType *IntegerType::getClosedRangeType() {
-    auto index = getTypeIndex();
+    auto& index = getTypeIndex();
 
     if (index.closedRangeType) {
         return index.closedRangeType;

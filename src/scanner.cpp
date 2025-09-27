@@ -47,15 +47,15 @@ void Scanner::multilineComment() {
                 if (peekNext() == '/') {
                     depth--;
                     advance();
-                    advance();
-                    break;
                 }
+                advance();
+                break;
             case '/':
                 if (peekNext() == '*') {
                     depth++;
                     advance();
-                    advance();
                 }
+                advance();
                 break;
             case '\n':
                 newline();
