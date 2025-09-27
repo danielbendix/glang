@@ -117,7 +117,7 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
             break;
     }
 
-    if (result.isType()) {
+    if (result.isType() && result.type()) {
         binary.setType(result);
     } 
     return result;

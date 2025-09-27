@@ -42,15 +42,23 @@ private:
 
     Value(llvm::Value *value, unsigned kind) : _value{value, kind} {
         assert(kind < (1 << BITS));
-        assert(value);
     }
+
+    Value(llvm::Value *value, Kind kind) : _value{value, unsigned(kind)} {}
+
 public:
     static Value value(llvm::Value *value) {
-        return Value(value, unsigned(Kind::Value));
+        assert(value);
+        return Value(value, Kind::Value);
+    }
+
+    static Value valueOrNull(llvm::Value *value) {
+        return Value(value, Kind::Value);
     }
 
     static Value memory(llvm::Value *value) {
-        return Value(value, unsigned(Kind::Memory));
+        assert(value);
+        return Value(value, Kind::Memory);
     }
 
     llvm::Value *get() const {
@@ -330,6 +338,13 @@ public:
         }
     }
 
+    llvm::Value *createBoundedArray(llvm::Value *pointer, llvm::Value *count, llvm::Type *type) {
+        llvm::Value *value = llvm::PoisonValue::get(type);
+        value = builder.CreateInsertValue(value, pointer, 0);
+        value = builder.CreateInsertValue(value, count, 1);
+        return value;
+    }
+
     llvm::Type *getLLVMType(Type *type) {
         return type->getLLVMType(context.llvmContext);
     }
@@ -360,6 +375,10 @@ public:
         return llvm::ConstantInt::get(type, value, false);
     }
 
+    llvm::Constant *getNullConstant() {
+        return llvm::Constant::getNullValue(llvm::PointerType::get(context.llvmContext, 0));
+    }
+
     llvm::FunctionCallee getPrintFunction(Type& type) {
         auto function = context.getPrintFunction(type);
         return llvm::FunctionCallee{function->getFunctionType(), function};
@@ -372,6 +391,26 @@ public:
             true
         );
         return context.llvmModule.getOrInsertFunction("printf", printfType);
+    }
+
+    llvm::FunctionCallee getMalloc() const {
+        llvm::FunctionType *mallocType = llvm::FunctionType::get(
+            llvm::PointerType::get(context.llvmContext, 0),
+            // FIXME: Support 32-bit
+            llvm::Type::getInt64Ty(context.llvmContext),
+            false
+        );
+        return context.llvmModule.getOrInsertFunction("malloc", mallocType);
+    }
+
+    llvm::FunctionCallee getFree() const {
+        llvm::FunctionType *mallocType = llvm::FunctionType::get(
+            llvm::Type::getVoidTy(context.llvmContext),
+            llvm::PointerType::get(context.llvmContext, 0),
+            false
+        );
+        return context.llvmModule.getOrInsertFunction("malloc", mallocType);
+
     }
 
     llvm::FunctionCallee getPutchar() {
@@ -1583,13 +1622,60 @@ public:
                 auto type = function.getLLVMType(intrinsic.getType());
                 return function.builder.CreateBitCast(from, type);
             }
+            case IntrinsicKind::Allocate: {
+                auto malloc = function.getMalloc();
+                auto count = visitExpressionAsValue(intrinsic.getArguments()[0]);
+
+                auto arrayType = cast<ArrayType>(intrinsic.getType());
+                auto allocatedType = arrayType->getContained();
+
+                auto layout = allocatedType->getLayout();
+                // FIXME: Support 32-bit
+                auto sizeValue = function.getIntegerConstant(64, layout.size());
+
+                auto allocationSize = function.builder.CreateMul(count, sizeValue);
+
+                auto call = function.builder.CreateCall(malloc, {allocationSize});
+
+                auto null = function.getNullConstant();
+
+                auto isNull = function.builder.CreateICmpEQ(call, null);
+
+                auto& trap = function.createTrapBlock();
+
+                auto& successBlock = function.createOrphanedBlock();
+
+                function.builder.CreateCondBr(isNull, &trap, &successBlock);
+
+                function.patchOrphanedBlock(successBlock);
+                auto *llvmArrayType = function.getLLVMType(arrayType);
+                return function.createBoundedArray(call, count, llvmArrayType);
+
+                return call;
+            }
+            case IntrinsicKind::Free: {
+                auto free = function.getFree();
+
+                auto *memory = intrinsic.getArguments()[0];
+                auto *memoryType = memory->getType();
+
+                auto memoryValue = visitExpressionAsValue(memory);
+
+                if (auto *arrayType = dyn_cast<ArrayType>(memoryType)) {
+                    if (arrayType->isBounded) {
+                        memoryValue = function.builder.CreateExtractValue(memoryValue, {0});
+                    }
+                }
+                return function.builder.CreateCall(free, {memoryValue});
+            }
         }
         llvm_unreachable("[TODO: Codegen intrinsics]");
         return nullptr;
     }
 
     Value visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic) {
-        return Value::value(codegenIntrinsic(intrinsic));
+        // TODO: Have debug validation of which intrinsics return values, and which ones do not.
+        return Value::valueOrNull(codegenIntrinsic(intrinsic));
     }
 
     Value visitCallExpression(AST::CallExpression& call) {

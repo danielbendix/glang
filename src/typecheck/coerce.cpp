@@ -19,7 +19,6 @@ std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
     AST::Expression& expression
 ) {
     if (destination.isSigned) {
-        // This assumes that two signed types will never have the same bit width.
         if (source.bitWidth < destination.bitWidth) {
             AST::UnaryExpression *wrap;
             if (source.isSigned) {
@@ -28,6 +27,9 @@ std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
                 wrap = AST::UnaryExpression::wrap(nodeAllocator(), expression, ZeroExtend, destination);
             }
             return {OK, wrap};
+        } else if (source.bitWidth == destination.bitWidth) {
+            // This is a noop in LLVM.
+            return {OK, &expression};
         } else {
             Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ", as this could result in a loss of information.");
             return {ERROR, nullptr};
@@ -38,6 +40,9 @@ std::pair<Result, AST::Expression *> coerceBetweenIntegerTypes(
             return {ERROR, nullptr};
         } else if (source.bitWidth < destination.bitWidth) {
             return {OK, AST::UnaryExpression::wrap(nodeAllocator(), expression, ZeroExtend, destination)};
+        } else if (source.bitWidth == destination.bitWidth) {
+            // This is a noop in LLVM.
+            return {OK, &expression};
         } else {
             Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ", as this could result in a loss of information.");
             return {ERROR, nullptr};

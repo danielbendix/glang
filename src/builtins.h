@@ -11,9 +11,12 @@ void setupBuiltins(SymbolTable& symbols, const Architecture& architecture);
 class Builtins {
 public:
     VoidType *voidType;
-    IntegerType *defaultIntegerType;
     BooleanType *booleanType;
+    IntegerType *defaultIntegerType;
     FPType *defaultFPType;
+
+    IntegerType *usizeType;
+    IntegerType *isizeType;
 
     SymbolMap<Type *> types;
     SymbolMap<IntrinsicKind> intrinsics;

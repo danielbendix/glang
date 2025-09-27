@@ -13,6 +13,7 @@
 #include <format>
 
 using llvm::dyn_cast;
+using llvm::dyn_cast_or_null;
 
 // TODO: This needs to be refactored a bit in terms of where diagnostics are emitted, and their text needs to be more specific to the operation being checked.
 
@@ -102,7 +103,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitSubscriptExpression(AST::Subs
     // FIXME: This should be a default unsigned/index type, so we get free checking of negative literals.
     Type *indexType = rvalueChecker.typeCheckExpressionUsingDeclaredOrDefaultType(subscript.getIndex(), typeResolver.defaultIntegerType());
     
-    auto integerType = dyn_cast<IntegerType>(indexType);
+    auto integerType = dyn_cast_or_null<IntegerType>(indexType);
 
     if (!integerType) {
         Diagnostic::error(subscript, "Cannot use non-integer type as array index.");

@@ -1,5 +1,6 @@
 #include "typecheck.h"
 #include "typecheck/expression.h"
+#include "typecheck/coerce.h"
 #include "type/visitor.h"
 
 using Result = PassResult;
@@ -161,7 +162,7 @@ Type *ExpressionTypeChecker::typeCheckAssertIntrinsic(AST::IntrinsicExpression& 
         }
     }
 
-    return typeResolver.voidType();
+    return builtins.voidType;
 }
 
 bool typesSupportCast(Type& from, Type& to, AST::IntrinsicExpression& intrinsic) {
@@ -324,6 +325,84 @@ Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression&
     return toType;
 }
 
+Type *ExpressionTypeChecker::typeCheckAllocateIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (!intrinsic.hasTypeArguments || intrinsic.getTypeArguments().size() != 1) {
+        Diagnostic::error(intrinsic, "#allocate intrinsic takes exactly one type argument.");
+        return {};
+    }
+
+    if (!intrinsic.hasCall || intrinsic.getArguments().size() != 1) {
+        Diagnostic::error(intrinsic, "#allocate intrinsic takes exactly one argument.");
+        return {};
+    }
+    
+    // TODO: Allow propagating down an array type.
+    Type *type = typeResolver.resolveType(*intrinsic.getTypeArguments()[0]);
+    if (!type) {
+        return {};
+    }
+
+    Type *usizeType = builtins.usizeType;
+    auto *countExpression = intrinsic.getArguments()[0];
+    auto countTypeResult = typeCheckExpression(*countExpression, usizeType);
+    if (countTypeResult.isConstraint()) {
+        Diagnostic::error(*countExpression, "Unable to determine type of allocation count.");
+        return {};
+    }
+    Type *countType = countTypeResult.asTypeOrNull();
+    if (!countType) {
+        return {};
+    }
+   
+    if (!isa<IntegerType>(countType)) {
+        Diagnostic::error(*countExpression, "Count must be an integer type.");
+        return {};
+    }
+    if (countType != usizeType) {
+        auto [result, wrapped] = coerceType(*usizeType, *countType, *countExpression);
+
+        if (result.failed()) {
+            return {};
+        } else if (wrapped) {
+            intrinsic.getArguments()[0] = wrapped;
+        }
+    }
+
+    ArrayType *arrayType = type->getBoundedArrayType();
+    intrinsic.setType(arrayType);
+
+    return arrayType;
+}
+
+Type *ExpressionTypeChecker::typeCheckFreeIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+    if (intrinsic.getArguments().size() != 1) {
+        Diagnostic::error(intrinsic, "#free intrinsic takes exactly one argument.");
+        return {};
+    }
+    if (intrinsic.hasTypeArguments) {
+        Diagnostic::error(intrinsic, "#free intrinsic should not have type arguments.");
+        return {};
+    }
+    
+    auto *memory = intrinsic.getArguments()[0];
+    auto memoryTypeResult = typeCheckExpression(*memory);
+    if (memoryTypeResult.isConstraint()) {
+        Diagnostic::error(*memory, "Unable to determine type of value to be freed.");
+        return {};
+    }
+    Type *memoryType = memoryTypeResult.asTypeOrNull();
+    if (!memoryType) {
+        return {};
+    }
+
+    if (!(isa<ArrayType>(memoryType) || isa<PointerType>(memoryType))) {
+        Diagnostic::error(*memory, "Can only free array or pointer.");
+        return {};
+    }
+    intrinsic.setType(builtins.voidType);
+    return builtins.voidType;
+}
+
 TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     auto kind = builtins.intrinsics.lookup(intrinsic.getName());
 
@@ -347,6 +426,10 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
             return typeCheckCastIntrinsic(intrinsic, declaredType);
         case Bitcast:
             return typeCheckBitcastIntrinsic(intrinsic, declaredType);
+        case Allocate:
+            return typeCheckAllocateIntrinsic(intrinsic, declaredType);
+        case Free:
+            return typeCheckFreeIntrinsic(intrinsic, declaredType);
     }
 
     llvm_unreachable("[PROGAMMER ERROR]");
