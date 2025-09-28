@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 31 - Coin Sums
 outcome: success
 opt: -O3
 ### STDOUT

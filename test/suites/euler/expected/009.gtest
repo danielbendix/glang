@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 9 - Special Pythagorean Triplet
 outcome: success
 opt: -O3
 ### STDOUT

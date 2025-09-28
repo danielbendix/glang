@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 15 - Lattice Paths
 outcome: success
 opt: -O3
 ### STDOUT

@@ -38,6 +38,7 @@ class Outcome(StrEnum):
 @dataclass
 class Testcase:
     outcome: Outcome
+    name: str | None = None
     compiler_flags: list[str] | None = None
     opt_flags: list[str] | None = None
     stdout: OutputExpectation | None = None
@@ -109,7 +110,10 @@ def parse_into_sections(lines: list[str]) -> list[Section]:
 
 
 def key_value_from_line(line: str) -> tuple[str, str]:
-    [key, value] = line.split(":", maxsplit=1)
+    split = line.split(":", maxsplit=1)
+    if len(split) != 2:
+        raise ParserException(-1, -1, f"Invalid key value pair: '{line.strip()}'.")
+    [key, value] = split
     key = key.strip()
     value = value.strip()
     return (key, value)
@@ -153,7 +157,7 @@ def parse_header_section(section: Section) -> Testcase:
             section.line_number, 0, "First section must be of type 'TESTCASE'"
         )
 
-    known_keys: set[str] = {"outcome", "compiler-flags", "opt"}
+    known_keys: set[str] = {"outcome", "name", "compiler-flags", "opt"}
     key_values = key_values_from_section(section)
 
     outcome: Outcome | None = None
@@ -163,6 +167,8 @@ def parse_header_section(section: Section) -> Testcase:
     outcome = Outcome.from_string(outcome_string)
     if outcome is None:
         raise ParserException(-1, -1, f"Invalid outcome string '{outcome_string}'")
+
+    name = key_values.get("name")
 
     compiler_flags = parse_optional_flags(key_values, "compiler-flags", "glang")
 
@@ -174,6 +180,7 @@ def parse_header_section(section: Section) -> Testcase:
 
     return Testcase(
         outcome=outcome,
+        name=name,
         compiler_flags=compiler_flags,
         opt_flags=opt_flags,
     )
@@ -199,7 +206,9 @@ def parse(lines: list[str]) -> Testcase:
                     )
                 test_case.stderr = OutputExpectation("\n".join(section.lines))
             case "DIAGNOSTIC":
-                raise ParserException(section.line_number, 0, "'DIAGNOSTIC' is not yet implemented.")
+                raise ParserException(
+                    section.line_number, 0, "'DIAGNOSTIC' is not yet implemented."
+                )
 
     return test_case
 

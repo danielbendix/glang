@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 6 - Sum Square Differences
 outcome: success
 opt: -O3
 ### STDOUT

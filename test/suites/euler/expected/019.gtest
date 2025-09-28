@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 19 - Counting Sundays
 outcome: success
 opt: -O3
 ### STDOUT

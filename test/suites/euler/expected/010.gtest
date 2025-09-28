@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 10 - Summation of Primes
 outcome: success
 opt: -O3
 ### STDOUT

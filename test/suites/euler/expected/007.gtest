@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 7 - 10001st Prime
 outcome: success
 opt: -O3
 ### STDOUT

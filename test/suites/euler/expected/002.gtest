@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 2 - Even Fibonacci Numbers
 outcome: success
 opt: -O3
 ### STDOUT

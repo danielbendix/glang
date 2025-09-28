@@ -1,4 +1,5 @@
 ### TESTCASE
+name: Euler 14 - Longest Collatz Sequence
 outcome: success
 opt: -O3
 ### STDOUT
