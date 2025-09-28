@@ -79,6 +79,8 @@ public:
     llvm::Module& llvmModule;
     LLVMContext& llvmContext;
 
+    std::optional<u32> mainFunction = {};
+
     std::vector<AST::FunctionDeclaration *> functions;
     std::vector<llvm::Function *NONNULL> llvmFunctions;
 
@@ -132,11 +134,21 @@ public:
         return initializer;
     }
 
+    static constexpr std::string_view mangledPrefix = "glang$";
+
+    std::string mangledName(const Symbol& name) {
+        std::string mangledName;
+        mangledName.reserve(mangledPrefix.size() + name.length());
+        mangledName += mangledPrefix;
+        mangledName += name.string_view();
+        return mangledName;
+    }
+
     void addFunction(Function& function, const Symbol& name) {
         auto functionType = function.type;
         auto llvmFunctionType = functionType->getFunctionType(llvmContext);
 
-        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, name.string_view(), llvmModule);
+        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, mangledName(name), llvmModule);
         llvmFunctions.push_back(llvmFunction);
     }
 
@@ -164,6 +176,8 @@ bool populateContext(Context& context, Module& module) {
         context.addFunction(function, declaration->getName());
     }
     std::swap(context.functions, module.functionDeclarations);
+
+    context.mainFunction = module.mainFunction;
     
     return false;
 }
@@ -1849,9 +1863,46 @@ void codegenGlobals(Context& context) {
     function.builder.CreateRetVoid();
 }
 
+/// Creates a C-compatible main function, which will call into the G main function.
+void createCMainFunction(Context& context, u32 mainFunction) {
+    llvm::Function *gMainFunction = context.llvmFunctions[mainFunction];
+
+    llvm::IntegerType *intType = llvm::IntegerType::getInt32Ty(context.llvmContext);
+    llvm::PointerType *pointerType = llvm::PointerType::get(context.llvmContext, 0);
+
+    llvm::FunctionType *mainFunctionType = llvm::FunctionType::get(
+        intType, 
+        {intType, pointerType}, 
+        false
+    );
+
+    llvm::Function *main = llvm::Function::Create(
+        mainFunctionType,
+        llvm::Function::ExternalLinkage,
+        "main",
+        context.llvmModule
+    );
+
+    CompilingFunction function{context, *main};
+
+    llvm::Value *mainCall = function.builder.CreateCall(gMainFunction->getFunctionType(), gMainFunction, {});
+
+    llvm::Type *gReturnType = gMainFunction->getReturnType();
+    if (gReturnType->isVoidTy()) {
+        llvm::ConstantInt *zero = llvm::ConstantInt::get(intType, 0, false);
+        function.builder.CreateRet(zero);
+    } else {
+        function.builder.CreateRet(mainCall);
+    }
+}
+
 Result performCodegen(Context& context) {
     for (const auto [function, llvmFunction] : llvm::zip(context.functions, context.llvmFunctions)) {
         codeGenFunction(*function, *llvmFunction, context);
+    }
+
+    if (context.mainFunction) {
+        createCMainFunction(context, *context.mainFunction);
     }
 
     codegenGlobals(context);

@@ -97,11 +97,12 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
     }
 
     switch (destination.getKind()) {
-
     case TK_Void:
-        assert(false);
+        Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ". This may be a compiler programmer error.");
+        return {ERROR, nullptr};
     case TK_Boolean:
-        assert(false);
+        // TODO: Better diagnostic based on source type.
+        Diagnostic::error(expression, "Cannot coerce to " + source.makeName() + ". Use a predicate to get a boolean.");
         return {ERROR, nullptr};
     case TK_Num_Integer: {
         auto& integerDestination = cast<IntegerType>(destination);

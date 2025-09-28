@@ -100,6 +100,8 @@ struct Module {
 
     SymbolMap<Type *NONNULL> types;
 
+    std::optional<u32> mainFunction = {};
+
     std::vector<StructType *NONNULL> structs;
     /// parallel to `structs`.
     std::vector<AST::StructDeclaration *NONNULL> structDeclarations;

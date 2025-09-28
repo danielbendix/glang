@@ -13,6 +13,7 @@ using llvm::cast;
 struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> {
     const u32 currentFile;
     Module& module;
+    Symbol& mainSymbol;
 
     std::pair<AST::Node *NONNULL, u32> getNodeAndFileFromDefinition(Definition definition) {
         auto kind = definition.kind();
@@ -65,6 +66,21 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         module.functions.push_back({u16(functionDeclaration.getParameterCount()), currentFile});
         module.functionDeclarations.push_back(&functionDeclaration);
         assert(module.functions.size() == module.functionDeclarations.size());
+
+        if (name == mainSymbol) {
+            if (module.mainFunction) {
+                u32 offendingFile = currentFile;
+                Diagnostic::error(functionDeclaration, "Duplicate main function declaration.", offendingFile);
+                u32 previousMainFile = module.functions[*module.mainFunction].file;
+                auto *previousMainDeclaration = module.functionDeclarations[*module.mainFunction];
+                Diagnostic::note(*previousMainDeclaration, "main function previously declared here.", offendingFile, previousMainFile, functionDeclaration.offset);
+                return ERROR;
+            } else {
+                // TODO: main will not be callable from other functions, which is probably desired.
+                // But there should be a different declaration for main to have a syntactical distinction.
+                module.mainFunction = index;
+            }
+        }
 
         auto definition = Definition::fromFunctionIndex(index);
         if (!module.all.insert(name, definition)) {
@@ -143,7 +159,11 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         return ERROR;
     }
 
-    ModuleInserter(Module& module, u32 file) : module{module}, currentFile{file} {}
+    ModuleInserter(Module& module, u32 file) 
+        : module{module}
+        , currentFile{file} 
+        , mainSymbol{ThreadContext::get()->symbols->getSymbol("main")}
+        {}
 
     static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, u32 file, Module& module) {
         ModuleInserter inserter{module, file};

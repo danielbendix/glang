@@ -25,7 +25,7 @@ using enum PassResultKind;
 using Result = PassResult;
 
 using llvm::TypeSwitch;
-using llvm::isa, llvm::cast;
+using llvm::isa, llvm::cast, llvm::dyn_cast;
 
 class GlobalVariableTypeChecker {
     Module& module;
@@ -493,9 +493,10 @@ public:
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         Type *returnType = currentFunction->type->getReturnType();
         if (auto* value = returnStatement.getValue()) {
-            if (returnType == typeResolver.voidType()) {
+            if (returnType == builtins.voidType) {
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
+                return;
             }
             ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
             auto typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(value, returnType);
@@ -602,6 +603,46 @@ PassResult populateEnumCases(auto& enums, TypeResolver& typeResolver) {
     return result;
 }
 
+PassResult validateMainFunction(Module& module) {
+    if (!module.mainFunction) {
+        return OK;
+    }
+    auto& mainFunction = module.functions[*module.mainFunction];
+
+    FunctionType *mainFunctionType = mainFunction.type;
+
+    if (!mainFunctionType) {
+        return ERROR;
+    }
+
+    PassResult result = OK;
+
+    if (mainFunctionType->parameterCount() != 0) {
+        auto *mainFunctionDeclaration = module.functionDeclarations[*module.mainFunction];
+        Diagnostic::error(*mainFunctionDeclaration, "main function cannot take parameters.");
+        result |= ERROR;
+    }
+
+    Type *returnType = mainFunctionType->getReturnType();
+
+    if (returnType->isVoid()) {
+
+    } else if (auto *integerType = dyn_cast<IntegerType>(returnType)) {
+        if (integerType->bitWidth > 32) {
+            auto *mainFunctionDeclaration = module.functionDeclarations[*module.mainFunction];
+            // TODO[DX]: We could sign- or zero-extend return values, but codegen architecture is blocking this for now.
+            Diagnostic::error(*mainFunctionDeclaration->getReturnTypeDeclaration(), "main function must return a 32-bit integer.");
+            result |= ERROR;
+        }
+    } else {
+        auto *mainFunctionDeclaration = module.functionDeclarations[*module.mainFunction];
+        Diagnostic::error(*mainFunctionDeclaration->getReturnTypeDeclaration(), "main function can only return void or an integer type.");
+        result |= ERROR;
+    }
+
+    return result;
+}
+
 PassResult typecheckModule(Module& module)
 {
     PassResult result = OK;
@@ -624,6 +665,8 @@ PassResult typecheckModule(Module& module)
     result |= typeCheckStructs(module.structs, module, resolver);
 
     result |= typeChecker.typeCheckGlobals(module.globalDeclarations);
+
+    result |= validateMainFunction(module);
 
     if (result.failed()) {
         return ERROR;
