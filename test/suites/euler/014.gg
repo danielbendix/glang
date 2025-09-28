@@ -1,0 +1,84 @@
+struct Bitset {
+    let count: usize;
+    let bytes: u8[];
+}
+
+fn bitset_create(count: usize) -> Bitset {
+    let byteCount = (count + 7) >> 3;
+    let set = Bitset {
+        count = count,
+        bytes = #allocate<u8>(byteCount)
+    };
+
+    for i in 0 ..< byteCount {
+        set.bytes[i] = 0;
+    }
+
+    return set;
+}
+
+// TODO: Instance methods
+fn bitset_set(set: Bitset*, index: usize) {
+    #assert(index < set@.count);
+    let byteOffset = index >> 3;
+    // TODO: make shifting smaller values by larger values typed better.
+    let bitOffset = #truncate<u8>(index & 0b111);
+
+    let byte = set@.bytes[byteOffset];
+    set@.bytes[byteOffset] = byte | (1 << bitOffset);
+}
+
+fn bitset_get(set: Bitset*, index: usize) -> bool {
+    #assert(index < set@.count);
+    let byteOffset = index >> 3;
+    let bitOffset = #truncate<u8>(index & 0b111);
+
+    let byte = set@.bytes[byteOffset];
+    return (byte & (1 << bitOffset)) != 0;
+}
+
+fn bitset_destroy(set: Bitset*) {
+    #free(set@.bytes);
+}
+
+fn solution() -> u64 {
+    var set = bitset_create(1000000);
+
+    var max_number: usize = 0;
+    var max = 0;
+    let million: usize = 1000000;
+    for n in 2 ..< million {
+        var value = n;
+        var steps = 0;
+
+        if bitset_get(&set, n) {
+            continue;
+        }
+
+        while value > 1 {
+            if value < 1000000 {
+                bitset_set(&set, value);
+            }
+
+            if value & 1 == 0 {
+                value = value >> 1;
+            } else {
+                value = 3 * value + 1;
+            }
+            steps += 1;
+        }
+
+        if steps > max {
+            max_number = n;
+            max = steps;
+        }
+    }
+
+    bitset_destroy(&set);
+
+    return max_number;
+}
+
+fn main() {
+    #print(solution());
+}

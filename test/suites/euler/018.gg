@@ -1,0 +1,172 @@
+fn getNumbers() -> u8[] {
+    let array = #allocate<u8>(15 * 16 / 2);
+
+    array[0] = 75;
+    array[1] = 95;
+    array[2] = 64;
+    array[3] = 17;
+    array[4] = 47;
+    array[5] = 82;
+    array[6] = 18;
+    array[7] = 35;
+    array[8] = 87;
+    array[9] = 10;
+    array[10] = 20;
+    array[11] = 04;
+    array[12] = 82;
+    array[13] = 47;
+    array[14] = 65;
+    array[15] = 19;
+    array[16] = 01;
+    array[17] = 23;
+    array[18] = 75;
+    array[19] = 03;
+    array[20] = 34;
+    array[21] = 88;
+    array[22] = 02;
+    array[23] = 77;
+    array[24] = 73;
+    array[25] = 07;
+    array[26] = 63;
+    array[27] = 67;
+    array[28] = 99;
+    array[29] = 65;
+    array[30] = 04;
+    array[31] = 28;
+    array[32] = 06;
+    array[33] = 16;
+    array[34] = 70;
+    array[35] = 92;
+    array[36] = 41;
+    array[37] = 41;
+    array[38] = 26;
+    array[39] = 56;
+    array[40] = 83;
+    array[41] = 40;
+    array[42] = 80;
+    array[43] = 70;
+    array[44] = 33;
+    array[45] = 41;
+    array[46] = 48;
+    array[47] = 72;
+    array[48] = 33;
+    array[49] = 47;
+    array[50] = 32;
+    array[51] = 37;
+    array[52] = 16;
+    array[53] = 94;
+    array[54] = 29;
+    array[55] = 53;
+    array[56] = 71;
+    array[57] = 44;
+    array[58] = 65;
+    array[59] = 25;
+    array[60] = 43;
+    array[61] = 91;
+    array[62] = 52;
+    array[63] = 97;
+    array[64] = 51;
+    array[65] = 14;
+    array[66] = 70;
+    array[67] = 11;
+    array[68] = 33;
+    array[69] = 28;
+    array[70] = 77;
+    array[71] = 73;
+    array[72] = 17;
+    array[73] = 78;
+    array[74] = 39;
+    array[75] = 68;
+    array[76] = 17;
+    array[77] = 57;
+    array[78] = 91;
+    array[79] = 71;
+    array[80] = 52;
+    array[81] = 38;
+    array[82] = 17;
+    array[83] = 14;
+    array[84] = 91;
+    array[85] = 43;
+    array[86] = 58;
+    array[87] = 50;
+    array[88] = 27;
+    array[89] = 29;
+    array[90] = 48;
+    array[91] = 63;
+    array[92] = 66;
+    array[93] = 04;
+    array[94] = 68;
+    array[95] = 89;
+    array[96] = 53;
+    array[97] = 67;
+    array[98] = 30;
+    array[99] = 73;
+    array[100] = 16;
+    array[101] = 69;
+    array[102] = 87;
+    array[103] = 40;
+    array[104] = 31;
+    array[105] = 04;
+    array[106] = 62;
+    array[107] = 98;
+    array[108] = 27;
+    array[109] = 23;
+    array[110] = 09;
+    array[111] = 70;
+    array[112] = 98;
+    array[113] = 73;
+    array[114] = 93;
+    array[115] = 38;
+    array[116] = 53;
+    array[117] = 60;
+    array[118] = 04;
+    array[119] = 23;
+
+    return array;
+}
+
+fn copyLine(line: i64, from: u8[], to: u64[])
+{
+    let offset = line * (line + 1) / 2;
+    for i in 0 ... line {
+        to[i] = from[offset + i];
+    }
+}
+
+fn solution() -> u64 {
+    // This would be helped by inline nested functions.
+
+    let numbers = getNumbers();
+    var acc = #allocate<u64>(15);
+    var prev = #allocate<u64>(15);
+
+    copyLine(14, numbers, acc);
+
+    for i_ in 2 ... 15 {
+        let i = 15 - i_;
+
+        let tmp = acc;
+        acc = prev;
+        prev = tmp;
+
+        copyLine(i, numbers, acc);
+        for j in 0 ... i {
+            if (prev[j] > prev[j + 1]) {
+                acc[j] += prev[j];
+            } else {
+                acc[j] += prev[j + 1];
+            }
+        }
+
+    }
+
+    #free(numbers);
+    #free(acc);
+    #free(prev);
+
+    return acc[0];
+}
+
+fn main() {
+    #print(solution());
+}

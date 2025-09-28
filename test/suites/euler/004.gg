@@ -1,0 +1,29 @@
+fn isPalindromic(number: i64) -> bool {
+    var inverse: i64 = 0;
+    var n = number;
+
+    while n > 0 {
+        inverse *= 10;
+        inverse += n % 10;
+        n /= 10;
+    }
+
+    return inverse == number;
+}
+
+fn solution() -> i64 {
+    var max = -1;
+    for a in 100 ..< 1000 {
+        for b in a ..< 1000 {
+            let number = a * b;
+            if isPalindromic(number) and number > max {
+                max = number;
+            }
+        }
+    }
+    return max;
+}
+
+fn main() {
+    #print(solution());
+}

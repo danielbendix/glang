@@ -1,0 +1,18 @@
+fn solution() -> i64 {
+    for a in 1 ..< 333 {
+        let start = a + 1;
+        let end = (1000 - a) / 2;
+        for b in start ... end {
+            let c = 1000 - b - a;
+            if a * a + b * b == c * c {
+                return a * b * c;
+            }
+        }
+    }
+
+    return -1;
+}
+
+fn main() {
+    #print(solution());
+}

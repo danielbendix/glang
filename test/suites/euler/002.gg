@@ -1,0 +1,22 @@
+fn solution() -> i64 {
+    var f1 = 1;
+    var f2 = 2;
+
+    var sum = 0;
+
+    while f2 <= 4000000 {
+        if f2 & 1 == 0 {
+            sum += f2;
+        }
+
+        let tmp = f2;
+        f2 = f1 + f2;
+        f1 = tmp;
+    }
+
+    return sum;
+}
+
+fn main() {
+    #print(solution());
+}

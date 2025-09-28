@@ -1,0 +1,16 @@
+fn solution() -> i64 {
+    var sum = 0;
+    var sumOfSquares = 0;
+
+    for i in 1 ... 100 {
+        sum += i;
+        sumOfSquares += i * i;
+    }
+    
+    sum *= sum;
+    return sum - sumOfSquares;
+}
+
+fn main() {
+    #print(solution());
+}

@@ -1,0 +1,33 @@
+fn isPrime(number: u32, primes: u32[], count: i64) -> bool {
+    // TODO: Would be nice with slice here.
+    for pi in 0 ..< count {
+        // TODO: No sqrt
+        if number % primes[pi] == 0 {
+            return false;
+        }
+    }
+    return true;
+}
+
+fn solution() -> u32 {
+    let primes = #allocate<u32>(10000);
+
+    var n: u32 = 3;
+    var i = 0;
+    while i < 10000 {
+        if isPrime(n, primes, i) {
+            primes[i] = n;
+            i += 1;
+        }
+        
+        n += 2;
+    }
+
+    // TODO: #free(primes)
+
+    return primes[9999];
+}
+
+fn main() {
+    #print(solution());
+}

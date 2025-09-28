@@ -1,0 +1,5 @@
+### TESTCASE
+outcome: success
+opt: -O3
+### STDOUT
+137846528820

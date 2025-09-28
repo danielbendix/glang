@@ -1,0 +1,70 @@
+
+struct PrimeGenerator {
+    var count: usize;
+    let primes: i32[];
+}
+
+// TODO: Methods
+fn PrimeGenerator_create(count: usize) -> PrimeGenerator {
+    #assert(count > 1);
+    return {
+        count = 0,
+        primes = #allocate<i32>(count),
+    };
+}
+
+// TODO: Slices
+fn isPrime(n: i32, primes: i32[], count: usize) -> bool {
+    for i in 0 ..< count {
+        // TODO: sqrt
+        if n % primes[i] == 0 {
+            return false;
+        }
+    }
+    return true;
+}
+
+fn PrimeGenerator_next(generator: PrimeGenerator*) -> i32 {
+    var number: i32 = 3;
+    if (generator@.count > 0) {
+        number = generator@.primes[generator@.count - 1] + 2;
+    }
+    while true {
+        if isPrime(number, generator@.primes, generator@.count) {
+            generator@.primes[generator@.count] = number;
+            generator@.count += 1;
+            return number;
+        }
+
+        number += 2;
+    }
+
+    // TODO: Better control flow analysis or unreachable statement.
+    return 0;
+}
+
+fn PrimeGenerator_destroy(generator: PrimeGenerator*) {
+    #free(generator@.primes);
+}
+
+
+fn solution() -> i64 {
+    var number: i64 = 600851475143;
+    var largest: i64 = 1;
+    var generator = PrimeGenerator_create(10000);
+
+    while number > 1 {
+        let prime = PrimeGenerator_next(&generator);
+
+        while number % prime == 0 {
+            number /= prime;
+            largest = prime;
+        }
+    }
+
+    return largest;
+}
+
+fn main() {
+    #print(solution());
+}

@@ -1,0 +1,87 @@
+fn recurse(remaining: i64, max: i64, acc: i64*) {
+    if remaining < 0 {
+        return;
+    }
+
+    if remaining == 0 {
+        *acc += 1;
+        return;
+    }
+
+    if max >= 200 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 200;
+
+            recurse(n, 100, acc);
+        }
+    }
+
+    if max >= 100 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 100;
+
+            recurse(n, 50, acc);
+        }
+    }
+
+    if max >= 50 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 50;
+
+            recurse(n, 20, acc);
+        }
+    }
+
+    if max >= 20 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 20;
+
+            recurse(n, 10, acc);
+        }
+    }
+
+    if max >= 10 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 10;
+
+            recurse(n, 5, acc);
+        }
+    }
+
+    if max >= 5 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 5;
+
+            recurse(n, 2, acc);
+        }
+    }
+
+    if max >= 2 {
+        var n = remaining;
+        while (n >= 0) {
+            n -= 2;
+
+            recurse(n, 1, acc);
+        }
+    }
+
+    if max >= 1 {
+        *acc += 1;
+    }
+}
+
+fn solution() -> i64 {
+    var acc: i64 = 0;
+    recurse(200, 200, &acc);
+    return acc;
+}
+
+fn main() {
+    #print(solution());
+}

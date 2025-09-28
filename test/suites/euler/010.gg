@@ -1,0 +1,80 @@
+fn findSqrt(min: u32, max: u32, number: u32) -> u32 {
+    let tried = (min + max) / 2;
+    let square = tried * tried;
+
+    if min == max {
+        return min;
+    }
+
+    if square > number {
+        return findSqrt(min, tried - 1, number);
+    } else if square == number {
+        return tried;
+    } else {
+        if (tried + 1) * (tried + 1) > number {
+            return tried;
+        } else {
+            return findSqrt(tried + 1, max, number);
+        }
+    }
+}
+
+// Poor man's square root
+fn sqrt(number: u32) -> u32 {
+    if number == 0 {
+        return 0;
+    }
+    if number == 1 {
+        return 1;
+    }
+
+    if number > 1000000 {
+        return findSqrt(1, number / 1000, number);
+    } else if number > 10000 {
+        return findSqrt(1, number / 100, number);
+    } else if number > 100 {
+        return findSqrt(1, number / 10, number);
+    } else {
+        return findSqrt(1, number - 1, number);
+    }
+}
+
+fn isPrime(number: u32, primes: u32[], count: i64) -> bool {
+    // TODO: Would be nice with slice here.
+    let max = sqrt(number);
+    for pi in 0 ..< count {
+        let prime = primes[pi];
+        if prime > max {
+            break;
+        }
+        if number % primes[pi] == 0 {
+            return false;
+        }
+    }
+    return true;
+}
+
+fn solution() -> i64 {
+    let primes = #allocate<u32>(200000);
+    var sum = 2;
+
+    var n: u32 = 3;
+    var i = 0;
+    while n < 2000000 {
+        if isPrime(n, primes, i) {
+            primes[i] = n;
+            i += 1;
+            sum += n;
+        }
+        
+        n += 2;
+    }
+
+    #free(primes);
+
+    return sum;
+}
+
+fn main() {
+    #print(solution());
+}
