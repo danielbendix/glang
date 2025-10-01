@@ -573,7 +573,7 @@ AST::WhileStatement *Parser::whileStatement()
     auto conds = conditions();
     auto code = block();
 
-    return AST::WhileStatement::create(nodeAllocator, token, std::move(conds), std::move(code));
+    return AST::WhileStatement::create(nodeAllocator, token, conds, code);
 }
 
 AST::BreakStatement *Parser::breakStatement()
@@ -722,7 +722,7 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
         rule = ParseRule::expressionRules[static_cast<int>(current.type)];
         if (precedence <= rule.precedence) {
             advance();
-            expr = (this->*rule.infixHandler)(std::move(expr));
+            expr = (this->*rule.infixHandler)(expr);
         } else {
             break;
         }
@@ -731,14 +731,14 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
     return expr;
 }
 
-AST::Expression *Parser::call(AST::Expression *left)
+AST::Expression *Parser::call(AST::Expression *callee)
 {
     auto token = previous;
 
     GrowingSpan<AST::Expression *NONNULL> arguments{arrayAllocator};
 
     if (match(TokenType::RightParenthesis)) {
-        return AST::CallExpression::create(nodeAllocator, token, std::move(left), arguments.freeze());
+        return AST::CallExpression::create(nodeAllocator, token, callee, arguments.freeze());
     }
 
     do {
@@ -747,26 +747,26 @@ AST::Expression *Parser::call(AST::Expression *left)
 
     consume(TokenType::RightParenthesis);
 
-    return AST::CallExpression::create(nodeAllocator, token, std::move(left), arguments.freeze());
+    return AST::CallExpression::create(nodeAllocator, token, callee, arguments.freeze());
 }
 
-AST::Expression *Parser::subscript(AST::Expression *NONNULL left) {
+AST::Expression *Parser::subscript(AST::Expression *NONNULL target) {
     auto token = previous;
 
     auto index = expression({});
 
     consume(TokenType::RightBrace);
 
-    return AST::SubscriptExpression::create(nodeAllocator, token, std::move(left), std::move(index));
+    return AST::SubscriptExpression::create(nodeAllocator, token, target, index);
 }
 
-AST::Expression *Parser::member(AST::Expression *left)
+AST::Expression *Parser::member(AST::Expression *target)
 {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
-    return AST::MemberAccessExpression::create(nodeAllocator, token, std::move(left), name);
+    return AST::MemberAccessExpression::create(nodeAllocator, token, target, name);
 }
 
 AST::Expression *Parser::inferredMember()

@@ -158,11 +158,11 @@ class Parser {
     AST::Expression *parseExpression(Precedence precedence);
 
     [[nodiscard]]
-    AST::Expression *call(AST::Expression *left);
+    AST::Expression *call(AST::Expression *callee);
     [[nodiscard]]
-    AST::Expression *subscript(AST::Expression *left);
+    AST::Expression *subscript(AST::Expression *target);
     [[nodiscard]]
-    AST::Expression *member(AST::Expression *left);
+    AST::Expression *member(AST::Expression *target);
     [[nodiscard]]
     AST::Expression *binary(AST::Expression *left);
 
