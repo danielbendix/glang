@@ -1,5 +1,5 @@
 ### TESTCASE
-name: Euler 4 - Largest Palindrom Product
+name: Euler 4 - Largest Palindrome Product
 outcome: success
 opt: -O3
 ### STDOUT
