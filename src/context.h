@@ -8,13 +8,22 @@
 #include <mutex>
 #include <filesystem>
 
+#include "llvm/ADT/APInt.h"
+using llvm::APInt;
+
 /// Represents the memory resources of the AST from a single file.
 struct ASTHandle {
     BumpAllocator nodeAllocator;
     ArrayArenaAllocator arrayAllocator;
+    std::vector<APInt> largeIntegerValues;
 
-    ASTHandle(BumpAllocator&& nodeAllocator, ArrayArenaAllocator&& arrayAllocator) 
-        : nodeAllocator{std::move(nodeAllocator)}, arrayAllocator{std::move(arrayAllocator)} {}
+    ASTHandle(
+        BumpAllocator&& nodeAllocator, 
+        ArrayArenaAllocator&& arrayAllocator,
+        std::vector<APInt>&& largeIntegerValues
+    )   : nodeAllocator{std::move(nodeAllocator)}
+        , arrayAllocator{std::move(arrayAllocator)} 
+        , largeIntegerValues{std::move(largeIntegerValues)} {}
 };
 
 struct File {

@@ -207,12 +207,12 @@ namespace AST {
 
     FileLocation IntegerLiteral::getFileLocation() const {
         // FIXME: Fix for folded literals.
-        return {offset, value.getLength()};
+        return {offset, metadata.length()};
     }
 
     FileLocation FloatingPointLiteral::getFileLocation() const {
-        // TODO: Needs length
-        llvm_unreachable(__FUNCTION__);
+        // FIXME: Needs length
+        return {offset, 2};
     }
 
     FileLocation CharacterLiteral::getFileLocation() const {

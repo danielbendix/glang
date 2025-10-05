@@ -173,7 +173,8 @@ namespace AST {
             NK_Expr_Literal_Nil,
             NK_Expr_Literal_False,
             NK_Expr_Literal_True,
-            NK_Expr_Literal_Integer,
+            NK_Expr_Literal_Integer_Small,
+            NK_Expr_Literal_Integer_Large,
             NK_Expr_Literal_Floating,
             NK_Expr_Literal_Character,
             NK_Expr_Literal_String,
@@ -211,6 +212,12 @@ namespace AST {
 
         void print(PrintContext& pc) const {}
         FileLocation getFileLocation() const;
+
+        template<Kind start, Kind end>
+        static constexpr bool in_range(Kind kind) {
+            static_assert(start < end);
+            return kind >= start && kind <= end;
+        }
     };
 }
 std::ostream& operator<<(std::ostream& os, const AST::Node& node);
@@ -232,7 +239,7 @@ namespace AST {
         ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind >= NK_Type_Literal && node->kind <= NK_Type_Modifier;;
+            return in_range<NK_Type_Literal, NK_Type_Modifier>(node->kind);
         }
     };
 
@@ -393,7 +400,7 @@ namespace AST {
         Type *NULLABLE type = nullptr;
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind >= NK_Expr_Identifier && node->kind <= NK_Expr_Inferred_Member_Access;
+            return in_range<NK_Expr_Identifier, NK_Expr_Inferred_Member_Access>(node->kind);
         }
     };
 
@@ -458,7 +465,7 @@ namespace AST {
 
     public:
         static bool classof(const Node *NONNULL node) {
-            return node->kind >= NK_Expr_Literal_Nil && node->kind <= NK_Expr_Literal_String;
+            return in_range<NK_Expr_Literal_Nil, NK_Expr_Literal_String>(node->kind);
         }
     };
 
@@ -511,7 +518,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind == NK_Expr_Literal_False || node->kind == NK_Expr_Literal_True;
+            return in_range<NK_Expr_Literal_False, NK_Expr_Literal_True>(node->kind);
         }
     };
 
@@ -524,75 +531,94 @@ namespace AST {
             Hexadecimal,
         };
 
+        class Metadata {
+            u32 value;
+
+        public:
+            Metadata(Type integerType, u32 length) : value{u32(integerType) << 29 | length} {
+                assert(length <= MAX_LENGTH);
+            }
+
+            [[nodiscard]]
+            u32 length() const {
+                return value & MAX_LENGTH;
+            }
+
+            [[nodiscard]]
+            Type integerType() const {
+                return Type(value >> 29);
+            }
+        } metadata;
+
         static constexpr u32 MAX_LENGTH = (1U << 29) - 1U;
 
-        // A hack to put data inside the padding of APInt
-        class Value : public llvm::APInt {
-        public:
-            u32 metadata;
-            Value(llvm::APInt&& value, Type type, u32 length) : APInt{value} {
-                assert(length <= MAX_LENGTH);
-                metadata = (u32(type) << 29) | length;
-            }
-
-            Value& operator=(Value&& rhs) {
-                metadata = rhs.metadata;
-                APInt::operator=(std::move(rhs));
-                return *this;
-            }
-
-            void signExtendInPlace(unsigned width) {
-                APInt::operator=(sext(width));
-            }
-
-            void signExtendOrTruncateInPlace(unsigned width) {
-                APInt::operator=(sextOrTrunc(width));
-            }
-
-            void setValue(llvm::APInt&& other) {
-                APInt::operator=(std::move(other));
-            }
-
-            u32 getLength() const {
-                return metadata & MAX_LENGTH;
-            }
-
-            Type getType() const {
-                return Type(metadata >> 29);
-            }
-
-            friend class IntegerLiteral;
-            friend class IntegerFold;
-        };
-    private:
-        Value value;
+        [[nodiscard]]
+        bool isLarge() const {
+            return kind == NK_Expr_Literal_Integer_Large;
+        }
     protected:
-        IntegerLiteral(Token token, APInt&& value, Type integerType, u32 length)
-            : Literal{NK_Expr_Literal_Integer, token}
-            , value{std::move(value), integerType, length} {}
+        IntegerLiteral(Token token, Kind kind, Type integerType, u32 length)
+            : Literal{kind, token}, metadata{integerType, length}
+        {
+            bool inRange = Node::in_range<NK_Expr_Literal_Integer_Small, NK_Expr_Literal_Integer_Large>(kind);
+            assert(inRange);
+        }
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
+        static bool classof(const Node *NONNULL node) {
+            return in_range<NK_Expr_Literal_Integer_Small, NK_Expr_Literal_Integer_Large>(node->kind);;
+        }
+    };
+
+    class SmallIntegerLiteral : public IntegerLiteral {
+        const i32 value;
+
+        SmallIntegerLiteral(Token token, i32 value, Type integerType, u32 length)
+            : IntegerLiteral{token, NK_Expr_Literal_Integer_Small, integerType, length}
+            , value{value} {}
+
+    public:
         template <Allocator Allocator>
-        static IntegerLiteral *NONNULL create(Allocator& allocator, Token token, APInt&& value, Type integerType, u32 length) {
+        static SmallIntegerLiteral *NONNULL create(Allocator& allocator, Token token, i32 value, Type integerType, u32 length) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IntegerLiteral{token, std::move(value), integerType, length};
+                return new(space) SmallIntegerLiteral{token, value, integerType, length};
             });
         }
 
-        Value& getValue() {
-            return value;
-        }
-
-        const APInt& getValue() const {
-            return value;
-        }
+        friend class IntegerLiteral;
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind == NK_Expr_Literal_Integer;
+            return node->kind == NK_Expr_Literal_Integer_Small;
         }
     };
+
+    class LargeIntegerLiteral : public IntegerLiteral {
+        const u32 valueIndex;
+
+        LargeIntegerLiteral(Token token, u32 valueIndex, Type integerType, u32 length)
+            : IntegerLiteral{token, NK_Expr_Literal_Integer_Large, integerType, length}
+            , valueIndex{valueIndex} {}
+    public:
+        template <Allocator Allocator>
+        static LargeIntegerLiteral *NONNULL create(Allocator& allocator, Token token, u32 valueIndex, Type integerType, u32 length) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) LargeIntegerLiteral{token, valueIndex, integerType, length};
+            });
+        }
+
+        friend class IntegerLiteral;
+
+        static bool classof(const Node *NONNULL node) {
+            return node->kind == NK_Expr_Literal_Integer_Large;
+        }
+    };
+
+    static_assert(
+        sizeof(SmallIntegerLiteral) >= sizeof(LargeIntegerLiteral), 
+        "SmallIntegerLiteral should be able to contain LargeIntegerLiteral"
+    );
 
     class FloatingPointLiteral : public Literal {
         // Maybe use a more precise value, and track overflow.
@@ -1129,7 +1155,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind >= NK_Binding_Identifier && node->kind <= NK_Binding_Identifier;
+            return node->kind == NK_Binding_Identifier;
         }
     };
 
@@ -1644,8 +1670,7 @@ namespace AST {
         }
 
         static bool classof(const Node *NONNULL node) {
-            // TODO: Ensure starting kind is correct
-            return node->kind >= NK_Decl_Variable && node->kind <= NK_Decl_Statement;
+            return in_range<NK_Decl_Variable, NK_Decl_Statement>(node->kind);
         }
     };
 
