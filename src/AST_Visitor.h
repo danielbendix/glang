@@ -53,7 +53,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
-            case NK_Expr_Literal_Integer:
+            case NK_Expr_Literal_Integer_Small:
+            case NK_Expr_Literal_Integer_Large:
                 return std::invoke(visitor, *static_cast<IntegerLiteral *>(&node));
             case NK_Expr_Literal_Floating:
                 return std::invoke(visitor, *static_cast<FloatingPointLiteral *>(&node));
@@ -133,7 +134,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
-            case NK_Expr_Literal_Integer:
+            case NK_Expr_Literal_Integer_Small:
+            case NK_Expr_Literal_Integer_Large:
                 return std::invoke(visitor, *static_cast<const IntegerLiteral *>(&node));
             case NK_Expr_Literal_Floating:
                 return std::invoke(visitor, *static_cast<const FloatingPointLiteral *>(&node));
@@ -179,7 +181,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<StringLiteral *>(&node));
-            case NK_Expr_Literal_Integer:
+            case NK_Expr_Literal_Integer_Small:
+            case NK_Expr_Literal_Integer_Large:
                 return std::invoke(visitor, *static_cast<IntegerLiteral *>(&node));
             case NK_Expr_Literal_Floating:
                 return std::invoke(visitor, *static_cast<FloatingPointLiteral *>(&node));
@@ -201,7 +204,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const CharacterLiteral *>(&node));
             case NK_Expr_Literal_String:
                 return std::invoke(visitor, *static_cast<const StringLiteral *>(&node));
-            case NK_Expr_Literal_Integer:
+            case NK_Expr_Literal_Integer_Small:
+            case NK_Expr_Literal_Integer_Large:
                 return std::invoke(visitor, *static_cast<const IntegerLiteral *>(&node));
             case NK_Expr_Literal_Floating:
                 return std::invoke(visitor, *static_cast<const FloatingPointLiteral *>(&node));

@@ -75,8 +75,8 @@ class Parser {
 
     SymbolTable& symbols;
 
-    BumpAllocator nodeAllocator;
-    ArrayArenaAllocator arrayAllocator;
+    BumpAllocator nodeAllocator = {};
+    ArrayArenaAllocator arrayAllocator = {};
     Scanner scanner;
     Token previous;
     Token current;
@@ -84,7 +84,8 @@ class Parser {
     FileID fileID;
 
     jmp_buf startPoint;
-    DiagnosticBuffer diagnostics;
+    DiagnosticBuffer diagnostics = {};
+    std::vector<APInt> largeIntegerValues = {};
 
     struct ExpressionRules {
         bool allowInitializer = true;
@@ -195,6 +196,9 @@ class Parser {
     [[nodiscard]]
     AST::Expression *postfixUnary(AST::Expression *expression);
 
+    template <u8 Prefix, AST::IntegerLiteral::Type IntegerType>
+    AST::IntegerLiteral *makeIntegerLiteral(Token token);
+
     void error(std::string&& message, DiagnosticLocation location);
 
     void advance() {
@@ -232,11 +236,11 @@ class Parser {
     friend class ParseRule;
 public:
     Parser(FileID fileID, SymbolTable& symbols, std::string&& string) 
-        : fileID{fileID}
-        , symbols{symbols}
+        : symbols{symbols}
         , scanner{std::move(string)}
         , previous{scanner.next()}
-        , current{previous} {}
+        , current{previous}
+        , fileID{fileID} {}
 
     ParsedFile parse(DiagnosticWriter& writer);
 

@@ -92,11 +92,33 @@ ParsedFile Parser::parse(DiagnosticWriter& writer)
         }
         u32 size = previous.offset;
 
-        auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
-        return ParsedFile(size, ParseResult::OK, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics));
+        auto astHandle = std::make_unique<ASTHandle>(
+            std::move(nodeAllocator), 
+            std::move(arrayAllocator),
+            std::move(largeIntegerValues)
+        );
+        return ParsedFile{
+            size, 
+            ParseResult::OK, 
+            std::move(declarations), 
+            std::move(scanner.lineBreaks), 
+            std::move(astHandle), 
+            std::move(diagnostics)
+        };
     } else [[unlikely]] { // We're bailing out due to a fatal error
-        auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
-        return ParsedFile{0, ParseResult::FATAL, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics)};
+        auto astHandle = std::make_unique<ASTHandle>(
+            std::move(nodeAllocator), 
+            std::move(arrayAllocator),
+            std::move(largeIntegerValues)
+        );
+        return ParsedFile{
+            0, 
+            ParseResult::FATAL, 
+            std::move(declarations), 
+            std::move(scanner.lineBreaks), 
+            std::move(astHandle), 
+            std::move(diagnostics)
+        };
     }
 }
 
@@ -960,6 +982,43 @@ AST::Literal *Parser::createStringLiteral(Token token)
     return AST::StringLiteral::create(nodeAllocator, token, string.freeze());
 }
 
+template<AST::IntegerLiteral::Type>
+constexpr u8 radixForIntegerType = 0;
+
+template<>
+constexpr u8 radixForIntegerType<AST::IntegerLiteral::Type::Binary> = 2;
+
+template<>
+constexpr u8 radixForIntegerType<AST::IntegerLiteral::Type::Octal> = 8;
+
+template<>
+constexpr u8 radixForIntegerType<AST::IntegerLiteral::Type::Decimal> = 10;
+
+template<>
+constexpr u8 radixForIntegerType<AST::IntegerLiteral::Type::Hexadecimal> = 16;
+
+template <u8 Prefix, AST::IntegerLiteral::Type IntegerType>
+AST::IntegerLiteral *Parser::makeIntegerLiteral(Token token) {
+    constexpr u8 Radix = radixForIntegerType<IntegerType>;
+    static_assert(Radix);
+
+    std::string_view chars = toStringView(token);
+
+    APInt value = parseInteger<Prefix, Radix>(chars);
+
+    u32 length = chars.length();
+
+    if (value.getSignificantBits() <= 32) {
+        // Get unsigned bits, bitcast to i64, and truncate to i32.
+        i32 smallValue = std::bit_cast<i64>(value.getLimitedValue());
+        return AST::SmallIntegerLiteral::create(nodeAllocator, token, smallValue, IntegerType, length);
+    } else {
+        u32 index = largeIntegerValues.size();
+        largeIntegerValues.push_back(std::move(value));
+        return AST::LargeIntegerLiteral::create(nodeAllocator, token, index, IntegerType, length);
+    }
+}
+
 AST::Expression *Parser::literal()
 {
     // FIXME: Check overflow of numerical literals
@@ -972,37 +1031,13 @@ AST::Expression *Parser::literal()
 
     switch (previous.type) {
         case Binary: 
-            return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 2>(toStringView(previous)), 
-                IntegerType::Binary,
-                previous.length
-            );
+            return makeIntegerLiteral<2, IntegerType::Binary>(previous);
         case Octal: 
-            return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 8>(toStringView(previous)), 
-                IntegerType::Octal,
-                previous.length
-            );
+            return makeIntegerLiteral<2, IntegerType::Octal>(previous);
         case Integer: 
-            return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<0, 10>(toStringView(previous)), 
-                IntegerType::Decimal,
-                previous.length
-            );
+            return makeIntegerLiteral<2, IntegerType::Decimal>(previous);
         case Hexadecimal: 
-            return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 16>(toStringView(previous)), 
-                IntegerType::Hexadecimal,
-                previous.length
-            );
+            return makeIntegerLiteral<2, IntegerType::Hexadecimal>(previous);
 
         case Floating: {
             double value = 0.0;

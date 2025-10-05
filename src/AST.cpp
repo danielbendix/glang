@@ -208,12 +208,12 @@ namespace AST {
 
     FileLocation IntegerLiteral::getFileLocation() const {
         // FIXME: Fix for folded literals.
-        return {offset, value.getLength()};
+        return {offset, metadata.length()};
     }
 
     FileLocation FloatingPointLiteral::getFileLocation() const {
-        // TODO: Needs length
-        llvm_unreachable(__FUNCTION__);
+        // FIXME: Needs length
+        return {offset, 2};
     }
 
     FileLocation CharacterLiteral::getFileLocation() const {
@@ -556,18 +556,22 @@ namespace AST {
     }
 
     void IntegerLiteral::print(PrintContext& pc) const {
-        switch (value.getType()) {
+        const APInt& value = isLarge() ? 
+            llvm::cast<LargeIntegerLiteral>(this)->valueIndex :
+            llvm::APInt{32, std::bit_cast<u32>(llvm::cast<SmallIntegerLiteral>(this)->value), true};
+
+        switch (metadata.literalType()) {
             case Type::Binary:
                 pc << "0b";
-                return pc.printInteger(value, 2);
+                return pc.printAPInt(value, 2);
             case Type::Octal:
                 pc << "0o";
-                return pc.printInteger(value, 8);
+                return pc.printAPInt(value, 8);
             case Type::Decimal:
-                return pc.printInteger(value, 10);
+                return pc.printAPInt(value, 10);
             case Type::Hexadecimal:
                 pc << "0x";
-                return pc.printInteger(value, 16);
+                return pc.printAPInt(value, 16);
         }
     }
 

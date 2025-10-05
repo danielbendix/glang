@@ -1093,7 +1093,11 @@ public:
                 return function.getIntegerConstant(1, boolean.getValue() ? 1 : 0);
                 return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
             },
-            [&](const AST::IntegerLiteral& integer) -> Value * {
+            [&](const AST::SmallIntegerLiteral& integer) -> Value * {
+
+            },
+            [&](const AST::LargeIntegerLiteral& integer) -> Value * {
+                // TODO: We need to get the function, then the file for the function, and then the value.
                 return TypeSwitch<Type *, llvm::Value *>(integer.getType())
                     .Case([&](IntegerType *integerType) {
                         auto bitWidth = integerType->bitWidth;

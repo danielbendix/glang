@@ -9,13 +9,22 @@
 #include <mutex>
 #include <filesystem>
 
+#include "llvm/ADT/APInt.h"
+using llvm::APInt;
+
 /// Represents the memory resources of the AST from a single file.
 struct ASTHandle {
     BumpAllocator nodeAllocator;
     ArrayArenaAllocator arrayAllocator;
+    std::vector<APInt> largeIntegerValues;
 
-    ASTHandle(BumpAllocator&& nodeAllocator, ArrayArenaAllocator&& arrayAllocator) 
-        : nodeAllocator{std::move(nodeAllocator)}, arrayAllocator{std::move(arrayAllocator)} {}
+    ASTHandle(
+        BumpAllocator&& nodeAllocator, 
+        ArrayArenaAllocator&& arrayAllocator,
+        std::vector<APInt>&& largeIntegerValues
+    )   : nodeAllocator{std::move(nodeAllocator)}
+        , arrayAllocator{std::move(arrayAllocator)} 
+        , largeIntegerValues{std::move(largeIntegerValues)} {}
 };
 
 struct File {
@@ -28,7 +37,7 @@ struct File {
     std::vector<u32> lineBreaks;
 
     File(const char *path, u32 pathSize, const char *name, u32 nameSize)
-        : path{path}, pathSize{pathSize}, name{name}, nameSize{nameSize} {}
+        : path{path}, name{name}, pathSize{pathSize}, nameSize{nameSize} {}
 };
 
 struct GlobalContext {
