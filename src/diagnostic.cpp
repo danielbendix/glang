@@ -142,6 +142,11 @@ public:
             << RESET_WEIGHT 
             << '\n';
 
+        // 0 is used for diagnostics that cannot have file content printed, e.g. EOF.
+        if (location.length == 0) {
+            return;
+        }
+
         auto openFile = getOpenFile(diagnostic.file);
         u32 start = location.line == 1 ? 0 : file.lineBreaks[location.line - 2] + 1;
         u32 end = location.line <= file.lineBreaks.size() ? file.lineBreaks[location.line - 1] : file.size;

@@ -497,8 +497,8 @@ Token Scanner::next() noexcept {
             }
             case '\0': {
                 // Produce EndOfFile as long as someone is asking.
-                auto token = makeToken(EndOfFile);
                 current = end;
+                auto token = makeToken(EndOfFile);
                 return token;
             }
             default: 

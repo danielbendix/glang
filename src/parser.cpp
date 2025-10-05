@@ -39,7 +39,7 @@ constexpr ErrorValue ERROR{};
     *_result;                     \
 })
 
-std::optional<std::string> readFile(const char *path) {
+static std::optional<std::string> readFile(const char *path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (file.fail()) {
         return {};
@@ -65,6 +65,8 @@ ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer) {
         std::cout << "error: file '" << file.path << "' does not exist.\n";
         return ParsedFile{0, ParseResult::FATAL, {}, {}, {}, {}};
     }
+
+    file.size = contents->size();
 
     Parser parser{fileHandle, *ThreadContext::get()->symbols, std::move(*contents)};
 
@@ -690,7 +692,6 @@ struct ParseRule {
 };
 
 
-
 AST::Expression *Parser::expression(ExpressionRules rules)
 {
     ExpressionRules saved = expressionRules;
@@ -712,7 +713,8 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
         if (previous.type != TokenType::Error) {
             ParsingError::expectedExpression(*this, previous);
         }
-        // If none of the preceding statements emitted errors, the scanner did.
+
+        ParsingError::expectedExpression(*this, previous);
         return ERROR;
     }
 

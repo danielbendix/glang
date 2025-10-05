@@ -125,7 +125,7 @@ void ParsingError::invalidFPLiteral(Parser& parser, Token token) {
 }
 
 void ParsingError::expectedExpression(Parser& parser, Token token) {
-
+    parser.error("Expected expression.", token);
 }
 
 void ParsingError::unexpectedEndOfFile(Parser& parser, Token token) {
