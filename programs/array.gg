@@ -29,8 +29,8 @@ fn sum2(numbers: i64[!], n: i64) -> i64 {
 }
 
 fn add2(numbers: i64[]) -> i64 {
-    let i0: i32 = 0;
-    let i1: i32 = 1;
+    const i0: i32 = 0;
+    const i1: i32 = 1;
     return numbers[i0] * numbers[i1];
 }
 
@@ -46,26 +46,25 @@ fn add1(numbers: i64[!], n: i64) {
     }
 }
 
-fn main() -> i64 {
-    //let a = 100;
+fn main() -> i32 {
     var a: i64 = 100;
     var a2: i64 = 200;
 
     var b = &a;
 
-    let c: i64** = &b;
+    const c: i64** = &b;
 
     *c = &a2;
     **c = 100;
 
-    let d: i64*? = &a;
+    const d: i64*? = &a;
 
-    let e: i8? = nil;
-    let f: i16?? = 0b1;
+    const e: i8? = nil;
+    const f: i16?? = 0b1;
 
-    if let f = f, let f = f, let e = e, let d = d {
-        return e + f * *d;
+    if unwrap f = f, unwrap f = f, unwrap e = e, unwrap d = d {
+        return #truncate(e + f * *d);
     }
 
-    return a2;
+    return #truncate(a2);
 }

@@ -79,6 +79,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<TypeModifier *>(&node));
             case NK_Binding_Identifier:
                 return std::invoke(visitor, *static_cast<IdentifierBinding *>(&node));
+            case NK_Unwrap:
+                return std::invoke(visitor, *static_cast<ConditionalUnwrap *>(&node));
         }
     }
 
@@ -157,6 +159,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const TypeModifier *>(&node));
             case NK_Binding_Identifier:
                 return std::invoke(visitor, *static_cast<const IdentifierBinding *>(&node));
+            case NK_Unwrap:
+                return std::invoke(visitor, *static_cast<const ConditionalUnwrap *>(&node));
         }
     }
 }

@@ -9,8 +9,8 @@ fn main() -> i64 {
     var a1: i32 = 0;
     var a2: i64 = a1;
 
-    let value: MyFirstEnum = .nothing;
-    let value2: MyFirstEnum = .a(&a2);
+    const value: MyFirstEnum = .nothing;
+    const value2: MyFirstEnum = .a(&a2);
 
     return a2;
 }

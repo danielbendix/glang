@@ -1,7 +1,7 @@
 
 struct PrimeGenerator {
     var count: usize;
-    let primes: i32[];
+    const primes: i32[];
 }
 
 // TODO: Methods
@@ -54,7 +54,7 @@ fn solution() -> i64 {
     var generator = PrimeGenerator_create(10000);
 
     while number > 1 {
-        let prime = PrimeGenerator_next(&generator);
+        const prime = PrimeGenerator_next(&generator);
 
         while number % prime == 0 {
             number /= prime;

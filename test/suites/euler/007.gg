@@ -10,7 +10,7 @@ fn isPrime(number: u32, primes: u32[], count: i64) -> bool {
 }
 
 fn solution() -> u32 {
-    let primes = #allocate<u32>(10000);
+    const primes = #allocate<u32>(10000);
 
     var n: u32 = 3;
     var i = 0;

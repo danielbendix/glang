@@ -57,8 +57,10 @@ std::string tokenTypeToHumanReadableString(TokenType tokenType) {
     case Self: return "'self'";
     case Enum: return "'enum'";
     case Struct: return "'struct'";
-    case Let: return "'let'";
     case Var: return "'var'";
+    case Const: return "'const'";
+    case Bind: return "'bind'";
+    case Unwrap: return "'unwrap'";
     case Static: return "'static'";
     case Public: return "'public'";
     case Private: return "'private'";

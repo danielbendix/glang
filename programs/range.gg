@@ -1,6 +1,6 @@
-fn main() -> i64 {
-    var sum: i64 = 0;
-    let max: i64 = 100;
+fn main() -> i32 {
+    var sum: i32 = 0;
+    const max: i32 = 100;
     for n in 0 ..< max {
         sum += n;
     }

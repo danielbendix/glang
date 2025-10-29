@@ -3,7 +3,7 @@ fn fac(n: i64) -> i64 {
     return n * fac(n - 1);
 }
 
-fn main() -> i64 {
-    let result = fac(10);
-    return result & 1;
+fn main() -> i32 {
+    const result = fac(10);
+    return #truncate(result & 1);
 }

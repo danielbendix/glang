@@ -387,53 +387,31 @@ public:
     }
 
     [[nodiscard]]
-    Result handleConditionalBinding(AST::VariableDeclaration& variable) {
-        auto *initial = variable.getInitialValue();
-        if (!initial) {
+    Result handleConditionalBinding(AST::ConditionalUnwrap& variable) {
+        auto *value = variable.getValue();
+        if (!value) {
             Diagnostic::error(variable, "Conditional binding must have a value specified.");
             return ERROR;
         }
 
-        Type *declaredType = nullptr;
-        Type *propagatedType = nullptr;
-        if (auto *typeDeclaration = variable.getTypeDeclaration()) {
-            declaredType = typeResolver.resolveType(*typeDeclaration);
-
-            if (!declaredType) {
-                Diagnostic::error(*typeDeclaration, "Unable to resolve type declaration.");
-                return ERROR;
-            }
-
-            propagatedType = declaredType->getOptionalType();
-        }
-
         ExpressionTypeChecker checker{scopeManager, typeResolver};
-        TypeCheckResult initialResult = propagatedType 
-            ? checker.typeCheckExpressionUsingDeclaredType(initial, propagatedType) 
-            : checker.typeCheckExpressionRequiringInferredType(initial);
-        variable.setInitialValue(initialResult.folded());
-        Type *type = initialResult.type();
+        TypeCheckResult valueResult = checker.typeCheckExpressionRequiringInferredType(value);
+        variable.setValue(valueResult.folded());
+        Type *type = valueResult.type();
 
         if (!type) {
             return ERROR;
         }
         if (!isa<OptionalType>(type)) {
-            Diagnostic::error(*initial, "Expected optional type in conditional binding.");
+            Diagnostic::error(*value, "Expected optional type in conditional unwrap.");
             return ERROR;
         }
         auto optionalType = cast<OptionalType>(type);
         type = optionalType->getContained();
-
-        if (declaredType && type != declaredType) {
-            Diagnostic::error(*initial, "Cannot coerce in conditional binding.");
-            result = ERROR;
-            type = declaredType;
-        }
         
         auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
         binding.setType(type);
-        binding.setIsMutable(variable.getIsMutable());
-        variable.setType(*type);
+        binding.setIsMutable(false);
 
         scopeManager.pushInnerScope();
         return scopeManager.pushBinding(binding.getIdentifier(), binding);
@@ -442,8 +420,8 @@ public:
     [[nodiscard]]
     Result handleCondition(AST::Condition *condition) {
         return TypeSwitch<AST::Condition, Result>(*condition)
-            .Case<AST::VariableDeclaration *>([&](auto variable) {
-                return handleConditionalBinding(*variable);
+            .Case<AST::ConditionalUnwrap *>([&](auto unwrap) {
+                return handleConditionalBinding(*unwrap);
             })
             .Case<AST::Expression *>([&](auto expression) {
                 ExpressionTypeChecker typeChecker{scopeManager, typeResolver};

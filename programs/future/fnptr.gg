@@ -7,8 +7,8 @@ fn add_two(n: i64) -> i64 {
 }
 
 fn test(n: i64) -> i64 {
-    let a = add_one;
-    let b = add_two;
+    const a = add_one;
+    const b = add_two;
 
     return a(b(n));
 }

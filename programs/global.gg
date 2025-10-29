@@ -1,11 +1,11 @@
 
-let ac = ab + 50;
+const ac = ab + 50;
 var a: i64 = 100;
 
-let ab = aa + 50;
-let aa = 200;
+const ab = aa + 50;
+const aa = 200;
 
-fn main() -> i64 {
+fn main() -> i32 {
     a += ab + ac + aa;
 
     #print(a);

@@ -3,7 +3,6 @@ add_executable(glang
     main.cpp
     common.cpp
     AST.cpp
-    AST_Visitor.cpp
     token.cpp
     scanner.cpp
     parser.cpp

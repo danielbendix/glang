@@ -39,6 +39,7 @@ class Type {
     struct TypeIndex {
         ArrayType *boundedArrayType = nullptr;
         ArrayType *unboundedArrayType = nullptr;
+        // TODO: These should only be on integer types.
         RangeType *openRangeType = nullptr;
         RangeType *closedRangeType = nullptr;
     };

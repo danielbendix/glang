@@ -6,22 +6,22 @@ fn test2(a: i32*) {
     *a = *a * *a;
 }
 
-fn main() -> i64 {
-    //let a = 100;
+fn main() -> i32 {
+    //const a = 100;
     var a: i64 = 100;
     var a2: i64 = 200;
 
     var b = &a;
 
-    let c: i64** = &b;
+    const c: i64** = &b;
 
     *c = &a2;
     **c = 100;
 
-    let d: i64*? = &a;
+    const d: i64*? = &a;
 
-    let e: i8? = nil;
-    let f: i16? = 0b1;
+    const e: i8? = nil;
+    const f: i16? = 0b1;
 
-    return a2;
+    return #truncate(a2);
 }

@@ -1,13 +1,13 @@
 fn test(a: i64, b: i64) -> i64 {
-    let c = a | b;
-    let d = a ^ b;
-    let e = c & d;
-    let f = ~e;
+    const c = a | b;
+    const d = a ^ b;
+    const e = c & d;
+    const f = ~e;
     return f;
 }
 
 fn main() -> i64 {
-    let a: i64 = 42;
-    let b: i64 = 57;
+    const a: i64 = 42;
+    const b: i64 = 57;
     return test(42, 57);
 }

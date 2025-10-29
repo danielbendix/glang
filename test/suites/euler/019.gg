@@ -16,20 +16,20 @@ fn populateMonths(array: u8[]) {
 }
 
 fn getMonths() -> u8[] {
-    let array = #allocate<u8>(12);
+    const array = #allocate<u8>(12);
     populateMonths(array);
     return array;
 }
 
 fn isLeapYear(year: i64) -> bool {
-    let divisibleBy4 = year % 4 == 0;
-    let divisibleBy100 = year % 100 == 0;
-    let divisibleBy400 = year % 400 == 0;
+    const divisibleBy4 = year % 4 == 0;
+    const divisibleBy100 = year % 100 == 0;
+    const divisibleBy400 = year % 400 == 0;
     return divisibleBy400 or (divisibleBy4 and not divisibleBy100);
 }
 
 fn solution() -> i64 {
-    let months = getMonths();
+    const months = getMonths();
     // Adding a year to 1 January 1900 (Monday)
     var day = (1 + 365) % 7;
     var sum = 0;

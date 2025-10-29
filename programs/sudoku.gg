@@ -1,7 +1,7 @@
 fn validateDigits(digit: i64, digits: i64*) -> bool {
     if digit == 0 { return true; }
     guard digit < 10 else { return false; }
-    let mask = 1 << digit;
+    const mask = 1 << digit;
     guard *digits & mask == 0 else { return false; }
     *digits |= mask;
     return true;
@@ -27,8 +27,8 @@ fn validateSudoku(board: i8[!]) -> bool {
             digits = 0;
             for dx in 0 ..< 3 {
                 for dy in 0 ..< 3 {
-                    let x = bx * 3 + dx;
-                    let y = by * 3 + dy;
+                    const x = bx * 3 + dx;
+                    const y = by * 3 + dy;
                     guard validateDigits(board[x * 9 + y], &digits) else { return false; }
                 }
             }

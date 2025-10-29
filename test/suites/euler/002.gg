@@ -9,7 +9,7 @@ fn solution() -> i64 {
             sum += f2;
         }
 
-        let tmp = f2;
+        const tmp = f2;
         f2 = f1 + f2;
         f1 = tmp;
     }

@@ -130,14 +130,23 @@ TokenType Scanner::identifierType()
     std::string::const_iterator it = start;
     switch (*it++) {
         case 'a': return testKeyword(it, current, "nd", 2, TokenType::And);
-        case 'b': return testKeyword(it, current, "reak", 4, TokenType::Break);
+        case 'b':
+            switch (*it++) {
+                case 'i': return testKeyword(it, current, "nd", 2, TokenType::Bind);
+                case 'r': return testKeyword(it, current, "eak", 3, TokenType::Break);
+
+            }
         case 'c': 
             switch (*it++) {
                 case 'a': return testKeyword(it, current, "se", 2, TokenType::Case);
                 case 'o': 
                     switch (*it++) {
                         case 'm': return testKeyword(it, current, "pact", 4, TokenType::Compact);
-                        case 'n': return testKeyword(it, current, "tinue", 5, TokenType::Continue);
+                        case 'n': 
+                            switch (*it++) {
+                                case 's': return testKeyword(it, current, "t", 1, TokenType::Const);
+                                case 't': return testKeyword(it, current, "inue", 4, TokenType::Continue);
+                            }
                     }
             }
             break;
@@ -161,7 +170,6 @@ TokenType Scanner::identifierType()
                 case 'n': return testKeyword(it, current, "", 0, TokenType::In);
             }
             break;
-        case 'l': return testKeyword(it, current, "et", 2, TokenType::Let);
         case 'n':
             switch(*it++) {
                 case 'i': return testKeyword(it, current, "l", 1, TokenType::Nil);
@@ -203,6 +211,7 @@ TokenType Scanner::identifierType()
                 }
             }
             break;
+        case 'u': return testKeyword(it, current, "nwrap", 5, TokenType::Unwrap);
         case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
         case 'w': 
             if (*it++ == 'h') {

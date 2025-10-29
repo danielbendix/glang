@@ -775,8 +775,8 @@ public:
         function.builder.CreateStore(value, alloca, false);
     }
 
-    llvm::Value *codegenConditionalBinding(AST::VariableDeclaration& declaration, llvm::BasicBlock& onFailure) {
-        auto initial = declaration.getInitialValue();
+    llvm::Value *codegenConditionalBinding(AST::ConditionalUnwrap& unwrap, llvm::BasicBlock& onFailure) {
+        auto initial = unwrap.getValue();
         assert(initial);
 
         auto optionalValue = visitExpressionAsValue(initial);
@@ -797,12 +797,7 @@ public:
         function.builder.CreateCondBr(test, &onSuccess, &onFailure);
         function.patchOrphanedBlock(onSuccess);
 
-        if (declaration.getIsMutable()) {
-            auto& alloca = function.addVariable(declaration.getBinding());
-            function.builder.CreateStore(value, &alloca);
-        } else {
-            function.pushValueBinding(declaration.getBinding(), value);
-        }
+        function.pushValueBinding(unwrap.getBinding(), value);
 
         return test;
     }
@@ -814,8 +809,8 @@ public:
         llvm::BasicBlock *next = nullptr;
         for (auto condition : conditions) {
             value = TypeSwitch<AST::Condition, llvm::Value *>(condition)
-                .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
-                    return codegenConditionalBinding(*variable, onFalse);
+                .Case<AST::ConditionalUnwrap *>([&](AST::ConditionalUnwrap *unwrap) {
+                    return codegenConditionalBinding(*unwrap, onFalse);
                 })
                 .Case<AST::Expression *>([&](AST::Expression *expression) {
                     auto condition = visitExpressionAsValue(expression);

@@ -1,13 +1,13 @@
 fn iMath(a: i16, b: i16) -> i32 {
-    let c = a * b;
-    let d = a / b;
-    let e = (a + b) % (a - b);
+    const c = a * b;
+    const d = a / b;
+    const e = (a + b) % (a - b);
     return e;
 }
 
 fn fMath(a: f32, b: f32) -> f64 {
-    let c = a * b;
-    let d = a / b;
-    let e = a + b - c + d;
+    const c = a * b;
+    const d = a / b;
+    const e = a + b - c + d;
     return e;
 }

@@ -1,5 +1,5 @@
 fn getNumbers() -> u8[] {
-    let array = #allocate<u8>(15 * 16 / 2);
+    const array = #allocate<u8>(15 * 16 / 2);
 
     array[0] = 75;
     array[1] = 95;
@@ -127,7 +127,7 @@ fn getNumbers() -> u8[] {
 
 fn copyLine(line: i64, from: u8[], to: u64[])
 {
-    let offset = line * (line + 1) / 2;
+    const offset = line * (line + 1) / 2;
     for i in 0 ... line {
         to[i] = from[offset + i];
     }
@@ -136,16 +136,16 @@ fn copyLine(line: i64, from: u8[], to: u64[])
 fn solution() -> u64 {
     // This would be helped by inline nested functions.
 
-    let numbers = getNumbers();
+    const numbers = getNumbers();
     var acc = #allocate<u64>(15);
     var prev = #allocate<u64>(15);
 
     copyLine(14, numbers, acc);
 
     for i_ in 2 ... 15 {
-        let i = 15 - i_;
+        const i = 15 - i_;
 
-        let tmp = acc;
+        const tmp = acc;
         acc = prev;
         prev = tmp;
 

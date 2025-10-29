@@ -24,11 +24,11 @@ fn testOuterPrint() {
     #print(d);
 }
 
-fn main() -> i64 {
-    let number: i64 = 0x7FFFFFFFFFFFFF00;
+fn main() -> i32 {
+    const number: i64 = 0x7FFFFFFFFFFFFF00;
 
-    let int: i8 = #truncate(number);
-    let int2 = #truncate<i8>(number);
+    const int: i8 = #truncate(number);
+    const int2 = #truncate<i8>(number);
 
     var int3: i8 = 0;
     int3 = #truncate(number);
@@ -36,16 +36,16 @@ fn main() -> i64 {
     #print("Hello, world");
     #print(int3);
 
-    let ii: i64? = 1;
-    let ff: i32 = 3;
-    let ff2: f64? = ff;
+    const ii: i64? = 1;
+    const ff: i32 = 3;
+    const ff2: f64? = ff;
 
-    let a = 3.0;
+    const a = 3.0;
 
     #print(a);
     #print(&int3);
 
-    let b = true;
+    const b = true;
     #print(b);
 
     var c: f64? = nil;

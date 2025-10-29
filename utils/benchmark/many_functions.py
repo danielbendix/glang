@@ -36,7 +36,7 @@ def create_function(name: str, variables: list[str], functions: list[str]) -> st
         f"fn {name}() -> i64 {{\n"
         + "\n".join(
             [
-                f"    let {variable} = {random.choice(functions)}();"
+                f"    const {variable} = {random.choice(functions)}();"
                 for variable in variables
             ]
         )

@@ -1,14 +1,14 @@
 struct Parent {
-    let age: i8;
+    const age: i8;
     var child: Child;
 }
 
 struct Child {
-    let age: i8;
+    const age: i8;
     var parent: Parent*? = nil;
 }
 
-fn main() -> i64 {
+fn main() -> i32 {
     var parent: Parent = {
         age = 35,
         child = {

@@ -15,7 +15,7 @@ fn solution() -> i64 {
     var max = -1;
     for a in 100 ..< 1000 {
         for b in a ..< 1000 {
-            let number = a * b;
+            const number = a * b;
             if isPalindromic(number) and number > max {
                 max = number;
             }

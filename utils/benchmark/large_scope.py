@@ -36,7 +36,7 @@ def create_function(name: str) -> str:
 
 
 def create_binding(variable: str, function: str) -> str:
-    return f"    let {variable} = {function}();"
+    return f"    const {variable} = {function}();"
 
 
 def create_return_value(variables: list[str]) -> str:
@@ -54,7 +54,7 @@ def create_return_value(variables: list[str]) -> str:
     #adds = ["result = result + " + " + ".join(c) + ";" for c in chunks(variables, 100)]
 
     return f"    return {terms};\n"
-    #return f"    let result: i64 = 0;\n{"\n".join(adds)}\n    return result;"
+    #return f"    const result: i64 = 0;\n{"\n".join(adds)}\n    return result;"
     
 
 def create_program(function_names: list[str], variables: list[str]) -> str:

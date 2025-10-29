@@ -15,7 +15,7 @@ fn main() -> i8 {
     head.next = &second;
     second.next = &third;
 
-    let total = sum(&head);
+    const total = sum(&head);
     #print(total);
 
     return 1;

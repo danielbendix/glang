@@ -1,11 +1,11 @@
 struct Bitset {
-    let count: usize;
-    let bytes: u8[];
+    const count: usize;
+    const bytes: u8[];
 }
 
 fn bitset_create(count: usize) -> Bitset {
-    let byteCount = (count + 7) >> 3;
-    let set = Bitset {
+    const byteCount = (count + 7) >> 3;
+    const set = Bitset {
         count = count,
         bytes = #allocate<u8>(byteCount)
     };
@@ -20,20 +20,20 @@ fn bitset_create(count: usize) -> Bitset {
 // TODO: Instance methods
 fn bitset_set(set: Bitset*, index: usize) {
     #assert(index < set@.count);
-    let byteOffset = index >> 3;
+    const byteOffset = index >> 3;
     // TODO: make shifting smaller values by larger values typed better.
-    let bitOffset = #truncate<u8>(index & 0b111);
+    const bitOffset = #truncate<u8>(index & 0b111);
 
-    let byte = set@.bytes[byteOffset];
+    const byte = set@.bytes[byteOffset];
     set@.bytes[byteOffset] = byte | (1 << bitOffset);
 }
 
 fn bitset_get(set: Bitset*, index: usize) -> bool {
     #assert(index < set@.count);
-    let byteOffset = index >> 3;
-    let bitOffset = #truncate<u8>(index & 0b111);
+    const byteOffset = index >> 3;
+    const bitOffset = #truncate<u8>(index & 0b111);
 
-    let byte = set@.bytes[byteOffset];
+    const byte = set@.bytes[byteOffset];
     return (byte & (1 << bitOffset)) != 0;
 }
 
@@ -46,7 +46,7 @@ fn solution() -> u64 {
 
     var max_number: usize = 0;
     var max = 0;
-    let million: usize = 1000000;
+    const million: usize = 1000000;
     for n in 2 ..< million {
         var value = n;
         var steps = 0;

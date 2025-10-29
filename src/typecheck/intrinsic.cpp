@@ -119,6 +119,9 @@ Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& i
         } else if (argumentResult.isConstraint()) {
             Diagnostic::error(*argument, "Unable to determine type of expression.");
             return nullptr;
+        } else if (auto *type = argumentResult.type(); isa<FunctionType>(type)) {
+            Diagnostic::error(*argument, "Cannot print value of function type.");
+            return nullptr;
         }
     }
 

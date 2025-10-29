@@ -191,6 +191,9 @@ namespace AST {
             NK_Type_Literal,
             NK_Type_Modifier,
 
+            // Conditional unwrap
+            NK_Unwrap,
+
             // Binding nodes
             NK_Binding_Identifier,
         };
@@ -1173,7 +1176,40 @@ namespace AST {
 
     class VariableDeclaration;
 
-    using Condition = llvm::PointerUnion<VariableDeclaration *NONNULL, Expression *NONNULL>;
+    class ConditionalUnwrap : public Node {
+    protected:
+        Binding *NONNULL binding;
+        Expression *NONNULL value;
+
+        ConditionalUnwrap(Token token, Binding *NONNULL binding, Expression *NONNULL value)
+            : Node{NK_Unwrap, token}
+            , binding{binding}
+            , value{value} {}
+    public:
+        void print(PrintContext& pc) const;
+        FileLocation getFileLocation() const;
+
+        template <Allocator Allocator>
+        static ConditionalUnwrap *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL value) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) ConditionalUnwrap{token, binding, value};
+            });
+        }
+
+        Binding &getBinding() {
+            return *binding;
+        }
+
+        Expression *getValue() {
+            return value;
+        }
+
+        void setValue(Expression *NONNULL value) {
+            this->value = value;
+        }
+    };
+
+    using Condition = llvm::PointerUnion<ConditionalUnwrap *NONNULL, Expression *NONNULL>;
 
     // Statements
     template <typename Subclass, typename ReturnType, typename... Args>

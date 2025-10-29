@@ -4,14 +4,14 @@ struct List {
 }
 
 struct Data {
-    let test: i64;
+    const test: i64;
 }
 
 fn sum(list: List*?) -> i64 {
     var head = list;
 
     var total = 0;
-    while let current = head {
+    while unwrap current = head {
         total += current@.data.test;
         head = current@.next;
     }

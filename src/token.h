@@ -79,8 +79,11 @@ enum class TokenType : u8 {
     Self,
     Enum,
     Struct,
-    Let,
+
     Var,
+    Const,
+    Bind,
+    Unwrap,
 
     Static,
     Public,

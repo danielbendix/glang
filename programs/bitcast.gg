@@ -1,8 +1,7 @@
-fn main() -> i64 {
+fn main() -> i32 {
+    const a: i64 = 100;
 
-    let a: i64 = 100;
+    const b: f64 = #bitcast(a);
 
-    let b: f64 = #bitcast(a);
-
-    return 0;
+    return #truncate(#bitcast<i64>(b));
 }

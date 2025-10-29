@@ -123,10 +123,12 @@ class Parser {
     [[nodiscard]]
     AST::EnumDeclaration::Case::Member enumCaseMember();
     [[nodiscard]]
-    AST::VariableDeclaration *variableDeclaration(Modifiers modifiers, bool isPattern = false);
+    AST::VariableDeclaration *variableDeclaration(Modifiers modifiers);
     [[nodiscard]]
     AST::StatementDeclaration *statementDeclaration();
 
+    [[nodiscard]]
+    AST::ConditionalUnwrap *unwrap();
     [[nodiscard]]
     Span<AST::Condition> conditions();
 

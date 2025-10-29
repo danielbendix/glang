@@ -7,8 +7,8 @@ fn reverse(head: ListI64*?) -> ListI64*? {
     var head = head;
     var prev: ListI64*? = nil;
 
-    while let current = head {
-        let next = current@.next;
+    while unwrap current = head {
+        const next = current@.next;
         current@.next = prev;
         prev = current;
         head = next;
@@ -20,7 +20,7 @@ fn reverse(head: ListI64*?) -> ListI64*? {
 fn addToListNodes(head: ListI64*?, n: i64) {
     var current = head;
 
-    while let node = current {
+    while unwrap node = current {
         node@.value += n;
         current = node@.next;
     }
@@ -48,5 +48,5 @@ fn main() {
     head.next = &second;
     second.next = &third;
 
-    let newHead = reverse(&head);
+    const newHead = reverse(&head);
 }

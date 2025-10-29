@@ -257,7 +257,7 @@ AST::Declaration *Parser::declaration()
     if (match(TokenType::Fn)) return functionDeclaration(modifiers);
     if (match(TokenType::Struct)) return structDeclaration(modifiers);
     if (match(TokenType::Var)) return variableDeclaration(modifiers);
-    if (match(TokenType::Let)) return variableDeclaration(modifiers);
+    if (match(TokenType::Const)) return variableDeclaration(modifiers);
     if (match(TokenType::Enum)) return enumDeclaration(modifiers);
 
     if (!modifiers.modifiers.isEmpty()) {
@@ -427,7 +427,7 @@ AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
     }
 }
 
-AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool isPattern)
+AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers)
 {
     checkModifiers(modifiers, AST::VariableDeclaration::allowedModifiers);
     auto token = previous;
@@ -441,12 +441,10 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers, bool 
 
     AST::Expression *initial = NONE;
     if (match(TokenType::Equal)) {
-        initial = expression({.allowInitializer = !isPattern});
+        initial = expression({});
     }
 
-    if (!isPattern) {
-        consume(TokenType::Semicolon);
-    }
+    consume(TokenType::Semicolon);
 
     return AST::VariableDeclaration::create(nodeAllocator, token, modifiers.modifiers, isMutable, variableBinding, tp, initial);
 }
@@ -488,12 +486,22 @@ AST::Statement *Parser::statement()
     return assignmentOrExpression();
 }
 
+AST::ConditionalUnwrap *Parser::unwrap()
+{
+    Token token = previous;
+    auto *binding_ = binding();
+    consume(TokenType::Equal);
+    auto *expression_ = expression({.allowInitializer = false});
+
+    return AST::ConditionalUnwrap::create(nodeAllocator, token, binding_, expression_);
+}
+
 Span<AST::Condition> Parser::conditions() 
 {
     GrowingSpan<AST::Condition> conditions{arrayAllocator};
     while (true) {
-        if (match(TokenType::Var) || match(TokenType::Let)) {
-            conditions.append(variableDeclaration({}, true));
+        if (match(TokenType::Unwrap)) {
+            conditions.append(unwrap());
         } else {
             conditions.append(expression({.allowInitializer = false}));
         }

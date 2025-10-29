@@ -1,6 +1,6 @@
 fn findSqrt(min: u32, max: u32, number: u32) -> u32 {
-    let tried = (min + max) / 2;
-    let square = tried * tried;
+    const tried = (min + max) / 2;
+    const square = tried * tried;
 
     if min == max {
         return min;
@@ -41,9 +41,9 @@ fn sqrt(number: u32) -> u32 {
 
 fn isPrime(number: u32, primes: u32[], count: i64) -> bool {
     // TODO: Would be nice with slice here.
-    let max = sqrt(number);
+    const max = sqrt(number);
     for pi in 0 ..< count {
-        let prime = primes[pi];
+        const prime = primes[pi];
         if prime > max {
             break;
         }
@@ -55,7 +55,7 @@ fn isPrime(number: u32, primes: u32[], count: i64) -> bool {
 }
 
 fn solution() -> i64 {
-    let primes = #allocate<u32>(200000);
+    const primes = #allocate<u32>(200000);
     var sum = 2;
 
     var n: u32 = 3;

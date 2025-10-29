@@ -41,7 +41,7 @@ fn sumUnbounded(numbers: i64[!], count: i64) -> i64 {
 ### Reversing a linked list:
 ```
 struct ListI64 {
-    let value: i64;
+    const value: i64;
     var next: ListI64*? = nil;
 }
 
@@ -49,8 +49,8 @@ fn reverse(head: ListI64*?) -> ListI64*? {
     var head = head;
     var prev: ListI64*? = nil;
 
-    while let current = head {
-        let next = current@.next;
+    while unwrap current = head {
+        const next = current@.next;
         current@.next = prev;
         prev = current;
         head = next;

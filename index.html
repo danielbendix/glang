@@ -67,7 +67,7 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
 </pre>
 <h3 id="reversing-a-linked-list">Reversing a linked list: </h3>
 <pre><span class="StorageClass">struct</span> ListI64 {
-    <span class="Keyword">let</span> value: <span class="Type">i64</span>;
+    <span class="Keyword">const</span> value: <span class="Type">i64</span>;
     <span class="Keyword">var</span> next: ListI64*? = <span class="Keyword">nil</span>;
 }
 
@@ -75,8 +75,8 @@ body { font-family: monospace; color: #cad3f5; background-color: #24273a; }
     <span class="Keyword">var</span> head = head;
     <span class="Keyword">var</span> prev: ListI64*? = <span class="Keyword">nil</span>;
 
-    <span class="Conditional">while</span> <span class="Keyword">let</span> current = head {
-        <span class="Keyword">let</span> next = current@.next;
+    <span class="Conditional">while</span> <span class="Keyword">unwrap</span> current = head {
+        <span class="Keyword">const</span> next = current@.next;
         current@.next = prev;
         prev = current;
         head = next;

@@ -193,7 +193,8 @@ namespace AST {
     }
 
     FileLocation VariableDeclaration::getFileLocation() const {
-        return {offset, 3};
+        u32 length = isMutable ? 3 : 5;
+        return {offset, length};
     }
 
     FileLocation NilLiteral::getFileLocation() const {
@@ -251,6 +252,12 @@ namespace AST {
     FileLocation IdentifierBinding::getFileLocation() const {
         return {offset, identifier.length()};
     }
+
+    // Conditional unwrap
+    
+    FileLocation ConditionalUnwrap::getFileLocation() const {
+        return {offset, 6};
+    }
 }
 
 namespace AST {
@@ -300,8 +307,8 @@ namespace AST {
 
     PrintContext& operator<<(PrintContext& pc, Condition condition) {
         TypeSwitch<AST::Condition>(condition)
-            .Case<AST::VariableDeclaration *>([&](AST::VariableDeclaration *variable) {
-                pc << *variable;
+            .Case<AST::ConditionalUnwrap *>([&](AST::ConditionalUnwrap *unwrap) {
+                pc << *unwrap;
             })
             .Case<AST::Expression *>([&](AST::Expression *expression) {
                 pc << *expression;
@@ -643,6 +650,12 @@ namespace AST {
 
     void IdentifierBinding::print(PrintContext& pc) const {
         pc << identifier;
+    }
+
+    // Conditional unwrap
+    
+    void ConditionalUnwrap::print(PrintContext& pc) const {
+        pc << "unwrap " << *binding << " = " << *value;
     }
 }
 

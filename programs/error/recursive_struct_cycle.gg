@@ -1,18 +1,18 @@
 struct A {
-    let i: i64;
-    let a: A;
-    let b: B;
+    const i: i64;
+    const a: A;
+    const b: B;
 }
 
 struct B {
-    let c: C;
+    const c: C;
 }
 
 struct C {
-    let d: D?;
-    let b: B;
+    const d: D?;
+    const b: B;
 }
 
 struct D {
-    let a: A;
+    const a: A;
 }
