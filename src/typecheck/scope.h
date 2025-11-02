@@ -41,7 +41,7 @@ class ScopeManager {
             llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
         }
 
-        Local(const Symbol& identifier, u32 functionIndex, u32 index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionIndex}} {}
+        Local(const Symbol& identifier, FunctionID functionID, u32 index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionID}} {}
 
         Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, as{.local = {.kind = isVariable ? Kind::Variable : Kind::Constant, .binding = &binding}} {}
     };
@@ -172,7 +172,7 @@ public:
         }
     }
 
-    Result pushParameter(const Symbol& identifier, u32 functionIndex, u32 parameterIndex, AST::FunctionDeclaration *declaration) {
+    Result pushParameter(const Symbol& identifier, FunctionID functionID, u32 parameterIndex, AST::FunctionDeclaration *declaration) {
         assert(!scopes.empty());
         i64 maxIndex = scopes.back();
         
@@ -182,7 +182,7 @@ public:
                 return ERROR;
             }
         }
-        locals.emplace_back(identifier, functionIndex, parameterIndex);
+        locals.emplace_back(identifier, functionID, parameterIndex);
         return OK;
     }
 
@@ -192,7 +192,7 @@ public:
 
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
-                u32 file = ThreadContext::get()->currentFile;
+                FileID file = ThreadContext::get()->currentFile;
                 auto fileLocation = locals[i].as.local.binding->getFileLocation();
 
                 Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
@@ -216,19 +216,19 @@ public:
                 }
                 if (local.as.kind == Local::Kind::Parameter) {
                     auto *function = &module.functions[local.as.parameter.functionIndex];
-                    return IdentifierResolution::parameter(function, local.as.parameter.index);
+                    return IdentifierResolution::parameter(local.as.parameter.index, FunctionID{local.as.parameter.functionIndex});
                 } else {
                     return IdentifierResolution::local(local.as.local.binding);
                 }
             }
         }
         
-        if (auto declaration = module.all.lookup(identifier)) {
-            auto kind = declaration->kind();
-            auto index = declaration->index();
+        if (auto definition = module.all.lookup(identifier)) {
+            auto kind = definition->kind();
+            auto index = definition->index();
             switch (kind) {
                 case Definition::Kind::Function:
-                    return IdentifierResolution::function(&module.functions[index], index);
+                    return IdentifierResolution::function(*definition);
                 case Definition::Kind::Global:
                     return IdentifierResolution::global(index, module.globalBindings[index].binding, false);
                 case Definition::Kind::Struct:

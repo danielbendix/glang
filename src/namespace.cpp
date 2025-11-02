@@ -11,11 +11,11 @@ using enum PassResultKind;
 using llvm::cast;
 
 struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> {
-    const u32 currentFile;
+    const FileID currentFile;
     Module& module;
     Symbol& mainSymbol;
 
-    std::pair<AST::Node *NONNULL, u32> getNodeAndFileFromDefinition(Definition definition) {
+    std::pair<AST::Node *NONNULL, FileID> getNodeAndFileFromDefinition(Definition definition) {
         auto kind = definition.kind();
         auto index = definition.index();
         switch (kind) {
@@ -35,7 +35,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     void diagnoseDuplicateDeclaration(const Symbol& name, AST::Node& duplicate) {
         auto existing = module.all[name];
 
-        u32 offendingFile = currentFile;
+        FileID offendingFile = currentFile;
         auto [original, originalFile] = getNodeAndFileFromDefinition(existing);
 
         Diagnostic::error(duplicate, "Duplicate declaration.", offendingFile);
@@ -45,12 +45,13 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     Result addGlobal(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
         u32 bindingIndex = module.globalBindings.size();
         u32 declarationIndex = module.globalDeclarations.size();
+        GlobalID id = GlobalID{bindingIndex};
 
         module.globalBindings.emplace_back(&binding, declarationIndex);
         module.globalDeclarations.emplace_back(&variable, bindingIndex, 1, currentFile);
 
         const Symbol& name = binding.getIdentifier();
-        auto definition = Definition::fromGlobalIndex(bindingIndex);
+        auto definition = Definition::fromGlobalID(id);
         if (!module.all.insert(name, definition)) {
             diagnoseDuplicateDeclaration(name, binding);
             return ERROR;
@@ -62,16 +63,17 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     Result addFunction(const Symbol& name, AST::FunctionDeclaration& functionDeclaration) {
         Result result = OK;
 
-        auto index = module.functions.size();
+        u32 index = module.functions.size();
+        FunctionID id = FunctionID{index};
         module.functions.push_back({u16(functionDeclaration.getParameterCount()), currentFile});
         module.functionDeclarations.push_back(&functionDeclaration);
         assert(module.functions.size() == module.functionDeclarations.size());
 
         if (name == mainSymbol) {
             if (module.mainFunction) {
-                u32 offendingFile = currentFile;
+                FileID offendingFile = currentFile;
                 Diagnostic::error(functionDeclaration, "Duplicate main function declaration.", offendingFile);
-                u32 previousMainFile = module.functions[*module.mainFunction].file;
+                FileID previousMainFile = module.functions[*module.mainFunction].file;
                 auto *previousMainDeclaration = module.functionDeclarations[*module.mainFunction];
                 Diagnostic::note(*previousMainDeclaration, "main function previously declared here.", offendingFile, previousMainFile, functionDeclaration.offset);
                 return ERROR;
@@ -82,7 +84,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
             }
         }
 
-        auto definition = Definition::fromFunctionIndex(index);
+        auto definition = Definition::fromFunctionID(id);
         if (!module.all.insert(name, definition)) {
             diagnoseDuplicateDeclaration(name, functionDeclaration);
             return ERROR;
@@ -159,13 +161,13 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         return ERROR;
     }
 
-    ModuleInserter(Module& module, u32 file) 
+    ModuleInserter(Module& module, FileID file) 
         : module{module}
         , currentFile{file} 
         , mainSymbol{ThreadContext::get()->symbols->getSymbol("main")}
         {}
 
-    static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, u32 file, Module& module) {
+    static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, FileID file, Module& module) {
         ModuleInserter inserter{module, file};
 
         Result result = OK;
@@ -177,7 +179,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 };
 
-void ModuleBuilder::addDeclarations(std::span<AST::Declaration *NONNULL> declarations, u32 file) {
+void ModuleBuilder::addDeclarations(std::span<AST::Declaration *NONNULL> declarations, FileID file) {
     assert(module);
     result |= ModuleInserter::insertDeclarationsIntoModule(declarations, file, *module);
 }

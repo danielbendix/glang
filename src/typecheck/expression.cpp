@@ -523,11 +523,10 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
                 }
             }
             case IdentifierResolution::Kind::Function: {
-                Function *function = resolution.as.function.function;
-                return function->type;
+                return typeResolver.getFunction(resolution.as.function.id).type;
             }
             case IdentifierResolution::Kind::Parameter: {
-                return resolution.as.parameter.function->type->getParameter(resolution.as.parameter.index);
+                return typeResolver.getFunction(resolution.as.parameter.functionID).type->getParameter(resolution.as.parameter.index);
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;

@@ -7,6 +7,7 @@
 #include "common.h"
 #include "containers/symbol_map.h"
 #include "diagnostic.h"
+#include "ids.h"
 
 #include "type.h"
 #include "type/struct.h"
@@ -16,20 +17,20 @@
 
 struct Function {
     const u16 parameterCount;
-    const u32 file;
+    const FileID file;
     FunctionType *type = nullptr;
 
-    Function(u16 parameterCount, u32 file)
+    Function(u16 parameterCount, FileID file)
         : parameterCount{parameterCount}, file{file} {}
 };
 
 struct Method {
     const u16 parameterCount;
-    const u32 file;
+    const FileID file;
     Type *self;
     FunctionType *type = nullptr;
 
-    Method(u16 parameterCount, u32 file, Type *self)
+    Method(u16 parameterCount, FileID file, Type *self)
         : parameterCount{parameterCount}, file{file}, self{self} {}
 };
 
@@ -39,9 +40,9 @@ struct GlobalDeclaration {
     AST::VariableDeclaration *declaration;
     u32 bindingsIndex;
     u32 bindingsSize;
-    const u32 file;
+    const FileID file;
 
-    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize, u32 file) 
+    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize, FileID file) 
         : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize}, file{file} {}
 };
 
@@ -69,11 +70,11 @@ struct Definition {
         assert(index < (1 << 28));
     }
 
-    static Definition fromFunctionIndex(u32 functionIndex) {
+    static Definition fromFunctionID(FunctionID functionIndex) {
         return Definition(Kind::Function, functionIndex);
     }
 
-    static Definition fromGlobalIndex(u32 globalIndex) {
+    static Definition fromGlobalID(GlobalID globalIndex) {
         return Definition(Kind::Global, globalIndex);
     }
 
@@ -92,6 +93,16 @@ struct Definition {
     Kind kind() const {
         return Kind(bits >> 28);
     }
+
+    operator FunctionID() const {
+        assert(kind() == Kind::Function);
+        return FunctionID{index()};
+    }
+
+    operator GlobalID() const {
+        assert(kind() == Kind::Global);
+        return GlobalID{index()};
+    }
 };
 
 struct Module {
@@ -107,7 +118,7 @@ struct Module {
     std::vector<AST::StructDeclaration *NONNULL> structDeclarations;
 
     std::vector<EnumType *NONNULL> enums;
-    /// parallel to `structs`.
+    /// parallel to `enums`.
     std::vector<AST::EnumDeclaration *NONNULL> enumDeclarations;
 
     std::vector<Function> functions;
@@ -125,7 +136,7 @@ struct ModuleBuilder {
     PassResult result = PassResultKind::OK;
     std::unique_ptr<Module> module = std::make_unique<Module>();
 
-    void addDeclarations(std::span<AST::Declaration *NONNULL> declarations, u32 file);
+    void addDeclarations(std::span<AST::Declaration *NONNULL> declarations, FileID file);
 
     std::unique_ptr<Module> finalize() {
         if (result.ok()) {

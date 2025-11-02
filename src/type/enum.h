@@ -42,19 +42,19 @@ private:
 
     u8 bits = 0;
 public:
-    const u32 file;
+    const FileID file;
 private:
 
     std::vector<Case> cases;
     SymbolMap<size_t> caseMap;
 
-    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration, u32 file) 
+    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration, FileID file) 
         : Type{TK_Enum}, name{name}, declaration{enumDeclaration}, file{file} {}
 public:
     void *codegen;
 
 public:
-    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration, u32 file) {
+    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration, FileID file) {
         return allocate(typeAllocator(), [&](void *space) {
             return new (space) EnumType{declaration.getName(), &declaration, file};
         });

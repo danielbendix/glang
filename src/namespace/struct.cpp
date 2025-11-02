@@ -15,9 +15,9 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     std::vector<AST::FunctionDeclaration *> methods;
     std::vector<AST::VariableDeclaration *> staticFields;
     std::vector<AST::FunctionDeclaration *> staticMethods;
-    const u32 file;
+    const FileID file;
 
-    StructVisitor(AST::StructDeclaration& visiting, u32 file) 
+    StructVisitor(AST::StructDeclaration& visiting, FileID file)
         : visiting{visiting}, file{file} {}
 
     // Declaration visitor
@@ -86,7 +86,7 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     }
 };
 
-StructType *createStructType(AST::StructDeclaration& structDeclaration, u32 file) {
+StructType *createStructType(AST::StructDeclaration& structDeclaration, FileID file) {
     StructVisitor visitor{structDeclaration, file};
 
     Result result = OK;

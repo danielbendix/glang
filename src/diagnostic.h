@@ -18,17 +18,17 @@ struct BufferedDiagnostic {
     };
     const char *description;
     /// The file the diagnostic emanated from.
-    const u32 sourceFile;
+    const FileID sourceFile;
     const u32 sourceOffset;
     /// The file the diagnostic is in. Should only differ from sourceFile for notes.
-    const u32 file;
+    const FileID file;
     const Kind kind;
     /// number of secondary locations after the primary one.
     const u8 extraLocations;
     const u32 locationsIndex;
     const u32 descriptionLength;
 
-    BufferedDiagnostic(Kind kind, const char *description, u32 descriptionLength, u32 file, u32 sourceFile, u32 sourceOffset, u32 locations, u8 extraLocations)
+    BufferedDiagnostic(Kind kind, const char *description, u32 descriptionLength, FileID file, FileID sourceFile, u32 sourceOffset, u32 locations, u8 extraLocations)
         : kind{kind}
         , description{description}
         , descriptionLength{descriptionLength}
@@ -66,9 +66,9 @@ class DiagnosticBuffer {
     void diagnostic(
         BufferedDiagnostic::Kind kind,
         std::string_view message, 
-        u32 sourceFile, 
+        FileID sourceFile, 
         u32 sourceOffset,
-        u32 file,
+        FileID file,
         DiagnosticLocation location
     ) {
         u32 locationsIndex = pushLocation(location);
@@ -93,15 +93,15 @@ public:
     DiagnosticBuffer() = default;
     DiagnosticBuffer(DiagnosticBuffer&&) = default;
 
-    void error(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+    void error(std::string_view message, FileID sourceFile, u32 sourceOffset, DiagnosticLocation location) {
         diagnostic(BufferedDiagnostic::Kind::Error, message, sourceFile, sourceOffset, sourceFile, location);
     }
 
-    void warning(std::string_view message, u32 sourceFile, u32 sourceOffset, DiagnosticLocation location) {
+    void warning(std::string_view message, FileID sourceFile, u32 sourceOffset, DiagnosticLocation location) {
         diagnostic(BufferedDiagnostic::Kind::Warning, message, sourceFile, sourceOffset, sourceFile, location);
     }
 
-    void note(std::string_view message, u32 sourceFile, u32 sourceOffset, u32 file, DiagnosticLocation location) {
+    void note(std::string_view message, FileID sourceFile, u32 sourceOffset, FileID file, DiagnosticLocation location) {
         diagnostic(BufferedDiagnostic::Kind::Note, message, sourceFile, sourceOffset, file, location);
     }
 
@@ -137,36 +137,36 @@ public:
     }
 
     static void error(AST::FileLocation location, std::string&& message) {
-        u32 file = ThreadContext::get()->currentFile;
+        FileID file = ThreadContext::get()->currentFile;
         buffer.error(std::move(message), file, location.offset, location);
     }
 
     static void error(const AST::Node& node, std::string&& message) {
-        u32 file = ThreadContext::get()->currentFile;
+        FileID file = ThreadContext::get()->currentFile;
         error(node, std::move(message), file);
     }
 
-    static void error(const AST::Node& node, std::string&& message, u32 file) {
+    static void error(const AST::Node& node, std::string&& message, FileID file) {
         DiagnosticLocation location = node.getFileLocation();
         buffer.error(std::move(message), file, location.offset, location);
     }
 
     static void warning(const AST::Node& node, std::string&& message) {
-        u32 file = ThreadContext::get()->currentFile;
+        FileID file = ThreadContext::get()->currentFile;
         warning(node, std::move(message), file);
     }
 
-    static void warning(const AST::Node& node, std::string&& message, u32 file) {
+    static void warning(const AST::Node& node, std::string&& message, FileID file) {
         DiagnosticLocation location = node.getFileLocation();
         buffer.warning(message, file, location.offset, location);
     }
 
-    static void note(const AST::Node& node, std::string&& message, u32 file, u32 sourceOffset) {
-        u32 sourceFile = ThreadContext::get()->currentFile;
+    static void note(const AST::Node& node, std::string&& message, FileID file, u32 sourceOffset) {
+        FileID sourceFile = ThreadContext::get()->currentFile;
         note(node, std::move(message), file, sourceFile, sourceOffset);
     }
 
-    static void note(const AST::Node& node, std::string&& message, u32 file, u32 sourceFile, u32 sourceOffset) {
+    static void note(const AST::Node& node, std::string&& message, FileID file, FileID sourceFile, u32 sourceOffset) {
         DiagnosticLocation location = node.getFileLocation();
         buffer.note(message, sourceFile, sourceOffset, file, location);
     }

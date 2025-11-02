@@ -9,7 +9,7 @@
  *   - Static variables.
  */
 
-EnumType *createEnumType(AST::EnumDeclaration& declaration, u32 file) 
+EnumType *createEnumType(AST::EnumDeclaration& declaration, FileID file) 
 {
     return EnumType::create(declaration.getName(), declaration, file);
 }

@@ -40,7 +40,7 @@ class IODiagnosticWriter : public DiagnosticWriter {
 
     struct OpenFile {
         FILE *file;
-        u32 handle;
+        FileID id;
     };
 
     std::ostream& out;
@@ -60,16 +60,16 @@ public:
         files.clear();
     }
 
-    OpenFile getOpenFile(u32 fileHandle) {
+    OpenFile getOpenFile(FileID fileID) {
         for (auto openFile : files) {
-            if (fileHandle == openFile.handle) {
+            if (fileID == openFile.id) {
                 return openFile;
             }
         }   
-        OpenFile result;
-        auto& file = globalContext.files[fileHandle];
-        result.file = fopen(file.path, "r");
-        result.handle = fileHandle;
+        auto& file = globalContext.files[fileID];
+        FILE *openedFile = fopen(file.path, "r");
+
+        OpenFile result = {openedFile, fileID};
 
         // TODO: Check that file was opened.
 

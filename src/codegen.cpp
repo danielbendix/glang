@@ -293,8 +293,8 @@ public:
         return *function.getArg(i);
     }
 
-    llvm::Function& getFunction(u32 functionIndex) {
-        return *context.llvmFunctions[functionIndex];
+    llvm::Function& getFunction(FunctionID id) {
+        return *context.llvmFunctions[id.index()];
     }
 
     llvm::BasicBlock& createBlock() {
@@ -1059,9 +1059,9 @@ public:
                 }
             }
             case IdentifierResolution::Kind::Function:
-                return Value::value(&function.getFunction(resolution.as.function.index));
+                return Value::value(&function.getFunction(resolution.as.function.id));
             case IdentifierResolution::Kind::Parameter:
-                // TODO: We need to make an array of arguments, as seen from the perspective of the function.
+                // TODO: We need to make an array of arguments, as seen from the perspective of the function body.
                 return Value::value(&function.getArgument(resolution.as.parameter.index));
             case IdentifierResolution::Kind::Type:
                 llvm_unreachable("[PROGRAMMER ERROR]: Type resolution in codegen.");

@@ -27,7 +27,7 @@ public:
     const bool wellFormed;
     const bool isCompact;
     const bool isUnpadded;
-    const u32 file;
+    const FileID file;
     u32 fieldCount;
 private:
 
@@ -56,7 +56,7 @@ private:
 
     StructType(
         const Symbol& name, 
-        u32 file,
+        FileID file,
         bool wellFormed, 
         bool isCompact,
         bool isUnpadded,
@@ -85,7 +85,7 @@ public:
 
     static StructType *NONNULL create(
         const Symbol& name, 
-        u32 file,
+        FileID file,
         bool wellFormed, 
         bool isCompact,
         bool isUnpadded,

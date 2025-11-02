@@ -6,6 +6,7 @@
 #include "context.h"
 #include "location.h"
 #include "diagnostic.h"
+#include "ids.h"
 
 #include "containers/symbol_table.h"
 #include "containers/span.h"
@@ -47,7 +48,7 @@ public:
     ParsedFile(ParsedFile&&) = default;
 };
 
-ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer);
+ParsedFile parseFile(FileID fileID, File& file, DiagnosticWriter& writer);
 
 struct ParserState {
     enum class Kind {
@@ -80,7 +81,7 @@ class Parser {
     Token previous;
     Token current;
 
-    u32 fileHandle;
+    FileID fileID;
 
     jmp_buf startPoint;
     DiagnosticBuffer diagnostics;
@@ -230,8 +231,8 @@ class Parser {
 
     friend class ParseRule;
 public:
-    Parser(u32 fileHandle, SymbolTable& symbols, std::string&& string) 
-        : fileHandle{fileHandle}
+    Parser(FileID fileID, SymbolTable& symbols, std::string&& string) 
+        : fileID{fileID}
         , symbols{symbols}
         , scanner{std::move(string)}
         , previous{scanner.next()}

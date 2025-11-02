@@ -221,7 +221,7 @@ public:
         : scopeManager{module}, typeResolver{module, builtins} 
     {}
 
-    Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, u32 index) {
+    Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, FunctionID id) {
         ThreadContext::setCurrentFile(function.file);
 
         scopeManager.reset();
@@ -237,7 +237,7 @@ public:
             auto& parameter = declaration->getParameter(parameterIndex);
             result |= scopeManager.pushParameter(
                 *parameter.name, 
-                index,
+                id,
                 parameterIndex,
                 declaration
             );
@@ -657,7 +657,7 @@ PassResult typecheckModule(Module& module)
         auto& function = module.functions[functionIndex];
         auto *declaration = module.functionDeclarations[functionIndex];
 
-        result |= bodyTypeChecker.typeCheckFunctionBody(function, declaration, functionIndex);
+        result |= bodyTypeChecker.typeCheckFunctionBody(function, declaration, FunctionID{functionIndex});
     }
 
     return result;
