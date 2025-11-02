@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "type.h"
+#include "ids.h"
 
 #include <memory>
 
@@ -49,17 +50,16 @@ struct IdentifierResolution {
     struct Parameter {
         Kind kind = Kind::Parameter;
         u16 index;
-        Function *NONNULL function;
+        FunctionID functionID;
 
-        Parameter(Function *NONNULL function, u16 parameterIndex) : function{function}, index{parameterIndex} {}
+        Parameter(u16 parameterIndex, FunctionID functionID) : index{parameterIndex}, functionID{functionID} {}
     };
 
     struct Function_ {
         Kind kind = Kind::Function;
-        u32 index;
-        Function *NONNULL function;
+        FunctionID id;
 
-        Function_(Function *NONNULL function, u32 index) : function{function}, index{index} {}
+        Function_(FunctionID id) : id{id} {}
     };
 
     struct TypeIdentifier {
@@ -106,15 +106,15 @@ struct IdentifierResolution {
         return res;
     }
 
-    static IdentifierResolution function(Function *NONNULL function, u32 index) {
+    static IdentifierResolution function(FunctionID id) {
         IdentifierResolution res;
-        res.as.function = Function_(function, index);
+        res.as.function = Function_(id);
         return res;
     }
 
-    static IdentifierResolution parameter(Function *NONNULL function, int parameterIndex) {
+    static IdentifierResolution parameter(int parameterIndex, FunctionID functionID) {
         IdentifierResolution res;
-        res.as.parameter = Parameter(function, parameterIndex);
+        res.as.parameter = Parameter(parameterIndex, functionID);
         return res;
     }
 

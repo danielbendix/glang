@@ -110,6 +110,12 @@ public:
     FPType *defaultFPType() const {
         return builtins.defaultFPType;
     }
+
+    // TODO: This should not reside in the type resolver, but right now it has the module, which is needed.
+    // Maybe this should just be renamed to `Resolver`.
+    Function& getFunction(FunctionID id) const {
+        return module.functions[id];
+    }
 };
 
 #endif // LANG_typecheck_resolver_h

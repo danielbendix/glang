@@ -2,6 +2,7 @@
 #define LANG_context_h
 
 #include "memory.h"
+#include "ids.h"
 #include "array_allocator.h"
 #include "containers/symbol_table.h"
 
@@ -36,7 +37,7 @@ struct GlobalContext {
     BumpAllocator filenameAllocator;
     std::mutex lock;
 
-    u32 addFile(const char *filePath) {
+    FileID addFile(const char *filePath) {
         auto path = std::filesystem::path{filePath};
         auto pathString = path.string();
         auto filenameString = path.filename().string();
@@ -51,10 +52,10 @@ struct GlobalContext {
         filename[filenameString.size()] = '\0';
 
         assert(files.capacity() > files.size());
-        auto index = files.size();
+        u32 index = files.size();
         files.emplace_back(filepath, pathString.size(), filename, filenameString.size());
 
-        return index;
+        return FileID{index};
     }
 };
 
@@ -80,11 +81,11 @@ struct ThreadContext {
         return instance;
     }
 
-    static void setCurrentFile(u32 fileHandle) {
+    static void setCurrentFile(FileID fileHandle) {
         instance->currentFile = fileHandle;
     }
 
-    u32 currentFile;
+    FileID currentFile = {};
     SymbolTable *NONNULL symbols;
     // This can be removed once the Sema phase is emitting GIR, instead of decorating nodes.
     BumpAllocator nodeAllocator;

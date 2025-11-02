@@ -57,7 +57,7 @@ static std::optional<std::string> readFile(const char *path) {
     return contents;
 }
 
-ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer) {
+ParsedFile parseFile(FileID fileID, File& file, DiagnosticWriter& writer) {
     auto contents = readFile(file.path);
 
     if (!contents) {
@@ -68,7 +68,7 @@ ParsedFile parseFile(u32 fileHandle, File& file, DiagnosticWriter& writer) {
 
     file.size = contents->size();
 
-    Parser parser{fileHandle, *ThreadContext::get()->symbols, std::move(*contents)};
+    Parser parser{fileID, *ThreadContext::get()->symbols, std::move(*contents)};
 
     return parser.parse(writer);
 }
@@ -103,7 +103,7 @@ ParsedFile Parser::parse(DiagnosticWriter& writer)
 // Utilities
 
 void Parser::error(std::string&& message, DiagnosticLocation location) {
-    diagnostics.error(message, fileHandle, location.offset, location);
+    diagnostics.error(message, fileID, location.offset, location);
     // TODO: Implement synchronization and recoverable (nonfatal) parsing.
     earlyExit();
 }

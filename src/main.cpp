@@ -89,10 +89,10 @@ int main(int argc, char **argv)
         bool hadError = false;
 
         for (auto *filePath : files) {
-            u32 fileHandle = globalContext.addFile(filePath);
-            File& file = globalContext.files[fileHandle];
+            FileID fileID = globalContext.addFile(filePath);
+            File& file = globalContext.files[fileID];
 
-            ParsedFile parsed = parseFile(fileHandle, file, Diagnostic::writer());
+            ParsedFile parsed = parseFile(fileID, file, Diagnostic::writer());
 
             file.lineBreaks = std::move(parsed.lineBreaks);
             parsed.diagnostics.flush(Diagnostic::writer());
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
 
             file.size = parsed.size;
             file.astHandle = std::move(parsed.astHandle);
-            builder.addDeclarations(parsed.declarations, fileHandle);
+            builder.addDeclarations(parsed.declarations, fileID);
         }
 
         if (hadError) {

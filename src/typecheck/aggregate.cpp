@@ -34,8 +34,8 @@ std::pair<AggregateType, bool> asAggregate(Type *type) {
     });
 }
 
-u32 getAggregateFileHandle(AggregateType aggregateType) {
-    return TypeSwitch<AggregateType, u32>(aggregateType)
+FileID getAggregateFileID(AggregateType aggregateType) {
+    return TypeSwitch<AggregateType, FileID>(aggregateType)
         .Case<StructType *>([](StructType *structType) {
             return structType->file;
         });
@@ -137,7 +137,7 @@ public:
         auto [aggregate, isTypeChecked] = asAggregate(type);
         if (aggregate && !isTypeChecked) {
             if (aggregate == current) {
-                Diagnostic::error(field, "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.", getAggregateFileHandle(current));
+                Diagnostic::error(field, "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.", getAggregateFileID(current));
                 return ERROR;
             } else {
                 pushLocation(field);
@@ -229,7 +229,7 @@ public:
 
             cycleDescription += getAggregateName(current);
 
-            auto sourceFile = getAggregateFileHandle(aggregateType);
+            auto sourceFile = getAggregateFileID(aggregateType);
             auto sourceOffset = diagnosticLocationStack[index]->getFileLocation().offset;
 
             Diagnostic::error(*diagnosticLocationStack[index], std::move(cycleDescription), sourceFile);
@@ -238,7 +238,7 @@ public:
                 const auto aggregateType = checkStack[i - 1];
                 const auto diagnosticLocation = diagnosticLocationStack[i];
 
-                const u32 file = getAggregateFileHandle(aggregateType);
+                const FileID file = getAggregateFileID(aggregateType);
 
                 Diagnostic::note(*diagnosticLocation, "Cycle through here.", file, sourceFile, sourceOffset);
             }
