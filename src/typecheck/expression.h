@@ -11,28 +11,22 @@
 using Result = PassResult;
 
 struct TypeCheckResult {
-    llvm::PointerIntPair<Type *, 1> _type;
+    Type *_type;
     AST::Expression *_folded;
 
     TypeCheckResult(Type *type, AST::Expression *folded) 
-        : _type{type, false}, _folded{folded} {}
-    TypeCheckResult(Type *type, AST::Expression *folded, bool canAssign) 
-        : _type{type, canAssign}, _folded{folded} {}
+        : _type{type}, _folded{folded} {}
     TypeCheckResult(std::nullptr_t, AST::Expression *folded) 
-        : _type{nullptr, false}, _folded{folded} {}
+        : _type{nullptr}, _folded{folded} {}
     TypeCheckResult(TypeResult typeResult, AST::Expression *folded) 
-        : _type{typeResult.type(), typeResult.canAssign()}, _folded{folded} {}
+        : _type{typeResult.type()}, _folded{folded} {}
 
     Type *type() const {
-        return _type.getPointer();
+        return _type;
     }
 
     AST::Expression *folded() const {
         return _folded;
-    }
-
-    bool canAssign() const {
-        return _type.getInt();
     }
 };
 
@@ -168,7 +162,7 @@ public:
     }
 
     TypeCheckResult typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression *NONNULL expression, Type *NULLABLE declaredType) {
-        if (auto folded = foldConstantsUntyped(*expression)) {
+        if (auto *folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
 
@@ -179,7 +173,7 @@ public:
             if (typeResult && typeResult.isConstraint()) {
                 Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
                 if (defaultType) {
-                    if (auto typeResult= typeCheckExpression(*expression, defaultType); typeResult.isType()) {
+                    if (auto typeResult = typeCheckExpression(*expression, defaultType); typeResult.isType()) {
                         return TypeCheckResult(typeResult, expression);
                     }
                 }
@@ -191,7 +185,7 @@ public:
         }
     }
 
-    Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *declaredType) {
+    Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *NULLABLE declaredType) {
         if (declaredType) {
             return typeCheckExpression(expression, declaredType);
         } else {

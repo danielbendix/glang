@@ -198,13 +198,13 @@ def parse(lines: list[str]) -> Testcase:
                     raise ParserException(
                         section.line_number, 0, "Duplicate 'STDOUT' section."
                     )
-                test_case.stdout = OutputExpectation("\n".join(section.lines))
+                test_case.stdout = OutputExpectation("".join(section.lines))
             case "STDERR":
                 if test_case.stderr is not None:
                     raise ParserException(
                         section.line_number, 0, "Duplicate 'STDERR' section."
                     )
-                test_case.stderr = OutputExpectation("\n".join(section.lines))
+                test_case.stderr = OutputExpectation("".join(section.lines))
             case "DIAGNOSTIC":
                 raise ParserException(
                     section.line_number, 0, "'DIAGNOSTIC' is not yet implemented."

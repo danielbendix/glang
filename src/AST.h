@@ -1751,7 +1751,7 @@ namespace AST {
         }
 
         void setInitialValue(Expression *NONNULL initial) {
-            initial = initial;
+            this->initial = initial;
         }
 
         void setWrappedInitialValue(Expression *NONNULL wrapped) {

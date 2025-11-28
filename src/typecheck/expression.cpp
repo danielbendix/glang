@@ -47,19 +47,11 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
         case PrefixDereference:
         case PostfixDereference: {
             type = typeCheckDereferenceOperator(unary);
-            if (type) {
-                unary.setType(type);
-                return {type, true};
-            }
             break;
         }
         case ForceUnwrap: {
-            TypeResult target = typeCheckForceUnwrapOperator(unary);
-            if (!target) {
-                break;
-            }
-            unary.setType(target);
-            return target;
+            type = typeCheckForceUnwrapOperator(unary);
+            break;
         }
         case AST::UnaryOperator::ZeroExtend:
         case AST::UnaryOperator::SignExtend:
@@ -72,7 +64,7 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
     if (type) {
         unary.setType(type);
     }
-    return type;
+    return {type};
 }
 
 TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
@@ -235,8 +227,7 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
     auto elementType = arrayType->getContained();
     subscript.setType(elementType);
 
-    // TODO: When arrays can be be const, this needs to reflect that.
-    return {elementType, true};
+    return {elementType};
 
     assert(false);
 }
@@ -360,7 +351,7 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
         if (memberResolution) {
             memberAccess.setType(memberType.getPointer());
             memberAccess.setResolution(memberResolution);
-            return {memberType.getPointer(), target.canAssign() && memberType.getInt()};
+            return {memberType.getPointer()};
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
             return {};
@@ -517,7 +508,7 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
             case IdentifierResolution::Kind::Global: {
                 auto *binding = resolution.as.global.binding;
                 if (binding->hasType() || (globalHandler && (*globalHandler)(resolution.as.global.bindingIndex).ok())) {
-                    return TypeResult{binding->getType(), binding->getIsMutable()};
+                    return TypeResult{binding->getType()};
                 } else {
                     return {};
                 }
@@ -530,7 +521,7 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;
-                return TypeResult{binding->getType(), binding->getIsMutable()};
+                return TypeResult{binding->getType()};
             }
             case IdentifierResolution::Kind::Type: {
                 // TODO: We need a metatype

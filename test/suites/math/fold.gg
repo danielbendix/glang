@@ -1,0 +1,15 @@
+fn test_case_1() {
+    const result = (1000000000000000 * 1000000000000000) / (-100000000000000 * -100000000000000);
+    #print(result);
+}
+
+const global = (1000000000000000 * 1000000000000000) / (-10000000000000 * -10000000000000);
+
+fn test_global() {
+    #print(global);
+}
+
+fn main() {
+    test_case_1();
+    test_global();
+}

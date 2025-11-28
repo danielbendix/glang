@@ -65,7 +65,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitUnaryExpression(AST::UnaryExp
             break;
 
     }
-    Diagnostic::error(unary, "Cannot assign to result of expression.");
+    Diagnostic::error(unary, "Cannot assign to result of unary expression.");
     return {};
 }
 

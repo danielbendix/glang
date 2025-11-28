@@ -158,7 +158,7 @@ TypeResult ExpressionTypeChecker::typeCheckForceUnwrapOperator(AST::UnaryExpress
     }
 
     if (auto optionalType = dyn_cast<OptionalType>(target.type())) {
-        return {optionalType->getContained(), target.canAssign()};
+        return {optionalType->getContained()};
     } else {
         Diagnostic::error(unary, "Cannot force unwrap non-optional value.");
         return {};

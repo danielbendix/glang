@@ -31,7 +31,7 @@ void equalizeForMul(Operand& left, Operand& right) {
     auto lsb = left.getSignificantBits();
     auto rsb = right.getSignificantBits();
 
-    auto bits= std::max(lsb, rsb) * 2;
+    auto bits = std::max(lsb, rsb) * 2 + 1;
 
     left.signExtendInPlace(bits);
     right.signExtendInPlace(bits);
@@ -41,7 +41,7 @@ void equalizeForDiv(Operand& left, Operand& right) {
     auto lsb = left.getSignificantBits();
     auto rsb = right.getSignificantBits();
 
-    auto bits= std::max(lsb, rsb);
+    auto bits = std::max(lsb, rsb);
 
     left.signExtendInPlace(bits);
     right.signExtendInPlace(bits);

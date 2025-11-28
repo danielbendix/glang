@@ -12,24 +12,18 @@ using llvm::cast;
 extern BooleanType *boolean;
 extern IntegerType *signed64;
 
+// TODO: Fix naming
 class TypeResult {
     // Pointer to type or constraint
     llvm::PointerUnion<Type *, TypeConstraint *> pointer;
     // Pointer to new value if the expression was folded, and a bit set if lvalue.
-    llvm::PointerIntPair<AST::Expression *, 1, bool> folded;
+    AST::Expression *folded;
 public:
-    TypeResult() : pointer{nullptr}, folded{nullptr, false} {}
-    explicit TypeResult(std::nullptr_t) : pointer{(Type *)nullptr}, folded{nullptr, false} {}
-    TypeResult(Type *type) : pointer{type=type}, folded{nullptr, false} {}
-    TypeResult(Type *type, bool canAssign) : pointer{type}, folded{nullptr, canAssign} {}
-    TypeResult(TypeConstraint *constraint) : pointer{constraint}, folded{nullptr, false} {}
-
-    //TypeResult(const TypeResult& result) : pointer{result.pointer}, canAssign{result.canAssign} {}
+    TypeResult() : pointer{nullptr}, folded{nullptr} {}
+    explicit TypeResult(std::nullptr_t) : pointer{(Type *)nullptr}, folded{nullptr} {}
+    TypeResult(Type *type) : pointer{type}, folded{nullptr} {}
+    TypeResult(TypeConstraint *constraint) : pointer{constraint}, folded{nullptr} {}
     
-    bool canAssign() {
-        return folded.getInt();
-    }
-
     bool isType() const {
         return isa<Type *>(pointer);
     }

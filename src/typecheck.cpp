@@ -81,13 +81,18 @@ public:
         if (AST::Expression *initial = variable.getInitialValue()) {
             checkStack_.push_back(index);
             ExpressionTypeChecker typeChecker{scopeManager, typeResolver, globalHandler};
-            type = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
+            TypeCheckResult result = typeChecker.typeCheckExpressionUsingDeclaredOrDefaultType(initial, declaredType);
             checkStack_.pop_back();
             variable.markAsChecked();
             orderedGlobals.push_back(global);
 
-            if (!type) {
+            if (!(type = result.type())) {
                 return ERROR;
+            }
+
+            if (auto *folded = result.folded()) {
+                variable.setInitialValue(folded);
+                initial = folded;
             }
 
             if (declaredType && type != declaredType) {
@@ -276,11 +281,16 @@ public:
         Type *type = nullptr;
         if (AST::Expression *initial = variable.getInitialValue()) {
             ExpressionTypeChecker checker{scopeManager, typeResolver};
-            type = checker.typeCheckExpressionUsingDeclaredOrDefaultType(*initial, declaredType);
+            TypeCheckResult typeResult = checker.typeCheckExpressionUsingDeclaredOrDefaultType(initial, declaredType);
 
-            if (!type) {
+            if (!(type = typeResult.type())) {
                 result = ERROR;
                 return;
+            }
+
+            if (auto *folded = typeResult.folded()) {
+                variable.setInitialValue(folded);
+                initial = folded;
             }
 
             if (declaredType && type != declaredType) {
