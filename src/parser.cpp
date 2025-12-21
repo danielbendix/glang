@@ -95,6 +95,14 @@ ParsedFile Parser::parse(DiagnosticWriter& writer)
         auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
         return ParsedFile(size, ParseResult::OK, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics));
     } else [[unlikely]] { // We're bailing out due to a fatal error
+        // Because we're doing lazy lexing, we churn through all the tokens to
+        // get all newlines. Otherwise, we'll likely print the rest of the file.
+        while (true) {
+            Token token = scanner.next();
+            if (token.type == TokenType::EndOfFile) {
+                break;
+            }
+        }
         auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
         return ParsedFile{0, ParseResult::FATAL, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics)};
     }
