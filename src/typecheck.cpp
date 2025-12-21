@@ -583,14 +583,6 @@ public:
     }
 };
 
-PassResult populateEnumCases(auto& enums, TypeResolver& typeResolver) {
-    PassResult result = OK;
-    for (auto& enumType : enums) {
-        result |= populateCasesInEnumType(*enumType, typeResolver);
-    }
-    return result;
-}
-
 PassResult validateMainFunction(Module& module) {
     if (!module.mainFunction) {
         return OK;
@@ -639,7 +631,7 @@ PassResult typecheckModule(Module& module)
 
     TypeResolver resolver{module, builtins};
 
-    result |= populateEnumCases(module.enums, resolver);
+    result |= typeCheckEnums(module.enums, module.enumDeclarations, module, resolver);
 
     PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *> globalAncestors;
     GlobalDeclarationTypeChecker typeChecker{module, builtins, globalAncestors};

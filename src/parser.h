@@ -122,8 +122,6 @@ class Parser {
     [[nodiscard]]
     AST::EnumDeclaration::Case enumCase();
     [[nodiscard]]
-    AST::EnumDeclaration::Case::Member enumCaseMember();
-    [[nodiscard]]
     AST::VariableDeclaration *variableDeclaration(Modifiers modifiers);
     [[nodiscard]]
     AST::StatementDeclaration *statementDeclaration();

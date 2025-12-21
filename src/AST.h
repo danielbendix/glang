@@ -1946,8 +1946,7 @@ namespace AST {
         static constexpr Modifiers allowedModifiers = {Compact, Unpadded, Private, Public};
     };
 
-    class EnumDeclaration : public Declaration {
-    public:
+    class TaggedUnionDeclaration : public Declaration {
         class Case {
         public:
             class Member {
@@ -1978,11 +1977,11 @@ namespace AST {
                 return *name;
             }
 
-            const size_t getMemberCount() const {
+            size_t getMemberCount() const {
                 return members.size();
             }
 
-            const bool hasMembers() const {
+            bool hasMembers() const {
                 return !members.isEmpty();
             }
 
@@ -2002,6 +2001,21 @@ namespace AST {
                 return members.end();
             }
         };
+
+    };
+
+    class EnumDeclaration : public Declaration {
+    public:
+        struct Case {
+            u32 offset;
+            Symbol& name;
+            Expression *NULLABLE value;
+
+            Case(Token token, Symbol& name, Expression *NULLABLE value)
+                : offset{token.offset}, name{name}, value{value} {}
+            
+            Case(const Case&) = default;
+        };
     protected:
         Symbol& name;
         TypeNode *NULLABLE rawType;
@@ -2018,6 +2032,7 @@ namespace AST {
         ) 
             : Declaration{NK_Decl_Enum, token, modifiers}
             , name{name}
+            , rawType{rawType}
             , cases{cases}
             , declarations{declarations}
         {}
@@ -2048,6 +2063,10 @@ namespace AST {
             return cases.size();
         }
 
+        Case const& getCase(u32 index) const {
+            return cases[index];
+        }
+
         iterator begin() {
             return cases.begin();
         }
@@ -2066,6 +2085,10 @@ namespace AST {
 
         const Symbol& getName() const {
             return name;
+        }
+
+        TypeNode *NULLABLE getTypeAnnotation() const {
+            return rawType;
         }
 
         static constexpr Modifiers allowedModifiers = {};

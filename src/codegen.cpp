@@ -1784,16 +1784,17 @@ public:
     }
 
     Value visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess) {
-        auto target = memberAccess.getTarget().acceptVisitor(*this);
-        auto targetType = memberAccess.getTarget().getType();
+        auto *targetType = memberAccess.getTarget().getType();
 
         auto resolution = memberAccess.getResolution();
 
         switch (resolution.getKind()) {
             case MemberResolution::Kind::StructField: {
+                auto target = memberAccess.getTarget().acceptVisitor(*this);
                 switch (target.getKind()) {
-                    case Value::Kind::Value:
+                    case Value::Kind::Value: {
                         return Value::value(function.builder.CreateExtractValue(target.get(), {resolution.as.structField.index}));
+                    }
                     case Value::Kind::Memory:
                         return Value::memory(function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target.get(), 0, resolution.as.structField.index));
                     case Value::Kind::COUNT:
@@ -1802,8 +1803,17 @@ public:
                 }
                 llvm_unreachable("");
             case MemberResolution::Kind::StructMethod:
-            case MemberResolution::Kind::EnumCase:
-                llvm_unreachable("[TODO] Unsupported member access types.");
+                llvm_unreachable("IMPLEMENT struct methods.");
+            case MemberResolution::Kind::EnumCase: {
+                u32 index = resolution.as.enumCase.index;
+                EnumType *type = cast<EnumType>(memberAccess.getType());
+                auto& tag = type->getTag(index);
+                return Value::value(llvm::ConstantInt::get(function.getIntegerType(type->getBitWidth()), tag));
+            }
+            case MemberResolution::Kind::EnumValue: {
+                auto target = memberAccess.getTarget().acceptVisitor(*this);
+                return target;
+            }
             case MemberResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNRESOLVED member access in codegen.");
         }
@@ -1819,8 +1829,15 @@ public:
                 break;
             case MemberResolution::Kind::StructMethod:
                 break;
-            case MemberResolution::Kind::EnumCase:
+            case MemberResolution::Kind::EnumCase: {
+                u32 index = resolution.as.enumCase.index;
+                EnumType *type = cast<EnumType>(inferredMemberAccess.getType());
+                auto& tag = type->getTag(index);
+                return Value::value(llvm::ConstantInt::get(function.getIntegerType(type->getBitWidth()), tag));
+            }
+            case MemberResolution::Kind::EnumValue:
                 break;
+
             case MemberResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNRESOLVED member access in codegen.");
         }

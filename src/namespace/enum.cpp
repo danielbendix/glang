@@ -11,5 +11,5 @@
 
 EnumType *createEnumType(AST::EnumDeclaration& declaration, FileID file) 
 {
-    return EnumType::create(declaration.getName(), declaration, file);
+    return EnumType::create(declaration.getName(), file);
 }

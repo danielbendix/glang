@@ -106,8 +106,8 @@ void Type::deleteValue(Type *type) {
         case TK_String: return delete static_cast<StringType *>(type);
         case TK_Function: return delete static_cast<FunctionType *>(type);
         case TK_Struct: return delete static_cast<StructType *>(type);
-        case TK_Protocol: llvm_unreachable("Unsupported type type.");
         case TK_Enum: return delete static_cast<EnumType *>(type);
+        case TK_Protocol: llvm_unreachable("Unsupported type type.");
 
         case TK_Optional: return delete static_cast<OptionalType *>(type);
         case TK_Pointer: return delete static_cast<PointerType *>(type);
@@ -247,6 +247,8 @@ llvm::Type *Type::_getLLVMType(llvm::LLVMContext& context) const {
             return static_cast<const FunctionType *>(this)->getFunctionType(context);
         case TK_Struct:
             return static_cast<const StructType *>(this)->getStructType(context);
+        case TK_Enum:
+            return static_cast<const EnumType *>(this)->_getLLVMType(context);
         case TK_Pointer:
             return llvm::PointerType::getUnqual(context);
         case TK_Optional:

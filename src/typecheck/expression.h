@@ -19,7 +19,7 @@ struct TypeCheckResult {
     TypeCheckResult(std::nullptr_t, AST::Expression *folded) 
         : _type{nullptr}, _folded{folded} {}
     TypeCheckResult(TypeResult typeResult, AST::Expression *folded) 
-        : _type{typeResult.type()}, _folded{folded} {}
+        : _type{typeResult.asTypeOrNull()}, _folded{folded} {}
 
     Type *type() const {
         return _type;
@@ -68,7 +68,7 @@ public:
         : kind{kind}, scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
 
     TypeCheckResult typeCheckExpressionRequiringInferredType(AST::Expression *NONNULL expression) {
-        if (auto folded = foldConstantsUntyped(*expression)) {
+        if (auto *folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
 
@@ -81,7 +81,7 @@ public:
     }
 
     TypeCheckResult typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
-        if (auto folded = foldConstantsUntyped(*expression)) {
+        if (auto *folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
         LValueTypeResult typeResult = typeCheckExpression(*expression, declaredType);
@@ -171,7 +171,7 @@ public:
         } else {
             TypeResult typeResult = typeCheckExpression(*expression);
             if (typeResult && typeResult.isConstraint()) {
-                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.asConstraint());
                 if (defaultType) {
                     if (auto typeResult = typeCheckExpression(*expression, defaultType); typeResult.isType()) {
                         return TypeCheckResult(typeResult, expression);
@@ -187,21 +187,27 @@ public:
 
     Type *typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression& expression, Type *NULLABLE declaredType) {
         if (declaredType) {
-            return typeCheckExpression(expression, declaredType);
+            if (auto typeResult = typeCheckExpression(expression, declaredType); typeResult.isType()) {
+                return typeResult.asType();
+            } else {
+                return {};
+            }
         } else {
             TypeResult typeResult = typeCheckExpression(expression);
-            if (typeResult && typeResult.isConstraint()) {
-                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+            if (!typeResult) {
+                return {};
+            } else if (typeResult && typeResult.isConstraint()) {
+                Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.asConstraint());
                 if (defaultType) {
-                    if (auto type = typeCheckExpression(expression, defaultType)) {
-                        return type;
+                    if (auto result = typeCheckExpression(expression, defaultType); typeResult.isType()) {
+                        return result.asType();
                     }
                 }
 
                 Diagnostic::error(expression, "Cannot determine type of expression.");
-                return nullptr;
-            }
-            return typeResult;
+                return {};
+            } //else if (typeResult.isMetatype()) {
+            return typeResult.asType();
         }
     }
 
@@ -221,12 +227,12 @@ public:
             return {};
         }
 
-        if (result.isConstraint()) {
+        if (!result.isType()) {
             Diagnostic::error(expression, "Unable to determine type of expression.");
             return {};
         }
 
-        return result;
+        return result.asType();
     }
 
     Type *typeCheckBooleanNegationOperator(AST::UnaryExpression& unary);

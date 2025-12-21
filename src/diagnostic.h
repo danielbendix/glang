@@ -161,6 +161,10 @@ public:
         buffer.warning(message, file, location.offset, location);
     }
 
+    static void note(AST::FileLocation location, std::string&& message, FileID file, FileID sourceFile, u32 sourceOffset) {
+        buffer.note(message, sourceFile, sourceOffset, file, location);
+    }
+
     static void note(const AST::Node& node, std::string&& message, FileID file, u32 sourceOffset) {
         FileID sourceFile = ThreadContext::get()->currentFile;
         note(node, std::move(message), file, sourceFile, sourceOffset);

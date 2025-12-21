@@ -55,9 +55,12 @@ class ScopeManager {
 
 public:
 
+    static constexpr size_t LOCALS_INITIAL_CAPACITY = 64;
+    static constexpr size_t SCOPES_INITIAL_CAPACITY = 8;
+
     ScopeManager(Module& module) : module{module} {
-        locals.reserve(64);
-        scopes.reserve(8);
+        locals.reserve(LOCALS_INITIAL_CAPACITY);
+        scopes.reserve(SCOPES_INITIAL_CAPACITY);
     }
 
     void reset() {

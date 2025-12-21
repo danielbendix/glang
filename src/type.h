@@ -6,6 +6,7 @@
 #include "containers/symbol_table.h"
 
 #include "llvm/ADT/StringSet.h"
+#include "llvm/ADT/APInt.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
@@ -189,6 +190,14 @@ public:
         int leadingZeros = __builtin_clzl(value);
 
         return (64 - leadingZeros) <= bits;
+    }
+
+    bool canFitValue(llvm::APInt const& value) const {
+        if (isSigned) {
+            return value.getSignificantBits() <= bitWidth;
+        } else {
+            return value.isSignBitClear() && value.getActiveBits() <= bitWidth;
+        }
     }
 
     RangeType *getOpenRangeType();

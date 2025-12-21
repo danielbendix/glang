@@ -45,11 +45,11 @@ Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression
 
     if (!valueType) {
         return nullptr;
-    } else if (valueType.isConstraint()) {
+    } else if (!valueType.isType()) {
         Diagnostic::error(intrinsic, "Unable to determins source type in #truncate intrinsic.");
         return nullptr;
     }
-    Type *fromType = valueType;
+    Type *fromType = valueType.asType();
 
     IntegerType *toIntegerType;
     IntegerType *fromIntegerType;
@@ -119,7 +119,7 @@ Type *ExpressionTypeChecker::typeCheckPrintIntrinsic(AST::IntrinsicExpression& i
         } else if (argumentResult.isConstraint()) {
             Diagnostic::error(*argument, "Unable to determine type of expression.");
             return nullptr;
-        } else if (auto *type = argumentResult.type(); isa<FunctionType>(type)) {
+        } else if (auto *type = argumentResult.asType(); isa<FunctionType>(type)) {
             Diagnostic::error(*argument, "Cannot print value of function type.");
             return nullptr;
         }
@@ -225,7 +225,7 @@ Type *ExpressionTypeChecker::typeCheckCastIntrinsic(AST::IntrinsicExpression& in
         }
     }
 
-    Type *sourceType = typeCheckExpression(*target);
+    Type *sourceType = typeCheckExpression(*target).asTypeOrNull();
     if (!sourceType) {
         Diagnostic::error(intrinsic, "Unable to determine source type in #cast intrinsic.");
         return {};
@@ -298,7 +298,7 @@ Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression&
         Diagnostic::error(intrinsic, "Unable to determins source type in #bitcast intrinsic.");
         return nullptr;
     }
-    auto fromType = argumentResult.type();
+    auto *fromType = argumentResult.asType();
 
     if (isa<PointerType>(fromType) && isa<PointerType>(toType)) {
         Diagnostic::error(intrinsic, "Cannot bitcast between pointer types. Use #cast instead.");
@@ -348,14 +348,14 @@ Type *ExpressionTypeChecker::typeCheckAllocateIntrinsic(AST::IntrinsicExpression
     Type *usizeType = builtins.usizeType;
     auto *countExpression = intrinsic.getArguments()[0];
     auto countTypeResult = typeCheckExpression(*countExpression, usizeType);
-    if (countTypeResult.isConstraint()) {
+    if (!countTypeResult) {
+        return {};
+    }
+    if (!countTypeResult.isType()) {
         Diagnostic::error(*countExpression, "Unable to determine type of allocation count.");
         return {};
     }
-    Type *countType = countTypeResult.asTypeOrNull();
-    if (!countType) {
-        return {};
-    }
+    Type *countType = countTypeResult.asType();
    
     if (!isa<IntegerType>(countType)) {
         Diagnostic::error(*countExpression, "Count must be an integer type.");
@@ -418,24 +418,32 @@ TypeResult ExpressionTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpress
 
     using enum IntrinsicKind;
 
-    switch (*kind) {
-        case Truncate:
-            return typeCheckTruncateIntrinsic(intrinsic, declaredType);
-        case Print:
-            return typeCheckPrintIntrinsic(intrinsic, declaredType);
-        case Assert:
-            return typeCheckAssertIntrinsic(intrinsic, declaredType);
-        case Cast:
-            return typeCheckCastIntrinsic(intrinsic, declaredType);
-        case Bitcast:
-            return typeCheckBitcastIntrinsic(intrinsic, declaredType);
-        case Allocate:
-            return typeCheckAllocateIntrinsic(intrinsic, declaredType);
-        case Free:
-            return typeCheckFreeIntrinsic(intrinsic, declaredType);
-    }
+    auto dispatch = [&]() -> Type * {
+        switch (*kind) {
+            case Truncate:
+                return typeCheckTruncateIntrinsic(intrinsic, declaredType);
+            case Print:
+                return typeCheckPrintIntrinsic(intrinsic, declaredType);
+            case Assert:
+                return typeCheckAssertIntrinsic(intrinsic, declaredType);
+            case Cast:
+                return typeCheckCastIntrinsic(intrinsic, declaredType);
+            case Bitcast:
+                return typeCheckBitcastIntrinsic(intrinsic, declaredType);
+            case Allocate:
+                return typeCheckAllocateIntrinsic(intrinsic, declaredType);
+            case Free:
+                return typeCheckFreeIntrinsic(intrinsic, declaredType);
+        }
+        llvm_unreachable("[PROGAMMER ERROR]");
+        Diagnostic::error(intrinsic, "TODO: Implement intrinsics.");
+        return {};
+    };
 
-    llvm_unreachable("[PROGAMMER ERROR]");
-    Diagnostic::error(intrinsic, "TODO: Implement intrinsics.");
-    return {};
+    Type *type = dispatch();
+    if (type) {
+        return TypeResult::type(type);
+    } else {
+        return {};
+    }
 }

@@ -85,6 +85,13 @@ struct ThreadContext {
         instance->currentFile = fileHandle;
     }
 
+    inline void withFile(FileID file, auto function) {
+        FileID previous = currentFile;
+        currentFile = file;
+        function();
+        currentFile = previous;
+    }
+
     FileID currentFile = {};
     SymbolTable *NONNULL symbols;
     // This can be removed once the Sema phase is emitting GIR, instead of decorating nodes.
@@ -95,6 +102,22 @@ struct ThreadContext {
     // - Existential processing of types.
     // - Parallel arrays of LLVM types that exist only during codegen, reducing sizeof(Type).
     BumpAllocator typeAllocator;
+};
+
+class LazySymbol {
+    const char *const string;
+    mutable const Symbol *symbol = nullptr;
+public:
+    LazySymbol(const char *string) : string{string} {}
+
+    const Symbol& get() const {
+        if (symbol) [[likely]] {
+            return *symbol;
+        }
+        symbol = &ThreadContext::get()->symbols->getSymbol({string});
+        assert(symbol);
+        return *symbol;
+    }
 };
 
 BumpAllocator& nodeAllocator();

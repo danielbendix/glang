@@ -11,7 +11,7 @@ void equalizeForBitwise(Operand& left, Operand& right) {
     auto lsb = left.getSignificantBits();
     auto rsb = right.getSignificantBits();
 
-    auto bits= std::max(lsb, rsb);
+    auto bits = std::max(lsb, rsb);
 
     left.signExtendInPlace(bits);
     right.signExtendInPlace(bits);
@@ -21,7 +21,7 @@ void equalizeForAddSub(Operand& left, Operand& right) {
     auto lsb = left.getSignificantBits();
     auto rsb = right.getSignificantBits();
 
-    auto bits= std::max(lsb, rsb);
+    auto bits = std::max(lsb, rsb);
 
     left.signExtendInPlace(bits);
     right.signExtendInPlace(bits);
@@ -51,7 +51,7 @@ void equalizeForMod(Operand& left, Operand& right) {
     auto lsb = left.getSignificantBits();
     auto rsb = right.getSignificantBits();
 
-    auto bits= std::max(lsb, rsb);
+    auto bits = std::max(lsb, rsb);
 
     left.signExtendInPlace(bits);
     right.signExtendInPlace(bits);

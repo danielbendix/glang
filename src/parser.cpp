@@ -402,37 +402,15 @@ AST::EnumDeclaration::Case Parser::enumCase()
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
-    if (match(TokenType::LeftParenthesis)) {
-        GrowingSpan<AST::EnumDeclaration::Case::Member> members{arrayAllocator};
-        do {
-            members.append(enumCaseMember());
-        } while (match(TokenType::Comma));
-        consume(TokenType::RightParenthesis);
-        consume(TokenType::Semicolon);
-        return AST::EnumDeclaration::Case(token, name, members.freeze());
+    AST::Expression *value = nullptr;
+
+    if (match(TokenType::Equal)) {
+        value = expression({});
     }
 
     consume(TokenType::Semicolon);
 
-    return AST::EnumDeclaration::Case(token, name, {});
-}
-
-AST::EnumDeclaration::Case::Member Parser::enumCaseMember()
-{
-    if (match(TokenType::Identifier)) {
-        Token identifierToken = previous;
-        auto& identifier = symbols.getSymbol(toStringView(identifierToken));
-        if (match(TokenType::Colon)) {
-            auto memberType = type();
-            return AST::EnumDeclaration::Case::Member(&identifier, memberType);
-        } else {
-            auto memberType = type(true);
-            return AST::EnumDeclaration::Case::Member(memberType);
-        }
-    } else {
-        auto memberType = type();
-        return AST::EnumDeclaration::Case::Member(memberType);
-    }
+    return AST::EnumDeclaration::Case{token, name, value};
 }
 
 AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers)
