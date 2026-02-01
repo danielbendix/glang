@@ -10,6 +10,7 @@ struct MemberResolution {
         StructField,
         StructMethod,
         EnumCase,
+        EnumValue,
     };
 
     struct Unresolved {
@@ -37,11 +38,16 @@ struct MemberResolution {
         EnumCase(u32 index) : index{index} {}
     };
 
+    struct EnumValue {
+        Kind kind = Kind::EnumValue;
+    };
+
     union AS {
         Unresolved unresolved;
         StructField structField;
         StructMethod structMethod;
         EnumCase enumCase;
+        EnumValue enumValue;
     } as;
 
     Kind getKind() const {
@@ -56,17 +62,22 @@ struct MemberResolution {
     MemberResolution(StructField structField) : as{.structField = structField} {}
     MemberResolution(StructMethod structMethod) : as{.structMethod = structMethod} {}
     MemberResolution(EnumCase enumCase) : as{.enumCase = enumCase} {}
+    MemberResolution(EnumValue enumValue) : as{.enumValue = enumValue} {}
 
     static MemberResolution structField(u32 index) {
-        return StructField(index);
+        return StructField{index};
     }
 
     static MemberResolution structMethod(u32 index) {
-        return StructMethod(index);
+        return StructMethod{index};
     }
 
     static MemberResolution enumCase(u32 index) {
-        return EnumCase(index);
+        return EnumCase{index};
+    }
+
+    static MemberResolution enumValue() {
+        return EnumValue{};
     }
 };
 

@@ -35,17 +35,55 @@ Type *typeCheckExpressionOrError(AST::Expression& expression, ExpressionTypeChec
 LValueTypeResult ExpressionLValueTypeChecker::visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType) {
     switch (unary.getOp()) {
         case AST::UnaryOperator::ForceUnwrap: {
+            ExpressionTypeChecker rvalueChecker{scopeManager, typeResolver};
+            auto typeResult = rvalueChecker.typeCheckExpression(unary.getTarget());
+            if (!typeResult) {
+                return {};
+            }
+            if (typeResult.isMetatype()) {
+                Diagnostic::error(unary, "Cannot force unwrap type.");
+                return {};
+            }
+            if (typeResult.isConstraint()) {
+                Diagnostic::error(unary, "Cannot force unwrap literal expression.");
+                return {};
+            }
 
+            Type *type = typeResult.asType();
+            if (auto *optionalType = dyn_cast<OptionalType>(type)) {
+                auto *type = optionalType->getContained();
+                unary.setType(type);
+                // TODO: Reconsider this. It might work with codegen, as it would fail on nil,
+                // and would just write to the value internally afterwards.
+                // It would break with getting the address however, as getting the address
+                // for the non-optional part of an optional would just be confusing.
+
+                Diagnostic::error(unary, "Cannot assign to force unwrap");
+                return {type, false};
+            } else {
+                Diagnostic::error(unary, "Cannot force unwrap non-optional value.");
+                return {};
+            }
         }
         case AST::UnaryOperator::PrefixDereference:
         case AST::UnaryOperator::PostfixDereference: {
             ExpressionTypeChecker rvalueChecker{scopeManager, typeResolver};
-            Type *type = typeCheckExpressionOrError(unary.getTarget(), rvalueChecker);
-            if (!type) {
+            auto typeResult = rvalueChecker.typeCheckExpression(unary.getTarget());
+            if (!typeResult) {
                 return {};
             }
-            if (auto pointerType = dyn_cast<PointerType>(type)) {
-                auto type = pointerType->getPointeeType();
+            if (typeResult.isMetatype()) {
+                Diagnostic::error(unary, "Cannot dereference type.");
+                return {};
+            }
+            if (typeResult.isConstraint()) {
+                Diagnostic::error(unary, "Cannot dereference literal expression.");
+                return {};
+            }
+
+            Type *type = typeResult.asType();
+            if (auto *pointerType = dyn_cast<PointerType>(type)) {
+                auto *type = pointerType->getPointeeType();
                 unary.setType(type);
                 return {type, true};
             } else {
@@ -70,7 +108,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitUnaryExpression(AST::UnaryExp
 }
 
 LValueTypeResult ExpressionLValueTypeChecker::visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
-    Diagnostic::error(binary, "Cannot assign to result of expression.");
+    Diagnostic::error(binary, "Cannot assign to result of binary expression.");
     return {};
 }
 
@@ -118,7 +156,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitSubscriptExpression(AST::Subs
 }
 
 LValueTypeResult ExpressionLValueTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
-    Diagnostic::error(initializer, "Cannot assign to struct r-value.");
+    Diagnostic::error(initializer, "Cannot assign to struct initializer expression.");
     return {};
 }
 
@@ -139,7 +177,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitMemberAccessExpression(AST::M
 
     Type *type = target.type;
 
-    if (auto structType = llvm::dyn_cast_if_present<StructType>(type)) {
+    if (auto *structType = llvm::dyn_cast_if_present<StructType>(type)) {
         auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
         if (memberResolution) {
             memberAccess.setType(memberType.getPointer());

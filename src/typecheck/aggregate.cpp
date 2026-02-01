@@ -83,7 +83,7 @@ class AggregateTypeChecker {
 
 public:
     AggregateTypeChecker(Module& module, TypeResolver& typeResolver) 
-        : scopeManager{module}, typeResolver{typeResolver} {}
+        : typeResolver{typeResolver}, scopeManager{module} {}
 
     Result typeCheckStructField(AST::VariableDeclaration& field) {
         Type *declaredType = nullptr;
@@ -98,16 +98,16 @@ public:
         if (AST::Expression *initial = field.getInitialValue()) {
             ExpressionTypeChecker checker{scopeManager, typeResolver};
             if (declaredType) {
-                type = checker.typeCheckExpression(*initial, declaredType);
+                type = checker.typeCheckExpression(*initial, declaredType).asTypeOrNull();
             } else {
                 TypeResult typeResult = checker.typeCheckExpression(*initial);
                 if (typeResult && typeResult.isConstraint()) {
-                    Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.constraint());
+                    Type *defaultType = typeResolver.defaultTypeFromTypeConstraint(typeResult.asConstraint());
                     if (defaultType) {
-                        type = checker.typeCheckExpression(*initial, defaultType);
+                        type = checker.typeCheckExpression(*initial, defaultType).asTypeOrNull();
                     }
                 } else {
-                    type = typeResult;
+                    type = typeResult.asTypeOrNull();
                 }
             }
 

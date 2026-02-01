@@ -27,18 +27,24 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
         }
         case Negate: {
             TypeResult target = typeCheckNegationOperator(unary, propagatedType);
-            if (target.isConstraint()) {
-                return target.asConstraint();
+            if (!target) {
+                break;
             }
-            type = target.type();
+            if (target.isConstraint()) {
+                return target.clone();
+            }
+            type = target.asType();
             break;
         }
         case BitwiseNegate: {
             TypeResult target = typeCheckBitwiseNegationOperator(unary, propagatedType);
-            if (target.isConstraint()) {
-                return target.asConstraint();
+            if (!target) {
+                break;
             }
-            type = target.type();
+            if (target.isConstraint()) {
+                return target.clone();
+            }
+            type = target.asType();
             break;
         }
         case AddressOf:
@@ -50,7 +56,7 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
             break;
         }
         case ForceUnwrap: {
-            type = typeCheckForceUnwrapOperator(unary);
+            type = typeCheckForceUnwrapOperator(unary).asTypeOrNull();
             break;
         }
         case AST::UnaryOperator::ZeroExtend:
@@ -64,32 +70,40 @@ TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& una
     if (type) {
         unary.setType(type);
     }
-    return {type};
+    return TypeResult::type(type);
 }
 
 TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& binary, Type *declaredType) {
     using enum AST::BinaryOperator;
 
-    TypeResult result;
+    TypeResult result = {};
 
     switch (binary.getOp()) {
         case LogicalOr:
         case LogicalAnd:
-            result = typeCheckLogicalOperator(binary);
+            if (auto *type = typeCheckLogicalOperator(binary)) {
+                result = TypeResult::type(type);
+            }
             break;
         case Equal:
         case NotEqual:
-            result = typeCheckEquality(binary);
+            if (auto *type = typeCheckEquality(binary)) {
+                result = TypeResult::type(type);
+            }
             break;
         case Less:
         case LessEqual:
         case Greater:
         case GreaterEqual:
-            result = typeCheckComparison(binary);
+            if (auto *type = typeCheckComparison(binary)) {
+                result = TypeResult::type(type);
+            }
             break;
         case OpenRange:
         case ClosedRange:
-            result = typeCheckRangeOperator(binary);
+            if (auto *type = typeCheckRangeOperator(binary)) {
+                result = TypeResult::type(type);
+            }
             break;
         case ShiftLeft:
         case ShiftRight:
@@ -109,8 +123,8 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
             break;
     }
 
-    if (result.isType() && result.type()) {
-        binary.setType(result);
+    if (result.isType()) {
+        binary.setType(result.asType());
     } 
     return result;
 }
@@ -158,7 +172,7 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
                 continue;
             }
 
-            Type *argumentType = argumentResult.type();
+            Type *argumentType = argumentResult.asType();
 
             if (argumentType != parameterType) {
                 auto [coerceResult, wrapped] = coerceType(*parameterType, *argumentType, argument);
@@ -180,7 +194,7 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
         if (parameterResult.failed()) {
             return {};
         } else {
-            return type;
+            return TypeResult::type(type);
         }
     } else {
         Diagnostic::error(call, "Attempting to call non-function value.");
@@ -216,25 +230,25 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
         return {};
     }
 
-    auto indexType = index.asType();
-    auto integerType = dyn_cast<IntegerType>(indexType);
+    auto *indexType = index.asType();
+    auto *integerType = dyn_cast<IntegerType>(indexType);
 
     if (!integerType) {
         Diagnostic::error(subscript, "Cannot use non-integer type as array index.");
         return {};
     }
 
-    auto elementType = arrayType->getContained();
+    auto *elementType = arrayType->getContained();
     subscript.setType(elementType);
 
-    return {elementType};
+    return TypeResult::type(elementType);
 
     assert(false);
 }
 
 TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
     Type *resolvedType = nullptr;
-    if (auto identifier = initializer.getIdentifier()) {
+    if (auto *identifier = initializer.getIdentifier()) {
         resolvedType = typeResolver.resolveType(*identifier);
 
         if (!resolvedType) {
@@ -252,7 +266,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         return {};
     }
 
-    if (auto structType = dyn_cast<StructType>(initializingType)) {
+    if (auto *structType = dyn_cast<StructType>(initializingType)) {
         initializer.setType(structType);
 
         Bitmap definedFields{(u32) structType->getFields().size()};
@@ -272,7 +286,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
                 return {};
             }
 
-            auto fieldType = memberType.getPointer();
+            auto *fieldType = memberType.getPointer();
             auto valueType = typeCheckExpression(*pair.value, fieldType);
             if (!valueType) {
                 return {};
@@ -296,7 +310,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
             result |= coerceResult;
         }
 
-        const size_t blocks = Bitmap::block_count(structType->getFields().size());
+        const size_t blocks = Bitmap::BLOCK_COUNT(structType->getFields().size());
         definedFields |= {structType->getInitializedFields(), blocks};
         if (definedFields.countr_ones() < structType->getFields().size()) {
             std::vector<const Symbol *> missing;
@@ -324,7 +338,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
         if (result.failed()) {
             return {};
         } else {
-            return structType;
+            return TypeResult::type(structType);
         }
     } else {
         Diagnostic::error(initializer, "Initializer expression is not supported for [INSERT TYPE] types.");
@@ -344,16 +358,53 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
         return {};
     }
 
+    // This has resolved to a type.
+    if (target.isMetatype()) {
+        Type *metatype = target.asMetatype();
+
+        if (auto *structType = llvm::dyn_cast<StructType>(metatype)) {
+            Diagnostic::error(memberAccess, "[TODO]: Implement struct static members.");
+            return {};
+        }
+        if (auto *enumType = llvm::dyn_cast<EnumType>(metatype)) {
+            auto [memberResolution, memberType] = enumType->resolveStaticMember(memberAccess.getMemberName(), memberAccess);
+            if (memberResolution) {
+                memberAccess.setType(memberType);
+                memberAccess.setResolution(memberResolution);
+                return TypeResult::type(memberType);
+            } else {
+                Diagnostic::error(memberAccess, "Unable to resolve static enum member.");
+                return {};
+            }
+        }
+
+        // TODO: Static members on other types, e.g. `i8.max`;
+
+        Diagnostic::error(memberAccess, "IMPLEMENT ME!!!");
+        return {};
+    }
+
     Type *type = target.asType();
 
-    if (auto structType = llvm::dyn_cast_if_present<StructType>(type)) {
+    if (auto *structType = llvm::dyn_cast_if_present<StructType>(type)) {
         auto [memberResolution, memberType] = structType->resolveMember(memberAccess.getMemberName());
         if (memberResolution) {
             memberAccess.setType(memberType.getPointer());
             memberAccess.setResolution(memberResolution);
-            return {memberType.getPointer()};
+            return TypeResult::type(memberType.getPointer());
         } else {
             Diagnostic::error(memberAccess, "Unable to resolve struct member");
+            return {};
+        }
+    }
+    if (auto *enumType = llvm::dyn_cast_if_present<EnumType>(type)) {
+        auto [memberResolution, memberType] = enumType->resolveMember(memberAccess.getMemberName(), memberAccess);
+        if (memberResolution) {
+            memberAccess.setType(memberType);
+            memberAccess.setResolution(memberResolution);
+            return TypeResult::type(memberType);
+        } else {
+            Diagnostic::error(memberAccess, "Unable to resolve enum member");
             return {};
         }
     }
@@ -371,7 +422,7 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
     std::pair<MemberResolution, Type *> resolution;
     llvm::TypeSwitch<Type *, void>(declaredType)
         .Case<EnumType>([&](auto enumType) {
-            resolution = enumType->resolveStaticMember(inferredMemberAccess.getMemberName());
+            resolution = enumType->resolveStaticMember(inferredMemberAccess.getMemberName(), inferredMemberAccess);
         })
         .Case<StructType>([&](auto structType) {
             auto [first, second] = structType->resolveStaticMember(inferredMemberAccess.getMemberName());
@@ -384,7 +435,7 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
     if (resolution.first) {
         inferredMemberAccess.setResolution(std::move(resolution.first));
         inferredMemberAccess.setType(resolution.second);
-        return resolution.second;
+        return TypeResult::type(resolution.second);
     }
 
     Diagnostic::error(inferredMemberAccess, "Type checking of implicit member access is not yet implemented.");
@@ -418,7 +469,7 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
             if (propagatedType) {
                 if (isa<OptionalType>(propagatedType)) {
                     literal.setType(propagatedType);
-                    return propagatedType;
+                    return TypeResult::type(propagatedType);
                 } else {
                     // Perhaps this should just also return the type constraint.
                     // Add expected type to diagnostic.
@@ -426,12 +477,12 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                     return {};
                 }
             } else {
-                return TypeConstraint::Optional;
+                return TypeResult::constraint(TypeConstraint::Optional);
             }
         },
         [&](const BooleanLiteral& boolean) -> TypeResult {
             literal.setType(typeResolver.booleanType());
-            return typeResolver.booleanType();
+            return TypeResult::type(typeResolver.booleanType());
         },
         [&](const IntegerLiteral& integer) -> TypeResult {
             // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
@@ -448,10 +499,10 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
 
                     // Check if type can hold literal.
                     literal.setType(propagatedType);
-                    return propagatedType;
+                    return TypeResult::type(propagatedType);
                 } else if (auto fpType = dyn_cast<FPType>(propagatedType)) {
                     literal.setType(propagatedType);
-                    return propagatedType;
+                    return TypeResult::type(propagatedType);
                 } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
                     auto rootType = optionalType->removeImplicitWrapperTypes();
                     if (auto type = visitLiteral(literal, rootType); type.isType()) {
@@ -459,25 +510,25 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
                         return type;
                     }
                 }
-                return TypeConstraint::Numeric;
+                return TypeResult::constraint(TypeConstraint::Numeric);
             } else {
-                return TypeConstraint::Numeric;
+                return TypeResult::constraint(TypeConstraint::Numeric);
             }
         },
         [&](const FloatingPointLiteral& floating) -> TypeResult {
             if (propagatedType) {
-                if (auto fpType = dyn_cast<FPType>(propagatedType)) {
+                if (auto *fpType = dyn_cast<FPType>(propagatedType)) {
                     literal.setType(propagatedType);
-                    return propagatedType;
-                } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
-                    auto rootType = optionalType->removeImplicitWrapperTypes();
+                    return TypeResult::type(propagatedType);
+                } else if (auto *optionalType = dyn_cast<OptionalType>(propagatedType)) {
+                    auto *rootType = optionalType->removeImplicitWrapperTypes();
                     if (auto type = visitLiteral(literal, rootType); type.isType()) {
                         literal.setType(type.asType());
                         return type;
                     }
                 }
             }
-            return TypeConstraint::Floating;
+            return TypeResult::constraint(TypeConstraint::Floating);
         },
         [&](const CharacterLiteral& character) -> TypeResult {
             Diagnostic::error(literal, "Character literals are currently not supported.");
@@ -508,32 +559,35 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
             case IdentifierResolution::Kind::Global: {
                 auto *binding = resolution.as.global.binding;
                 if (binding->hasType() || (globalHandler && (*globalHandler)(resolution.as.global.bindingIndex).ok())) {
-                    return TypeResult{binding->getType()};
+                    return TypeResult::type(binding->getType());
                 } else {
                     return {};
                 }
             }
             case IdentifierResolution::Kind::Function: {
-                return typeResolver.getFunction(resolution.as.function.id).type;
+                return TypeResult::type(typeResolver.getFunction(resolution.as.function.id).type);
             }
             case IdentifierResolution::Kind::Parameter: {
-                return typeResolver.getFunction(resolution.as.parameter.functionID).type->getParameter(resolution.as.parameter.index);
+                return TypeResult::type(
+                    typeResolver.getFunction(resolution.as.parameter.functionID).type->getParameter(resolution.as.parameter.index)
+                );
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;
-                return TypeResult{binding->getType()};
+                return TypeResult::type(binding->getType());
             }
             case IdentifierResolution::Kind::Type: {
-                // TODO: We need a metatype
-                llvm_unreachable("Implement metatype.");
-                break;
+                // FIXME: Fix ramifications of metatype
+                return TypeResult::metatype(resolution.as.type.type);
             }
         }
     };
 
     TypeResult result = nested();
-    if (auto type = result.asType()) {
-        identifier.setType(type);
+    if (result.isType()) {
+        identifier.setType(result.asType());
+    } else if (result.isMetatype()) {
+        identifier.setType(result.asMetatype());
     }
     return result;
 }

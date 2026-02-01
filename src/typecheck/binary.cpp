@@ -37,8 +37,16 @@ TypeConstraint *unifyConstraints(TypeConstraint *left, AST::Expression& leftChil
     }
 }
 
+TypeResult unifyConstraintsToTypeResult(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
+    if (auto *constraint = unifyConstraints(left, leftChild, right, rightChild)) {
+        return TypeResult::constraint(constraint);
+    } else {
+        return {};
+    }
+}
+
 Type *ExpressionTypeChecker::defaultTypeFromTypeConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
-    if (auto unified = unifyConstraints(left, leftChild, right, rightChild)) {
+    if (auto *unified = unifyConstraints(left, leftChild, right, rightChild)) {
         switch (unified->getKind()) {
             case TypeConstraintKind::Numeric:
                 return typeResolver.defaultIntegerType();
@@ -61,7 +69,11 @@ std::pair<TypeResult, TypeResult> ExpressionTypeChecker::typeCheckBinaryOperands
         return {left, right};
     }
 
-    if (left.isConstraint()) {
+    if (left.isMetatype() || right.isMetatype()) {
+        auto& node = left.isMetatype() ? leftChild : rightChild;
+        Diagnostic::error(node, "Type cannot be operand in binary operation.");
+        return {{}, {}};
+    } else if (left.isConstraint()) {
         if (right.isConstraint()) {
             if (propagatedType) {
                 left = typeCheckExpression(leftChild, propagatedType);
@@ -83,16 +95,15 @@ std::pair<TypeResult, TypeResult> ExpressionTypeChecker::typeCheckBinaryOperands
 }
 
 Type *ExpressionTypeChecker::typeCheckLogicalOperator(AST::BinaryExpression& binary) {
-    auto boolean = typeResolver.booleanType();
+    auto *boolean = typeResolver.booleanType();
     auto left = typeCheckExpression(binary.getLeft(), boolean);
     auto right = typeCheckExpression(binary.getRight(), boolean);
-
     
-    if (left != boolean) {
+    if (left.asTypeOrNull() != boolean) {
         Diagnostic::error(binary.getLeft(), "Expected boolean in logical operator.");
         return nullptr;
-    } else if (right != boolean) {
-        Diagnostic::error(binary.getLeft(), "Expected boolean in logical operator.");
+    } else if (right.asTypeOrNull() != boolean) {
+        Diagnostic::error(binary.getRight(), "Expected boolean in logical operator.");
         return nullptr;
     }
     return boolean;
@@ -124,17 +135,17 @@ Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary) {
         return {};
     }
 
-    if (left.isConstraint()) {
+    if (!left.isType()) {
         Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
         return {};
-    } else if (right.isConstraint()) {
+    } else if (!right.isType()) {
         Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
         return {};
     } else {
-        Type *leftType = left;
-        Type *rightType = right;
+        Type *leftType = left.asType();
+        Type *rightType = right.asType();
 
-        auto boolean = typeResolver.booleanType();
+        auto *boolean = typeResolver.booleanType();
        
         Type *unified;
 
@@ -181,17 +192,17 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary) 
         return {};
     }
 
-    if (left.isConstraint()) {
+    if (!left.isType()) {
         Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
         return {};
-    } else if (right.isConstraint()) {
+    } else if (!right.isType()) {
         Diagnostic::error(binary.getRight(), "Unable to determine type of expression.");
         return {};
     } else {
-        Type *leftType = left;
-        Type *rightType = right;
+        Type *leftType = left.asType();
+        Type *rightType = right.asType();
 
-        auto boolean = typeResolver.booleanType();
+        auto *boolean = typeResolver.booleanType();
 
         Type *unified;
        
@@ -239,7 +250,7 @@ Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binar
     };
 
     if (left.isConstraint() && right.isConstraint()) {
-        auto type = defaultTypeFromTypeConstraints(left, binary.getLeft(), right, binary.getRight());
+        auto *type = defaultTypeFromTypeConstraints(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
 
         if (!type) {
             return {};
@@ -256,7 +267,7 @@ Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binar
 
         return handleTypes(leftType, rightType);
     } else if (left.isType() && right.isType()) {
-        return handleTypes(left, right);
+        return handleTypes(left.asType(), right.asType());
     } else {
         if (left.isConstraint()) {
             Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
@@ -272,10 +283,10 @@ TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary
     auto [left, right] = typeCheckBinaryOperands(binary.getLeft(), binary.getRight(), propagatedType);
     
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraints(left, binary.getLeft(), right, binary.getRight());
+        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
     } else if (left.isType() && right.isType()) {
-        Type *leftType = left;
-        Type *rightType = right;
+        Type *leftType = left.asType();
+        Type *rightType = right.asType();
             
         Type *unified;
         if (leftType == rightType) {
@@ -287,7 +298,7 @@ TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary
             }
         }
 
-        return TypeSwitch<Type *, Type *>(unified)
+        Type *type = TypeSwitch<Type *, Type *>(unified)
             .Case([&](IntegerType *integerType) -> Type * {
                 return integerType;
             })
@@ -298,6 +309,11 @@ TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary
                 Diagnostic::error(binary, "Cannot apply bitwise operator to operands of type " + type->makeName());
                 return nullptr;
             });
+        if (type) {
+            return TypeResult::type(type);
+        } else {
+            return {};
+        }
     } else {
         if (left.isConstraint()) {
             Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
@@ -315,7 +331,7 @@ TypeResult ExpressionTypeChecker::typeCheckShift(AST::BinaryExpression& binary, 
     auto [left, right] = typeCheckBinaryOperands(binary.getLeft(), binary.getRight(), propagatedType);
 
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraints(left, binary.getLeft(), right, binary.getRight());
+        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
     } else if (left.isType() && right.isType()) {
         if (!isa<IntegerType>(left.asType())) {
             Diagnostic::error(binary.getLeft(), "Shift operand must be an integer type.");
@@ -344,17 +360,22 @@ TypeResult ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& bin
     }
 
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraints(left, binary.getLeft(), right, binary.getRight());
+        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
     } else if (left.isType() && right.isType()) {
-        Type *leftType = left;
-        Type *rightType = right;
+        Type *leftType = left.asType();
+        Type *rightType = right.asType();
 
         if (leftType == rightType) {
-            return leftType;
+            return TypeResult::type(leftType);
         } else {
-            return unifyTypesForArithmetic(binary, *leftType, *rightType);
+            if (auto *type = unifyTypesForArithmetic(binary, *leftType, *rightType)) {
+                return TypeResult::type(type);
+            } else {
+                return {};
+            }
         }
     } else {
+        // TODO: Handle metatype.
         if (left.isConstraint()) {
             Diagnostic::error(binary.getLeft(), "Unable to determine type of expression.");
         } else {

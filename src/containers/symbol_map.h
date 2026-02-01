@@ -32,7 +32,7 @@ template <typename T>
 class SymbolMap {
     llvm::DenseMap<const Symbol *, T> internal;
 
-    // Delete copy and move to be safe for now
+    // Delete copy constructor and assignment to be safe for now.
     SymbolMap(const SymbolMap&) = delete;
     SymbolMap& operator=(const SymbolMap&) = delete;
 
@@ -67,6 +67,10 @@ public:
         const std::pair<const Symbol *, T> pair = std::make_pair(&key, value);
         auto it = internal.insert(pair);
         return it.second;
+    }
+
+    void reserve(u32 count) {
+        internal.reserve(count);
     }
 };
 

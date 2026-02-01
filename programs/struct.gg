@@ -60,7 +60,7 @@ fn test() -> Compact {
     };
 }
 
-fn main() -> i64 {
+fn main() -> i32 {
     var a = test();
     #print(a);
     var b = test2();

@@ -12,14 +12,14 @@ requires Pointer<Key>
 class PointerMap {
     llvm::DenseMap<Key, Value> internal;
 
+public:
     // Delete copy and move to be safe for now
     PointerMap(const PointerMap&) = delete;
     PointerMap& operator=(const PointerMap&) = delete;
     PointerMap(PointerMap&&) = delete;
     PointerMap& operator=(PointerMap&&) = delete;
 
-public:
-    PointerMap() {}
+    PointerMap() = default;
 
     Value operator[](const Key key) const {
         return internal.at(key);
@@ -39,7 +39,7 @@ public:
         return it.second;
     }
 
-    template <typename P = Value, typename V = std::remove_pointer<P>::type>
+    template <typename P = Value, typename V = std::remove_pointer_t<P>>
         requires Pointer<P>
     bool insert(const Key& key, V& reference) {
         return insert(key, &reference);

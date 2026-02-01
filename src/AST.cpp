@@ -239,7 +239,8 @@ namespace AST {
     }
 
     FileLocation MemberAccessExpression::getFileLocation() const {
-        return {offset, memberName.length()};
+        // For now, this assumes that there is no space after the dot.
+        return {offset, memberName.length() + 1};
     }
 
     FileLocation InferredMemberAccessExpression::getFileLocation() const {

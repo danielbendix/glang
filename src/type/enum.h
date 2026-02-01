@@ -6,57 +6,50 @@
 
 #include "containers/symbol_map.h"
 
+/**
+ * An enumeration type always backed by an integral value.
+ *
+ *
+ */
+
 class EnumType : public Type {
 public:
+    using CaseID = u32;
+
     class Case {
     public:
-        class Member {
-            const Symbol *name;
-            Type *type;
-        public:
-            Member(const Symbol *name, Type *type) : name{name}, type{type} {}
-        };
+        Case(llvm::APInt tag, const Symbol& name) : tag{std::move(tag)}, name{name} {}
 
-        Case(size_t tag, const Symbol& name, Type *type) : tag{tag}, name{name}, type{type} {}
-
-        Case(size_t tag, const Symbol& name, Type *type, std::vector<Member>&& members) : tag{tag}, name{name}, members{std::move(members)}, type{type} {}
-
-    private:
-        size_t tag;
+        const llvm::APInt tag;
         const Symbol& name;
-        std::vector<Member> members;
-        Type *type;
 
         friend class EnumType;
     };
 private:
-
-    // TODO: Remove this, type check by parallel iteration with module.enumDeclarations.
-    AST::EnumDeclaration *declaration;
-
     bool wellFormed = true;
+    /// Whether or not this enum allows 
+    bool hasZeroValue = false;
+    u16 bitWidth = ~0;
     const Symbol& name;
+    /// If not present, values are not available for cases.
+    IntegerType *NULLABLE rawType;
 
-    size_t minTag = -1;
-    size_t maxTag = -1;
-
-    u8 bits = 0;
 public:
     const FileID file;
 private:
 
     std::vector<Case> cases;
-    SymbolMap<size_t> caseMap;
+    SymbolMap<CaseID> caseMap;
 
-    EnumType(const Symbol& name, AST::EnumDeclaration *enumDeclaration, FileID file) 
-        : Type{TK_Enum}, name{name}, declaration{enumDeclaration}, file{file} {}
+    EnumType(const Symbol& name, FileID file) 
+        : Type{TK_Enum}, name{name}, file{file} {}
 public:
     void *codegen;
 
 public:
-    static EnumType *NONNULL create(const Symbol& name, AST::EnumDeclaration& declaration, FileID file) {
+    static EnumType *NONNULL create(const Symbol& name, FileID file) {
         return allocate(typeAllocator(), [&](void *space) {
-            return new (space) EnumType{declaration.getName(), &declaration, file};
+            return new (space) EnumType{name, file};
         });
     }
 
@@ -64,12 +57,8 @@ public:
         result.append(name.string_view());
     }
 
-    std::pair<MemberResolution, Type *> resolveMember(const Symbol& name);
-    std::pair<MemberResolution, Type *> resolveStaticMember(const Symbol& name);
-
-    AST::EnumDeclaration *getDeclaration() const {
-        return declaration;
-    }
+    std::pair<MemberResolution, Type *> resolveMember(const Symbol& name, AST::Node& node);
+    std::pair<MemberResolution, Type *> resolveStaticMember(const Symbol& name, AST::Node& node);
 
     size_t getNumberOfCases() const {
         return cases.size();
@@ -79,21 +68,39 @@ public:
 
     }
 
-    void setCases(u8 bits, std::pair<size_t, size_t> tags, std::vector<Case>&& cases, SymbolMap<size_t>&& caseMap) {
-        this->bits = bits;
-        this->minTag = tags.first;
-        this->maxTag = tags.second;
+    IntegerType *getRawType() const {
+        return rawType;
+    }
+
+    void setRawType(IntegerType *NONNULL rawType) {
+        this->rawType = rawType;
+    }
+
+    void setCases(u16 bitWidth, std::vector<Case>&& cases, SymbolMap<CaseID>&& caseMap) {
+        this->bitWidth = bitWidth;
         this->cases = std::move(cases);
         this->caseMap = std::move(caseMap);
+    }
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const {
+        if (rawType) {
+            return rawType->_getLLVMType(context);
+        } else {
+            return llvm::IntegerType::get(context, bitWidth);
+        }
+    }
+
+    u16 getBitWidth() const {
+        return bitWidth;
+    }
+
+    llvm::APInt const& getTag(CaseID id) const {
+        return cases[id].tag;
     }
 
     static bool classof(const Type *type) {
         return type->getKind() == TK_Enum;
     }
 };
-
-// Resolve type names.
-// Resolve cases, and associated data.
-// Resolve
 
 #endif // LANG_type_enum_h

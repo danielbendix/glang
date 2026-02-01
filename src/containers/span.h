@@ -268,7 +268,11 @@ public:
         if (size + 1 > capacity) {
             growElements();
         }
-        elements[size] = value;
+        if constexpr (std::is_copy_constructible_v<T>) {
+            new(&elements[size]) T{value};
+        } else {
+            elements[size] = value;
+        }
         size += 1;
     }
 
