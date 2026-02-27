@@ -106,8 +106,6 @@ enum class TokenType : u8 {
     Continue,
     Return,
 
-    LastKeyWord = Return,
-
     Try,
     TryQuestion,
     TryBang,
@@ -128,6 +126,8 @@ enum class TokenType : u8 {
     Error,
 
     EndOfFile,
+
+    COUNT,
 };
 
 const char *tokenTypeToString(TokenType tokenType);

@@ -1,5 +1,6 @@
 #include "parser.h"
 #include "parser/errors.h"
+#include "parser/rules.h"
 
 #include <cstdlib>
 #include <cmath>
@@ -674,8 +675,8 @@ Precedence operator+(Precedence l, int i)
 }
 
 struct ParseRule {
-    typedef AST::Expression *(Parser::*ExpressionPrefixHandler)();
-    typedef AST::Expression *(Parser::*ExpressionInfixHandler)(AST::Expression *left);
+    using ExpressionPrefixHandler = AST::Expression *(Parser::*)();
+    using ExpressionInfixHandler = AST::Expression *(Parser::*)(AST::Expression *);
 
     ExpressionPrefixHandler prefixHandler;
     ExpressionInfixHandler infixHandler;

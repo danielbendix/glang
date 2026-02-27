@@ -20,6 +20,10 @@ enum class ParseResult {
     FATAL = 2,
 };
 
+namespace ParserInternals {
+    struct Rules;
+}
+
 struct ParsedFile {
 public:
     const u32 size;
@@ -227,14 +231,15 @@ class Parser {
         siglongjmp(startPoint, 1);
     }
 
-    friend class ParseRule;
+    friend struct ParseRule;
+    friend struct ParserInternals::Rules;
 public:
     Parser(FileID fileID, SymbolTable& symbols, std::string&& string) 
-        : fileID{fileID}
-        , symbols{symbols}
+        : symbols{symbols}
         , scanner{std::move(string)}
         , previous{scanner.next()}
-        , current{previous} {}
+        , current{previous}
+        , fileID{fileID} {}
 
     ParsedFile parse(DiagnosticWriter& writer);
 

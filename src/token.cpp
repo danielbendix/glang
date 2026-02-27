@@ -101,6 +101,7 @@ const char *tokenTypeToString(TokenType tokenType) {
         TOKEN_TYPE_CASE(String)
         TOKEN_TYPE_CASE(Error)
         TOKEN_TYPE_CASE(EndOfFile)
+        TOKEN_TYPE_CASE(COUNT)
     }
 }
 
