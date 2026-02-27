@@ -132,29 +132,38 @@ Parser::Modifiers Parser::parseModifiers()
         .modifiers = {},
     };
 
+    auto advanceAndUpdateLength = [&]() {
+        result.length = (current.length + current.offset) - result.offset;
+        advance();
+    };
+
     using enum AST::Modifiers::Modifier;
     // TODO: Error on repeated modifiers
     for (;;) {
         switch (current.type) {
             case TokenType::Static:
-                advance();
+                advanceAndUpdateLength();
                 result.modifiers.set(Static);
                 break;
             case TokenType::Public:
-                advance();
+                advanceAndUpdateLength();
                 result.modifiers.set(Public);
                 break;
             case TokenType::Private:
-                advance();
+                advanceAndUpdateLength();
                 result.modifiers.set(Private);
                 break;
             case TokenType::Compact:
-                advance();
+                advanceAndUpdateLength();
                 result.modifiers.set(Compact);
                 break;
             case TokenType::Unpadded:
-                advance();
+                advanceAndUpdateLength();
                 result.modifiers.set(Unpadded);
+                break;
+            case TokenType::Mut:
+                advanceAndUpdateLength();
+                result.modifiers.set(Mut);
                 break;
             default: return result;
         }

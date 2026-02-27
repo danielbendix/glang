@@ -52,6 +52,7 @@ namespace AST {
             Private,
             Unpadded,
             Compact,
+            Mut,
 
             COUNT
         };
@@ -125,6 +126,8 @@ namespace AST {
                     return "unpadded";
                 case Modifier::Compact:
                     return "compact";
+                case Modifier::Mut:
+                    return "mut";
                 case Modifier::COUNT:
                     llvm_unreachable("[PROGRAMMER ERROR]: Modifier::COUNT value should never be used.");
             }
@@ -1882,9 +1885,9 @@ namespace AST {
         }
 
         using enum Modifiers::Modifier;
-        static constexpr Modifiers allowedModifiers = {Static,Public, Private};
+        static constexpr Modifiers allowedModifiers = {Static,Public, Private, Mut};
         static constexpr Modifiers allowedModifiersInGlobal = {Public, Private};
-        static constexpr Modifiers allowedModifiersInStruct = {Static,Public, Private};
+        static constexpr Modifiers allowedModifiersInStruct = {Static,Public, Private };
     };
 
     class StructDeclaration : public Declaration {

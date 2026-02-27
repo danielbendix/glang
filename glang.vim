@@ -9,7 +9,7 @@ end
 
 syntax keyword glangKeyword fn const var unwrap bind nil case
 
-syntax keyword glangModifier static private public compact unpadded
+syntax keyword glangModifier static private public compact unpadded mut
 
 syntax keyword glangStatement return throw break continue
 
@@ -22,6 +22,8 @@ syntax keyword glangType void bool i8 i16 i32 i64 isize u8 u16 u32 u64 usize f32
 syntax keyword glangOperator not and or
 
 syntax keyword glangFunction main
+
+syntax keyword glangIdentifier self
 
 syntax keyword glangBoolean true false
 
@@ -48,6 +50,7 @@ highlight link glangConditional conditional
 highlight link glangOperator Operator
 highlight link glangType Type
 highlight link glangFunction Function
+highlight link glangIdentifier Identifier
 
 highlight link glangIntrinsic PreProc
 

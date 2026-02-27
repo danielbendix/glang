@@ -65,6 +65,7 @@ std::string tokenTypeToHumanReadableString(TokenType tokenType) {
     case Public: return "'public'";
     case Private: return "'private'";
     case Unpadded: return "'unpadded'";
+    case Mut: return "'mut'";
     case Compact: return "'compact'";
     case Case: return "'case'";
     case If: return "'if'";

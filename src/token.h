@@ -90,6 +90,7 @@ enum class TokenType : u8 {
     Private,
     Unpadded,
     Compact,
+    Mut,
 
     Case,
     If,

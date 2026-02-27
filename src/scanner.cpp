@@ -170,6 +170,7 @@ TokenType Scanner::identifierType()
                 case 'n': return testKeyword(it, current, "", 0, TokenType::In);
             }
             break;
+        case 'm': return testKeyword(it, current, "ut", 2, TokenType::Mut);
         case 'n':
             switch(*it++) {
                 case 'i': return testKeyword(it, current, "l", 1, TokenType::Nil);

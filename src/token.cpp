@@ -71,6 +71,7 @@ const char *tokenTypeToString(TokenType tokenType) {
         TOKEN_TYPE_CASE(Private)
         TOKEN_TYPE_CASE(Unpadded)
         TOKEN_TYPE_CASE(Compact)
+        TOKEN_TYPE_CASE(Mut)
         TOKEN_TYPE_CASE(Case)
         TOKEN_TYPE_CASE(If)
         TOKEN_TYPE_CASE(Else)
