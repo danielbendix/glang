@@ -16,11 +16,11 @@
 
 class Symbol {
 private:
-    u64 hash;
-    size_t size;
+    u32 hash;
+    u32 size;
     char *data;
 
-    Symbol(u64 hash, size_t size, char *data) : hash{hash}, size{size}, data{data} {}
+    Symbol(u32 hash, u32 size, char *data) : hash{hash}, size{size}, data{data} {}
     Symbol(const Symbol&) = delete;
     Symbol operator=(const Symbol&) = delete;
     Symbol(Symbol&&) = delete;
