@@ -131,10 +131,28 @@ std::pair<Result, AST::Expression *> coerceType(Type& destination, Type& source,
     }
     case TK_String:
         assert(false);
-    case TK_Pointer:
-        Diagnostic::error(expression, "Cannot coerce " + source.makeName() +  " to " + destination.makeName() + ".");
-        // TODO: We need type names.
+    case TK_Pointer: {
+        auto& pointerDestination = cast<PointerType>(destination);
+        if (auto *pointerSource = dyn_cast<PointerType>(&source)) {
+            if (pointerDestination.getPointeeType() == pointerSource->getPointeeType()) {
+                if (pointerDestination.isConst()) {
+                    assert(not pointerSource->isConst());
+                    // Noop
+                    return {OK, nullptr};
+                } else {
+                    assert(pointerSource->isConst());
+                    Diagnostic::error(expression, "Cannot coerce const pointer " + source.makeName() + " to mutable pointer " + destination.makeName() + ".");
+                }
+
+            } else {
+                Diagnostic::error(expression, "Cannot coerce " + source.makeName() + " to " + destination.makeName() + ". Pointers have different pointee types.");
+                
+            }
+        } else {
+            Diagnostic::error(expression, "Cannot coerce " + source.makeName() +  " to " + destination.makeName() + ".");
+        }
         return {ERROR, nullptr}; 
+    }
     case TK_Optional: {
         auto& optionalDestination = cast<OptionalType>(destination);
         if (auto optionalSource = dyn_cast<OptionalType>(&source)) {

@@ -34,7 +34,7 @@ ArrayType *Type::getBoundedArrayType() {
     if (index.boundedArrayType) {
         return index.boundedArrayType;
     } else {
-        auto type = create<ArrayType>(*this, true);
+        auto *type = create<ArrayType>(this, true);
         index.boundedArrayType = type;
         return type;
     }
@@ -46,10 +46,14 @@ ArrayType *Type::getUnboundedArrayType() {
     if (index.unboundedArrayType) {
         return index.unboundedArrayType;
     } else {
-        auto type = create<ArrayType>(*this, false);
+        auto *type = create<ArrayType>(this, false);
         index.unboundedArrayType = type;
         return type;
     }
+}
+
+StaticArrayType *Type::makeStaticArrayType(u32 size) {
+    return create<StaticArrayType>(this, size);
 }
 
 RangeType *IntegerType::getOpenRangeType() {
@@ -58,7 +62,7 @@ RangeType *IntegerType::getOpenRangeType() {
     if (index.openRangeType) {
         return index.openRangeType;
     } else {
-        auto type = create<RangeType>(*this, false);
+        auto *type = create<RangeType>(this, false);
         index.openRangeType = type;
         return type;
     }
@@ -70,7 +74,7 @@ RangeType *IntegerType::getClosedRangeType() {
     if (index.closedRangeType) {
         return index.closedRangeType;
     } else {
-        auto type = create<RangeType>(*this, true);
+        auto *type = create<RangeType>(this, true);
         index.closedRangeType = type;
         return type;
     }
@@ -90,6 +94,7 @@ Type *Type::removeImplicitWrapperTypes()
         case TK_Enum:
         case TK_Pointer:
         case TK_Array:
+        case TK_Static_Array:
         case TK_Range:
             return this;
         case TK_Optional:
@@ -97,28 +102,12 @@ Type *Type::removeImplicitWrapperTypes()
     }
 }
 
-void Type::deleteValue(Type *type) {
-    switch (type->getKind()) {
-        case TK_Void: return delete static_cast<VoidType *>(type);
-        case TK_Boolean: return delete static_cast<BooleanType *>(type);
-        case TK_Num_Integer: return delete static_cast<IntegerType *>(type);
-        case TK_Num_FP: return delete static_cast<FPType *>(type);
-        case TK_String: return delete static_cast<StringType *>(type);
-        case TK_Function: return delete static_cast<FunctionType *>(type);
-        case TK_Struct: return delete static_cast<StructType *>(type);
-        case TK_Enum: return delete static_cast<EnumType *>(type);
-        case TK_Protocol: llvm_unreachable("Unsupported type type.");
-
-        case TK_Optional: return delete static_cast<OptionalType *>(type);
-        case TK_Pointer: return delete static_cast<PointerType *>(type);
-
-        case TK_Array: return delete static_cast<ArrayType *>(type);
-        case TK_Range: return delete static_cast<RangeType *>(type);
-    }
+PointerType *Type::_getPointerType() {
+    return create<PointerType>(this, false);
 }
 
-PointerType *Type::_getPointerType() {
-    return create<PointerType>(this);
+PointerType *Type::_getConstPointerType() {
+    return create<PointerType>(this, true);
 }
 
 OptionalType *Type::_getOptionalType() {
@@ -183,6 +172,17 @@ Layout Type::getLayout() const {
             }
             llvm_unreachable("TODO: Add functionality for getting array layout.");
         }
+        case TK_Static_Array: {
+            const auto *staticArrayType = static_cast<const StaticArrayType *>(this);
+            auto containedLayout = staticArrayType->getContained()->getLayout();
+
+            u32 alignment = containedLayout.alignmentValue();
+            u32 unalignedSize = containedLayout.size();
+            u32 alignedSize = (unalignedSize + (alignment - 1)) & ~(alignment - 1);
+            u32 size = alignedSize * staticArrayType->getSize() - (alignedSize - unalignedSize);
+
+            return {containedLayout.alignment(), size};
+        }
         case TK_Range: {
             auto rangeType = static_cast<const RangeType *>(this);
             Layout boundLayout = rangeType->getBoundType()->getLayout();
@@ -215,7 +215,7 @@ llvm::Type *ArrayType::_getLLVMType(llvm::LLVMContext& context) const {
             llvm::Type *childTypes[1] = {
                 llvm::PointerType::getUnqual(context),
             };
-            auto type = llvm::StructType::get(context, childTypes, false);
+            auto *type = llvm::StructType::get(context, childTypes, false);
             llvmTypeUnbounded = type;
             return type;
         }
@@ -223,7 +223,7 @@ llvm::Type *ArrayType::_getLLVMType(llvm::LLVMContext& context) const {
 }
 
 llvm::Type *RangeType::_getLLVMType(llvm::LLVMContext& context) const {
-    auto llvmBoundType = integerType.getLLVMType(context);
+    auto *llvmBoundType = integerType->getLLVMType(context);
 
     llvm::Type *childTypes[2] = {
         llvmBoundType,
@@ -273,11 +273,11 @@ llvm::Type *FPType::_getLLVMType(llvm::LLVMContext& context) const {
 }
 
 llvm::Type *OptionalType::_getLLVMType(llvm::LLVMContext& context) const {
-    if (auto pointerType = dyn_cast<PointerType>(&contained)) {
+    if (auto *pointerType = dyn_cast<PointerType>(&contained)) {
         return pointerType->getLLVMType(context);
     } else {
-        auto flag = llvm::IntegerType::get(context, 1);
-        auto child = contained.getLLVMType(context);
+        auto *flag = llvm::IntegerType::get(context, 1);
+        auto *child = contained.getLLVMType(context);
         return llvm::StructType::get(flag, child);
     }
 }
@@ -295,8 +295,11 @@ std::string Type::makeName() const {
 }
 
 void PointerType::getName(std::string& result) const {
-    getNameOfType(pointeeType, result);
+    getNameOfType(*getPointeeType(), result);
     result.push_back('*');
+    if (isConst()) {
+        result += "const";
+    }
 }
 
 void OptionalType::getName(std::string& result) const {
@@ -305,12 +308,21 @@ void OptionalType::getName(std::string& result) const {
 }
 
 void ArrayType::getName(std::string& result) const {
-    getNameOfType(contained, result);
+    getNameOfType(*contained, result);
     if (isBounded) {
         result += "[]";
     } else {
         result += "[!]";
     }
+}
+
+void StaticArrayType::getName(std::string& result) const {
+    result.push_back('{');
+    getNameOfType(*contained, result);
+    result.push_back('}');
+    result.push_back('[');
+    result += std::to_string(size);
+    result.push_back(']');
 }
 
 void RangeType::getName(std::string& result) const {
@@ -319,7 +331,7 @@ void RangeType::getName(std::string& result) const {
     } else {
         result += "_range<";
     }
-    integerType.getName(result);
+    integerType->getName(result);
     result += '>';
 }
 

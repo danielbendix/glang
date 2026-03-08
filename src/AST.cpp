@@ -16,6 +16,12 @@ namespace AST {
         return {offset, name.length()};
     }
 
+    FileLocation StaticArrayType::getFileLocation() const {
+        auto sizeLocation = sizeExpression->getFileLocation();
+        u32 length = 1 + sizeLocation.length + (sizeLocation.offset - offset);
+        return {offset, length};
+    }
+
     FileLocation TypeModifier::getFileLocation() const {
         // TODO: Get total length of modifiers.
         return {offset, 1};
@@ -336,6 +342,10 @@ namespace AST {
 
     void TypeLiteral::print(PrintContext& pc) const {
         pc << name;
+    }
+
+    void StaticArrayType::print(PrintContext& pc) const {
+        pc << '{' << *contained << '}' << '[' << *sizeExpression << ']';
     }
 
     void TypeModifier::print(PrintContext& pc) const {

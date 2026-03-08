@@ -102,7 +102,10 @@ class Parser {
 
     // Types
     [[nodiscard]]
-    AST::TypeNode *type(bool hasIdentifier = false);
+    AST::TypeNode *type();
+
+    [[nodiscard]]
+    AST::StaticArrayType *staticArrayType();
 
     // Bindings
     [[nodiscard]]

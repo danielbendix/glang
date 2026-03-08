@@ -6,6 +6,10 @@
 
 #include "builtins.h"
 
+#include "llvm/Support/Casting.h"
+
+using llvm::dyn_cast;
+
 class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
     Module& module;
     const Builtins& builtins;
@@ -54,10 +58,39 @@ public:
     }
 
     Type *visitTypeLiteral(AST::TypeLiteral& literal) {
-        if (auto type = resolveType(literal.getName())) {
+        if (auto *type = resolveType(literal.getName())) {
             return type;
         } else {
             Diagnostic::error(literal, "Cannot resolve type with name " + literal.getName().string());
+            return {};
+        }
+    }
+
+    Type *visitStaticArrayType(AST::StaticArrayType& staticArray) {
+        Type *type = staticArray.getContained().acceptVisitor(*this);
+
+        if (!type) {
+            return {};
+        }
+
+        if (auto *sizeLiteral = dyn_cast<AST::IntegerLiteral>(&staticArray.getSizeExpression())) {
+            auto& value = sizeLiteral->getValue();
+
+            if (value.slt(0)) {
+                Diagnostic::error(staticArray.getSizeExpression(), "Array size cannot be negative.");
+                return {};
+            }
+            if (value.getActiveBits() > 32) {
+                Diagnostic::error(staticArray.getSizeExpression(), "Array size should be less than 4294967296");
+                return {};
+            }
+
+            u32 size = value.getZExtValue();
+            StaticArrayType *arrayType = type->makeStaticArrayType(size);
+            return arrayType;
+        } else {
+            // TODO: Support compile-time constant expressions.
+            Diagnostic::error(staticArray.getSizeExpression(), "Array size must be an integer literal.");
             return {};
         }
     }
@@ -74,6 +107,9 @@ public:
             switch (modifier) {
                 case Pointer:
                     type = type->getPointerType();
+                    break;
+                case ConstPointer:
+                    type = type->getConstPointerType();
                     break;
                 case Optional:
                     type = type->getOptionalType();

@@ -192,6 +192,7 @@ namespace AST {
 
             // Type nodes
             NK_Type_Literal,
+            NK_Type_Static_Array,
             NK_Type_Modifier,
 
             // Conditional unwrap
@@ -272,10 +273,49 @@ namespace AST {
         }
     };
 
+    class Expression;
+
+    class StaticArrayType : public TypeNode {
+    protected:
+        TypeNode *NONNULL contained;
+        Expression *NONNULL sizeExpression;
+
+        StaticArrayType(Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression) 
+            : TypeNode{NK_Type_Static_Array, token}
+            , contained{contained}
+            , sizeExpression{sizeExpression}
+        
+        {}
+
+    public:
+        void print(PrintContext& pc) const;
+        FileLocation getFileLocation() const;
+
+        template <Allocator A>
+        static StaticArrayType *NONNULL create(A& allocator, Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression) {
+            return allocate(allocator, [&](auto space) {
+                return new(space) StaticArrayType{token, contained, sizeExpression};
+            });
+        }
+
+        TypeNode& getContained() const {
+            return *contained;
+        }
+
+        Expression& getSizeExpression() const {
+            return *sizeExpression;
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->kind == NK_Type_Static_Array;
+        }
+    };
+
     class TypeModifier : public TypeNode {
     public:
         enum class Modifier : u8 {
             Pointer,
+            ConstPointer, //< Always pointer-to-const, as mutability of a value is not encoded in the type.
             Optional,
             Location,
             Array,

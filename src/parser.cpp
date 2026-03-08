@@ -203,9 +203,13 @@ AST::Block Parser::block()
 
 // Types
 
-AST::TypeNode *Parser::type(bool hasIdentifier) 
+AST::TypeNode *Parser::type() 
 {
-    Token nameToken = hasIdentifier ? previous : TRY_OPTIONAL(consume(TokenType::Identifier));
+    if (match(TokenType::LeftBracket)) {
+        return staticArrayType();
+    }
+
+    Token nameToken = TRY_OPTIONAL(consume(TokenType::Identifier));
     Symbol& name = symbols.getSymbol(toStringView(nameToken));
 
     std::vector<AST::TypeModifier::Modifier> typeModifiers{};
@@ -216,7 +220,12 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
 
     for (;;) {
         if (match(TokenType::Star)) {
-            typeModifiers.push_back(Pointer);
+            if (match(TokenType::Const)) {
+                typeModifiers.push_back(ConstPointer);
+            } else {
+                typeModifiers.push_back(Pointer);
+            }
+
             continue;
         }
 
@@ -248,9 +257,25 @@ AST::TypeNode *Parser::type(bool hasIdentifier)
     if (typeModifiers.empty()) {
         return AST::TypeLiteral::create(nodeAllocator, nameToken, name);
     } else {
-        auto type = AST::TypeLiteral::create(nodeAllocator, nameToken, name);
+        AST::TypeLiteral *type = AST::TypeLiteral::create(nodeAllocator, nameToken, name);
         return AST::TypeModifier::create(nodeAllocator, type, typeModifiers, modifierOffset);
     }
+}
+
+AST::StaticArrayType *Parser::staticArrayType()
+{
+    Token token = previous;
+
+    AST::TypeNode *contained = type();
+
+    consume(TokenType::RightBracket);
+    consume(TokenType::LeftBrace);
+
+    AST::Expression *sizeExpression = expression({});
+
+    consume(TokenType::RightBrace);
+
+    return AST::StaticArrayType::create(nodeAllocator, token, contained, sizeExpression);
 }
 
 // Bindings

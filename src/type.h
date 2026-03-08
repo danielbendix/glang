@@ -7,6 +7,7 @@
 
 #include "llvm/ADT/StringSet.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/PointerIntPair.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/Casting.h"
@@ -27,12 +28,14 @@ enum TypeKind {
     TK_Optional,
 
     TK_Array,
+    TK_Static_Array,
     TK_Range,
 };
 
 class PointerType;
 class OptionalType;
 class ArrayType;
+class StaticArrayType;
 class RangeType;
 
 class Type {
@@ -48,11 +51,13 @@ class Type {
     const TypeKind kind;
     mutable llvm::Type *llvmType = nullptr;
     mutable PointerType *pointerType = nullptr;
+    mutable PointerType *constPointerType = nullptr;
     mutable OptionalType *optionalType = nullptr;
     mutable TypeIndex *index = nullptr;
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
     PointerType *_getPointerType();
+    PointerType *_getConstPointerType();
     OptionalType *_getOptionalType();
 
 protected:
@@ -89,6 +94,14 @@ public:
         }
     }
 
+    PointerType *getConstPointerType() {
+        if (constPointerType) {
+            return constPointerType;
+        } else {
+            return (constPointerType = _getConstPointerType());
+        }
+    }
+
     OptionalType *getOptionalType() {
         if (optionalType) {
             return optionalType;
@@ -99,6 +112,7 @@ public:
 
     ArrayType *getBoundedArrayType();
     ArrayType *getUnboundedArrayType();
+    StaticArrayType *makeStaticArrayType(u32 size);
 
     Type *removeImplicitWrapperTypes();
 
@@ -216,15 +230,20 @@ public:
 };
 
 class PointerType : public Type {
-    Type& pointeeType;
+    llvm::PointerIntPair<Type *, 1, bool> pair;
 
 public:
-    PointerType(Type *pointeeType) : Type{TK_Pointer}, pointeeType{*pointeeType} {}
+    PointerType(Type *pointeeType, bool isConst) 
+        : Type{TK_Pointer}, pair{pointeeType, isConst} {}
 
     void getName(std::string& result) const;
 
     Type *getPointeeType() const {
-        return &pointeeType;
+        return pair.getPointer();
+    }
+
+    bool isConst() const {
+        return pair.getInt();
     }
 
     static bool classof(const Type *typeConstraint) {
@@ -340,16 +359,16 @@ class ArrayType : public Type {
     static llvm::Type *llvmTypeBounded;
     static llvm::Type *llvmTypeUnbounded;
 
-    Type& contained;
+    Type *NONNULL contained;
 public:
     const bool isBounded;
 
-    ArrayType(Type& contained, bool isBounded) : Type{TK_Array}, contained{contained}, isBounded{isBounded} {}
+    ArrayType(Type *contained, bool isBounded) : Type{TK_Array}, contained{contained}, isBounded{isBounded} {}
 
     void getName(std::string& result) const;
 
     Type *getContained() const {
-        return &contained;
+        return contained;
     }
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
@@ -359,19 +378,43 @@ public:
     }
 };
 
+// FIXME: There is no interning for this type, and the Type base uses a lot of memory.
+class StaticArrayType : public Type {
+    Type *NONNULL contained;
+    u32 size;
+public:
+    StaticArrayType(Type *contained, u32 size) : Type{TK_Static_Array}, contained{contained}, size{size} {}
+
+    void getName(std::string& result) const;
+
+    Type *NONNULL getContained() const {
+        return contained;
+    }
+
+    u32 getSize() const {
+        return size;
+    }
+
+    llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;
+
+    static bool classof(const Type *type) {
+        return type->getKind() == TK_Static_Array;
+    }
+};
+
 // This is a quick and dirty type to get ranges working.
 // Ideally it would be based on conformance to a protocol.
 class RangeType : public Type {
-    IntegerType& integerType;
+    IntegerType *NONNULL integerType;
 public:
     bool isClosed;
 
-    RangeType(IntegerType& integerType, bool isClosed) : Type{TK_Range}, integerType{integerType}, isClosed{isClosed} {}
+    RangeType(IntegerType *integerType, bool isClosed) : Type{TK_Range}, integerType{integerType}, isClosed{isClosed} {}
 
     void getName(std::string& result) const;
 
     IntegerType *getBoundType() const {
-        return &integerType;
+        return integerType;
     }
 
     llvm::Type *_getLLVMType(llvm::LLVMContext& context) const;

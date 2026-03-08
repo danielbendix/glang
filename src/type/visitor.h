@@ -33,6 +33,8 @@ namespace TypeVisitor {
                 llvm_unreachable("");
             case TK_Array:
                 return std::invoke(visitor, *static_cast<ArrayType *>(&type));
+            case TK_Static_Array:
+                return std::invoke(visitor, *static_cast<StaticArrayType *>(&type));
             case TK_Range:
                 return std::invoke(visitor, *static_cast<RangeType *>(&type));
         }
@@ -65,6 +67,8 @@ namespace TypeVisitor {
                 llvm_unreachable("");
             case TK_Array:
                 return std::invoke(visitor, *static_cast<const ArrayType *>(&type));
+            case TK_Static_Array:
+                return std::invoke(visitor, *static_cast<const StaticArrayType *>(&type));
             case TK_Range:
                 return std::invoke(visitor, *static_cast<const RangeType *>(&type));
         }

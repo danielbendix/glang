@@ -252,6 +252,7 @@ bool typeSupportsBitcast(Type& type) {
         case TK_String:
         case TK_Function:
         case TK_Array:
+        case TK_Static_Array: //< FIXME: We probably do want to support bitcast for static arrays.
         case TK_Struct:
         case TK_Enum:
         case TK_Protocol:

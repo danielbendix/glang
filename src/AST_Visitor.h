@@ -75,6 +75,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<InferredMemberAccessExpression *>(&node));
             case NK_Type_Literal:
                 return std::invoke(visitor, *static_cast<TypeLiteral *>(&node));
+            case NK_Type_Static_Array:
+                return std::invoke(visitor, *static_cast<StaticArrayType *>(&node));
             case NK_Type_Modifier:
                 return std::invoke(visitor, *static_cast<TypeModifier *>(&node));
             case NK_Binding_Identifier:
@@ -155,6 +157,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const InferredMemberAccessExpression *>(&node));
             case NK_Type_Literal:
                 return std::invoke(visitor, *static_cast<const TypeLiteral *>(&node));
+            case NK_Type_Static_Array:
+                return std::invoke(visitor, *static_cast<const StaticArrayType *>(&node));
             case NK_Type_Modifier:
                 return std::invoke(visitor, *static_cast<const TypeModifier *>(&node));
             case NK_Binding_Identifier:
@@ -350,6 +354,8 @@ namespace AST {
             switch (typeNode.kind) {
                 case NK_Type_Literal:
                     return subclass().visitTypeLiteral(*static_cast<TypeLiteral *>(&typeNode), std::forward<Args>(args)...);
+                case NK_Type_Static_Array:
+                    return subclass().visitStaticArrayType(*static_cast<StaticArrayType *>(&typeNode), std::forward<Args>(args)...);
                 case NK_Type_Modifier:
                     return subclass().visitTypeModifier(*static_cast<TypeModifier *>(&typeNode), std::forward<Args>(args)...);
                 default:

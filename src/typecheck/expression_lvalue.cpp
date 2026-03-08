@@ -84,8 +84,11 @@ LValueTypeResult ExpressionLValueTypeChecker::visitUnaryExpression(AST::UnaryExp
             Type *type = typeResult.asType();
             if (auto *pointerType = dyn_cast<PointerType>(type)) {
                 auto *type = pointerType->getPointeeType();
+                if (pointerType->isConst()) {
+                    Diagnostic::error(unary, "Cannot assign to const pointer target.");
+                }
                 unary.setType(type);
-                return {type, true};
+                return {type, not pointerType->isConst()};
             } else {
                 Diagnostic::error(unary, "Cannot dereference non-pointer type.");
                 return {};
