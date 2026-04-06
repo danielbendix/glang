@@ -15,11 +15,11 @@
 
 class Symbol {
 private:
-    u64 hash;
-    size_t size;
+    u32 hash;
+    u32 size;
     char *data;
 
-    Symbol(u64 hash, size_t size, char *data) : hash{hash}, size{size}, data{data} {}
+    Symbol(u32 hash, u32 size, char *data) : hash{hash}, size{size}, data{data} {}
     Symbol(const Symbol&) = delete;
     Symbol operator=(const Symbol&) = delete;
     Symbol(Symbol&&) = delete;
@@ -75,11 +75,14 @@ private:
     void growSlots();
     inline void insert(Symbol *symbol, u64 hash);
 
-    Symbol *findSymbol(const std::string_view string, u64 hash);
-    Symbol *insertSymbol(const std::string_view string, u64 hash);
+    std::pair<Symbol *, Slot *> findSymbol(const std::string_view string, u64 hash);
+    Symbol *insertSymbol(const std::string_view string, u64 hash, Slot *slot);
 
 public:
-    SymbolTable() {}
+    SymbolTable() {
+        capacity = InitialCapacity;
+        slots = (Slot *) calloc(capacity, sizeof(Slot));
+    }
 
     Symbol& getSymbol(const std::string_view string);
     Symbol *getSymbolIfExists(const std::string_view string);
