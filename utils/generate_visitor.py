@@ -40,6 +40,9 @@ expressions = [
 def generate(t: VisitedType, return_type: str, arguments: list[Argument] = []):
     return f"{return_type} visit{t.typename}(AST::{t.typename}& {t.argumentName}) {{}}"
 
+# Output is pasted into src/AST_Visitor.h; emit clang-format markers so the
+# formatter never fights regenerated content.
+print("// clang-format off")
 for declaration in declarations:
     print(generate(declaration, "bool"))
 print()
@@ -50,4 +53,4 @@ print()
 
 for expression in expressions:
     print(generate(expression, "bool"))
-print()
+print("// clang-format on")

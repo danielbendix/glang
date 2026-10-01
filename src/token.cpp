@@ -2,9 +2,11 @@
 
 #include <iostream>
 
+// clang-format off
 #define TOKEN_TYPE_CASE(t)                                                                                             \
     case t:                                                                                                            \
         return #t;
+// clang-format on
 
 const char *tokenTypeToString(TokenType tokenType) {
     using enum TokenType;

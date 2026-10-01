@@ -34,23 +34,27 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Arc
    
     IntegerType *defaultIntegerType;
 
+// clang-format off
 #define INT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("i" #bits); \
     auto type = createType<IntegerType>(allocator, name, bits, true, architecture.int ## bits); \
     table.insert(name, type); \
     if constexpr (bits == 64) { defaultIntegerType = type; } \
 }
+// clang-format on
     INT_TYPE(8);
     INT_TYPE(16);
     INT_TYPE(32);
     INT_TYPE(64);
 #undef INT_TYPE
 
+// clang-format off
 #define UINT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("u" #bits); \
     auto type = createType<IntegerType>(allocator, name, bits, false, architecture.int ## bits); \
     table.insert(name, type); \
 }
+// clang-format on
     UINT_TYPE(8);
     UINT_TYPE(16);
     UINT_TYPE(32);

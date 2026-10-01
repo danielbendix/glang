@@ -23,6 +23,7 @@ constexpr ErrorValue ERROR{};
 
 // NOTE: Should only be used within functions that return values where the
 // error case is created by {}, e.g. pointers.
+// clang-format off
 #define TRY(expression) ({        \
     auto _result = (expression);  \
     if (!_result) [[unlikely]] {  \
@@ -30,7 +31,9 @@ constexpr ErrorValue ERROR{};
     }                             \
     _result;                      \
 })
+// clang-format on
 
+// clang-format off
 #define TRY_OPTIONAL(expression) ({        \
     auto _result = (expression);  \
     if (!_result) [[unlikely]] {  \
@@ -38,6 +41,7 @@ constexpr ErrorValue ERROR{};
     }                             \
     *_result;                     \
 })
+// clang-format on
 
 static std::optional<std::string> readFile(const char *path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
@@ -1186,6 +1190,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier)
 }
 
 // For improve cache-friendliness, this should probably be a "struct of arrays".
+// clang-format off
 ParseRule ParseRule::expressionRules[] = {
     // FIXME: Figure out the precedence.
     [static_cast<int>(LeftBrace)]             = {nullptr,                      &Parser::subscript,    Precedence::Call},
@@ -1261,4 +1266,5 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(While)]                 = {nullptr,                      nullptr,               Precedence::None},
     [static_cast<int>(Return)]                = {nullptr,                      nullptr,               Precedence::None},
 };
+// clang-format on
 

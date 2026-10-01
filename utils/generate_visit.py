@@ -58,4 +58,9 @@ def create_case(tag, name, const: bool = False) -> str:
     )
 
 #print("\n".join([create_case(*args) for args in ast_pairs]))
+
+# Output is pasted into src/AST_Visitor.h; emit clang-format markers so the
+# formatter never fights regenerated content.
+print("// clang-format off")
 print("\n".join([create_case(*args, const=True) for args in type_pairs]))
+print("// clang-format on")

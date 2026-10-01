@@ -1,0 +1,51 @@
+# Formatting philosophy: semantics over strict syntactic rules.
+#
+# The column limit is a complexity *trigger*, not a ruler. While a declaration,
+# call, or expression fits, it stays compact. When it overflows, that
+# complexity is embraced by expanding it vertically -- one parameter, argument,
+# or initializer per line -- instead of packing continuation lines against an
+# arbitrary column. Continuations are indented as blocks
+# (AlignAfterOpenBracket: BlockIndent), so spacing mirrors nesting depth.
+
+BasedOnStyle: LLVM
+Standard: c++20
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+NamespaceIndentation: All
+IndentCaseLabels: true
+FixNamespaceComments: false
+
+# The complexity trigger. Rarely hit: ~99% of existing lines fit within it.
+ColumnLimit: 120
+
+# Overflow expands semantically: one item per line, never packed against a
+# column and never dumped wholesale onto a single continuation line.
+BinPackArguments: false
+BinPackParameters: false
+BreakFunctionDefinitionParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AlignAfterOpenBracket: BlockIndent
+PackConstructorInitializers: NextLine
+ConstructorInitializerIndentWidth: 4
+
+# Type binding conventions used throughout the codebase:
+# `Type *name` (and nullability annotations after the star), `Type& name`.
+PointerAlignment: Right
+DerivePointerAlignment: false
+ReferenceAlignment: Left
+
+# Braces attach; simple constructs stay on one line unless they overflow.
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortCaseExpressionOnASingleLine: true
+AllowShortLambdasOnASingleLine: Empty
+
+# Include organization is author-owned for now.
+SortIncludes: Never
+IncludeBlocks: Preserve

@@ -1,3 +1,5 @@
+// Generated content (pasted from utils/generate_visitor.py / generate_visit.py output).
+// clang-format off
 #ifndef LANG_ast_visitor_h
 #define LANG_ast_visitor_h
 
@@ -366,3 +368,4 @@ namespace AST {
 }
 
 #endif // LANG_ast_visitor_h
+// clang-format on
