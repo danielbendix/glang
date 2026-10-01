@@ -107,6 +107,6 @@ const char *tokenTypeToString(TokenType tokenType) {
     }
 }
 
-std::ostream &operator<<(std::ostream &os, TokenType tokenType) {
+std::ostream& operator<<(std::ostream& os, TokenType tokenType) {
     return os << tokenTypeToString(tokenType);
 }

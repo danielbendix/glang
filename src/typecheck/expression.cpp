@@ -13,8 +13,8 @@
 
 #include <format>
 
-using llvm::isa;
 using llvm::dyn_cast;
+using llvm::isa;
 using enum PassResultKind;
 
 TypeResult ExpressionTypeChecker::visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType) {
@@ -125,7 +125,7 @@ TypeResult ExpressionTypeChecker::visitBinaryExpression(AST::BinaryExpression& b
 
     if (result.isType()) {
         binary.setType(result.asType());
-    } 
+    }
     return result;
 }
 
@@ -150,7 +150,14 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
 
     if (FunctionType *functionType = dyn_cast<FunctionType>(type)) {
         if (functionType->parameterCount() != call.argumentCount()) {
-            Diagnostic::error(call, std::format("Wrong number of arguments in call. Expected {}, got {}", functionType->parameterCount(), call.argumentCount()));
+            Diagnostic::error(
+                call,
+                std::format(
+                    "Wrong number of arguments in call. Expected {}, got {}",
+                    functionType->parameterCount(),
+                    call.argumentCount()
+                )
+            );
             return {};
         }
 
@@ -160,7 +167,7 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
             AST::Expression& argument = call.getArgument(i);
             Type *parameterType = functionType->getParameter(i);
             TypeResult argumentResult = typeCheckExpression(argument, parameterType);
-            
+
             if (!argumentResult) {
                 parameterResult |= ERROR;
                 Diagnostic::error(argument, "Unable to determine type of parameter.");
@@ -184,7 +191,14 @@ TypeResult ExpressionTypeChecker::visitCallExpression(AST::CallExpression& call,
                 continue;
 
                 // TODO: Printable types.
-                Diagnostic::error(argument, std::format("Wrong argument type in call. Expected {}, got {}", int(parameterType->getKind()), int(argumentType->getKind())));
+                Diagnostic::error(
+                    argument,
+                    std::format(
+                        "Wrong argument type in call. Expected {}, got {}",
+                        int(parameterType->getKind()),
+                        int(argumentType->getKind())
+                    )
+                );
                 return {};
             }
         }
@@ -222,7 +236,7 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
 
     // FIXME: This should be a default unsigned/index type, so we get free checking of negative literals.
     auto index = typeCheckExpression(subscript.getIndex(), typeResolver.defaultIntegerType());
-    
+
     if (!index) {
         return {};
     } else if (index.isConstraint()) {
@@ -246,7 +260,8 @@ TypeResult ExpressionTypeChecker::visitSubscriptExpression(AST::SubscriptExpress
     assert(false);
 }
 
-TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
+TypeResult
+ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
     Type *resolvedType = nullptr;
     if (auto *identifier = initializer.getIdentifier()) {
         resolvedType = typeResolver.resolveType(*identifier);
@@ -269,7 +284,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
     if (auto *structType = dyn_cast<StructType>(initializingType)) {
         initializer.setType(structType);
 
-        Bitmap definedFields{(u32) structType->getFields().size()};
+        Bitmap definedFields{(u32)structType->getFields().size()};
 
         Result result = OK;
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
@@ -296,7 +311,7 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
             }
 
             auto [coerceResult, wrapped] = coerceType(*fieldType, *valueType.asType(), *pair.value);
-        
+
             if (wrapped) {
                 pair.value = wrapped;
             }
@@ -346,9 +361,10 @@ TypeResult ExpressionTypeChecker::visitInitializerExpression(AST::InitializerExp
     }
 }
 
-TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType) {
+TypeResult
+ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType) {
     TypeResult target = typeCheckExpression(memberAccess.getTarget());
-    
+
     if (!target) {
         return {};
     }
@@ -367,7 +383,8 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
             return {};
         }
         if (auto *enumType = llvm::dyn_cast<EnumType>(metatype)) {
-            auto [memberResolution, memberType] = enumType->resolveStaticMember(memberAccess.getMemberName(), memberAccess);
+            auto [memberResolution, memberType] =
+                enumType->resolveStaticMember(memberAccess.getMemberName(), memberAccess);
             if (memberResolution) {
                 memberAccess.setType(memberType);
                 memberAccess.setResolution(memberResolution);
@@ -413,7 +430,10 @@ TypeResult ExpressionTypeChecker::visitMemberAccessExpression(AST::MemberAccessE
     return {};
 }
 
-TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression &inferredMemberAccess, Type *declaredType) {
+TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(
+    AST::InferredMemberAccessExpression& inferredMemberAccess,
+    Type *declaredType
+) {
     if (!declaredType) {
         Diagnostic::error(inferredMemberAccess, "Unable to infer expected type of implicit member access expression.");
         return {};
@@ -428,9 +448,7 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
             auto [first, second] = structType->resolveStaticMember(inferredMemberAccess.getMemberName());
             resolution = {std::move(first), second.getPointer()};
         })
-        .Default([](auto type) {
-        })
-    ;
+        .Default([](auto type) {});
 
     if (resolution.first) {
         inferredMemberAccess.setResolution(std::move(resolution.first));
@@ -441,7 +459,6 @@ TypeResult ExpressionTypeChecker::visitInferredMemberAccessExpression(AST::Infer
     Diagnostic::error(inferredMemberAccess, "Type checking of implicit member access is not yet implemented.");
     return {};
 }
-
 
 // TODO: Move somewhere else.
 bool canHold(const AST::IntegerLiteral& literal, IntegerType& type) {
@@ -461,84 +478,91 @@ bool canHold(const AST::IntegerLiteral& literal, IntegerType& type) {
 
 TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *propagatedType) {
     // TODO: Validate against declaration type.
-    
+
     using namespace AST;
 
-    return AST::visitLiteral(literal, overloaded {
-        [&](const NilLiteral& nil) -> TypeResult {
-            if (propagatedType) {
-                if (isa<OptionalType>(propagatedType)) {
-                    literal.setType(propagatedType);
-                    return TypeResult::type(propagatedType);
-                } else {
-                    // Perhaps this should just also return the type constraint.
-                    // Add expected type to diagnostic.
-                    Diagnostic::error(literal, "Unable to infer type of nil literal.");
-                    return {};
-                }
-            } else {
-                return TypeResult::constraint(TypeConstraint::Optional);
-            }
-        },
-        [&](const BooleanLiteral& boolean) -> TypeResult {
-            literal.setType(typeResolver.booleanType());
-            return TypeResult::type(typeResolver.booleanType());
-        },
-        [&](const IntegerLiteral& integer) -> TypeResult {
-            // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
-            if (propagatedType) {
-                if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
-                    auto& value = integer.getValue();
-                    
-                    if (!canHold(integer, *integerType)) {
-                        llvm::SmallVector<char, 32> numberString;
-                        integer.getValue().toStringSigned(numberString, 10);
-                        Diagnostic::error(integer, "Integer value " + std::string{numberString.data(), numberString.size()} + " overflows when stored into " + integerType->makeName());
+    return AST::visitLiteral(
+        literal,
+        overloaded{
+            [&](const NilLiteral& nil) -> TypeResult {
+                if (propagatedType) {
+                    if (isa<OptionalType>(propagatedType)) {
+                        literal.setType(propagatedType);
+                        return TypeResult::type(propagatedType);
+                    } else {
+                        // Perhaps this should just also return the type constraint.
+                        // Add expected type to diagnostic.
+                        Diagnostic::error(literal, "Unable to infer type of nil literal.");
                         return {};
                     }
+                } else {
+                    return TypeResult::constraint(TypeConstraint::Optional);
+                }
+            },
+            [&](const BooleanLiteral& boolean) -> TypeResult {
+                literal.setType(typeResolver.booleanType());
+                return TypeResult::type(typeResolver.booleanType());
+            },
+            [&](const IntegerLiteral& integer) -> TypeResult {
+                // FIXME: We need to distinguish between plain integer literals, and hex, octal, and binary.
+                if (propagatedType) {
+                    if (auto integerType = dyn_cast<IntegerType>(propagatedType)) {
+                        auto& value = integer.getValue();
 
-                    // Check if type can hold literal.
-                    literal.setType(propagatedType);
-                    return TypeResult::type(propagatedType);
-                } else if (auto fpType = dyn_cast<FPType>(propagatedType)) {
-                    literal.setType(propagatedType);
-                    return TypeResult::type(propagatedType);
-                } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
-                    auto rootType = optionalType->removeImplicitWrapperTypes();
-                    if (auto type = visitLiteral(literal, rootType); type.isType()) {
-                        literal.setType(type.asType());
-                        return type;
+                        if (!canHold(integer, *integerType)) {
+                            llvm::SmallVector<char, 32> numberString;
+                            integer.getValue().toStringSigned(numberString, 10);
+                            Diagnostic::error(
+                                integer,
+                                "Integer value " + std::string{numberString.data(), numberString.size()} +
+                                    " overflows when stored into " + integerType->makeName()
+                            );
+                            return {};
+                        }
+
+                        // Check if type can hold literal.
+                        literal.setType(propagatedType);
+                        return TypeResult::type(propagatedType);
+                    } else if (auto fpType = dyn_cast<FPType>(propagatedType)) {
+                        literal.setType(propagatedType);
+                        return TypeResult::type(propagatedType);
+                    } else if (auto optionalType = dyn_cast<OptionalType>(propagatedType)) {
+                        auto rootType = optionalType->removeImplicitWrapperTypes();
+                        if (auto type = visitLiteral(literal, rootType); type.isType()) {
+                            literal.setType(type.asType());
+                            return type;
+                        }
+                    }
+                    return TypeResult::constraint(TypeConstraint::Numeric);
+                } else {
+                    return TypeResult::constraint(TypeConstraint::Numeric);
+                }
+            },
+            [&](const FloatingPointLiteral& floating) -> TypeResult {
+                if (propagatedType) {
+                    if (auto *fpType = dyn_cast<FPType>(propagatedType)) {
+                        literal.setType(propagatedType);
+                        return TypeResult::type(propagatedType);
+                    } else if (auto *optionalType = dyn_cast<OptionalType>(propagatedType)) {
+                        auto *rootType = optionalType->removeImplicitWrapperTypes();
+                        if (auto type = visitLiteral(literal, rootType); type.isType()) {
+                            literal.setType(type.asType());
+                            return type;
+                        }
                     }
                 }
-                return TypeResult::constraint(TypeConstraint::Numeric);
-            } else {
-                return TypeResult::constraint(TypeConstraint::Numeric);
-            }
-        },
-        [&](const FloatingPointLiteral& floating) -> TypeResult {
-            if (propagatedType) {
-                if (auto *fpType = dyn_cast<FPType>(propagatedType)) {
-                    literal.setType(propagatedType);
-                    return TypeResult::type(propagatedType);
-                } else if (auto *optionalType = dyn_cast<OptionalType>(propagatedType)) {
-                    auto *rootType = optionalType->removeImplicitWrapperTypes();
-                    if (auto type = visitLiteral(literal, rootType); type.isType()) {
-                        literal.setType(type.asType());
-                        return type;
-                    }
-                }
-            }
-            return TypeResult::constraint(TypeConstraint::Floating);
-        },
-        [&](const CharacterLiteral& character) -> TypeResult {
-            Diagnostic::error(literal, "Character literals are currently not supported.");
-            return {};
-        },
-        [&](const StringLiteral& string) -> TypeResult {
-            Diagnostic::error(literal, "String literals are currently not supported.");
-            return {};
-        },
-    });
+                return TypeResult::constraint(TypeConstraint::Floating);
+            },
+            [&](const CharacterLiteral& character) -> TypeResult {
+                Diagnostic::error(literal, "Character literals are currently not supported.");
+                return {};
+            },
+            [&](const StringLiteral& string) -> TypeResult {
+                Diagnostic::error(literal, "String literals are currently not supported.");
+                return {};
+            },
+        }
+    );
 }
 
 TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
@@ -551,7 +575,7 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
         return {};
     }
 
-    auto nested = [this, resolution] () -> TypeResult {
+    auto nested = [this, resolution]() -> TypeResult {
         switch (resolution.getKind()) {
             case IdentifierResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNRESOLVED resolution in type check.");
@@ -568,9 +592,8 @@ TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, T
                 return TypeResult::type(typeResolver.getFunction(resolution.as.function.id).type);
             }
             case IdentifierResolution::Kind::Parameter: {
-                return TypeResult::type(
-                    typeResolver.getFunction(resolution.as.parameter.functionID).type->getParameter(resolution.as.parameter.index)
-                );
+                return TypeResult::type(typeResolver.getFunction(resolution.as.parameter.functionID)
+                                            .type->getParameter(resolution.as.parameter.index));
             }
             case IdentifierResolution::Kind::Local: {
                 auto *binding = resolution.as.local.binding;

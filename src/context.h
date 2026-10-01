@@ -14,7 +14,7 @@ struct ASTHandle {
     BumpAllocator nodeAllocator;
     ArrayArenaAllocator arrayAllocator;
 
-    ASTHandle(BumpAllocator&& nodeAllocator, ArrayArenaAllocator&& arrayAllocator) 
+    ASTHandle(BumpAllocator&& nodeAllocator, ArrayArenaAllocator&& arrayAllocator)
         : nodeAllocator{std::move(nodeAllocator)}, arrayAllocator{std::move(arrayAllocator)} {}
 };
 
@@ -44,8 +44,8 @@ struct GlobalContext {
 
         std::scoped_lock _{lock};
 
-        char *filepath = (char *) filenameAllocator.allocate(pathString.size() + 1, 1);
-        char *filename = (char *) filenameAllocator.allocate(filenameString.size() + 1, 1);
+        char *filepath = (char *)filenameAllocator.allocate(pathString.size() + 1, 1);
+        char *filename = (char *)filenameAllocator.allocate(filenameString.size() + 1, 1);
         std::memcpy(filepath, pathString.data(), pathString.size());
         filepath[pathString.size()] = '\0';
         std::memcpy(filename, filenameString.data(), filenameString.size());
@@ -107,6 +107,7 @@ struct ThreadContext {
 class LazySymbol {
     const char *const string;
     mutable const Symbol *symbol = nullptr;
+
 public:
     LazySymbol(const char *string) : string{string} {}
 

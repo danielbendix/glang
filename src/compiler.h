@@ -9,17 +9,7 @@ class Compiler {
     Scanner scanner;
 
 public:
-    Compiler(std::string&& string) : scanner{std::move(string)} {
-        
-    }
-
-
+    Compiler(std::string&& string) : scanner{std::move(string)} {}
 };
-
-
-
-
-
-
 
 #endif

@@ -9,7 +9,7 @@
 /// Small read-only array.
 /// Allows storing 8 bytes of information without indirection.
 template <typename T>
-requires (sizeof(T) == 1 && sizeof(T *) == sizeof(size_t))
+    requires(sizeof(T) == 1 && sizeof(T *) == sizeof(size_t))
 class SmallByteArray {
     struct Array {
         T *data;
@@ -42,13 +42,12 @@ public:
         }
     }
 
-    template <Allocator Allocator>
-    SmallByteArray(Allocator& allocator, std::vector<T>& data) {
+    template <Allocator Allocator> SmallByteArray(Allocator& allocator, std::vector<T>& data) {
         storage.size = data.size();
         if (data.size() <= LBO) {
             memcpy(storage.data.array, data.data(), sizeof(T) * data.size());
         } else {
-            storage.data.ptr = (T *) allocator.allocate(sizeof(T) * data.size(), alignof(T));
+            storage.data.ptr = (T *)allocator.allocate(sizeof(T) * data.size(), alignof(T));
             memcpy(storage.data.ptr, data.data(), sizeof(T) * data.size());
         }
     }
@@ -85,6 +84,7 @@ public:
         T *current;
 
         iterator(T *current) : current{current} {}
+
     public:
         T operator*() {
             return *current;
@@ -122,7 +122,7 @@ public:
 
     iterator end() const {
         if (isLBO()) {
-            return iterator((T *) storage.data.array + storage.size);
+            return iterator((T *)storage.data.array + storage.size);
         } else {
             return iterator(storage.data.ptr + storage.size);
         }

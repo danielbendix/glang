@@ -39,9 +39,11 @@ PointerAlignment: Right
 DerivePointerAlignment: false
 ReferenceAlignment: Left
 
-# Braces attach; simple constructs stay on one line unless they overflow.
+# Braces attach. Function bodies always take vertical space to aid
+# readability; only empty bodies stay inline. Other simple constructs stay on
+# one line unless they overflow.
 BreakBeforeBraces: Attach
-AllowShortFunctionsOnASingleLine: All
+AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: WithoutElse
 AllowShortCaseExpressionOnASingleLine: true
 AllowShortLambdasOnASingleLine: Empty

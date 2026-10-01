@@ -16,12 +16,12 @@
 
 #include "llvm/IR/Verifier.h"
 
-using llvm::LLVMContext;
 using llvm::cast;
-using llvm::isa;
 using llvm::dyn_cast;
-using llvm::TypeSwitch;
 using llvm::enumerate;
+using llvm::isa;
+using llvm::LLVMContext;
+using llvm::TypeSwitch;
 
 using Result = PassResult;
 using enum PassResultKind;
@@ -82,7 +82,7 @@ public:
     std::optional<u32> mainFunction = {};
 
     std::vector<AST::FunctionDeclaration *> functions;
-    std::vector<llvm::Function *NONNULL> llvmFunctions;
+    std::vector<llvm::Function * NONNULL> llvmFunctions;
 
     std::vector<GlobalDeclaration> globals;
     std::vector<llvm::GlobalVariable *> llvmGlobals;
@@ -97,11 +97,12 @@ public:
         auto type = binding.getType()->getLLVMType(llvmContext);
         auto name = binding.getIdentifier().string_view();
         llvm::GlobalVariable *llvmGlobal = new llvm::GlobalVariable(
-            llvmModule, 
-            type, 
-            false, 
-            llvm::GlobalValue::ExternalLinkage, 
-            llvm::UndefValue::get(type), name
+            llvmModule,
+            type,
+            false,
+            llvm::GlobalValue::ExternalLinkage,
+            llvm::UndefValue::get(type),
+            name
         );
 
         llvmGlobals.push_back(llvmGlobal);
@@ -113,14 +114,22 @@ public:
 
         llvm::FunctionType *initializerType = llvm::FunctionType::get(llvm::Type::getVoidTy(llvmContext), false);
         // TODO: Add module name to initializer
-        llvm::Function *initializer = llvm::Function::Create(initializerType, llvm::Function::InternalLinkage, "glang$initialize_globals", llvmModule);
+        llvm::Function *initializer = llvm::Function::Create(
+            initializerType,
+            llvm::Function::InternalLinkage,
+            "glang$initialize_globals",
+            llvmModule
+        );
 
         llvm::Type *int32Type = builder.getInt32Ty();
         llvm::Type *pointerType = builder.getPtrTy();
 
         auto globalConstructorType = llvm::StructType::get(int32Type, pointerType, pointerType);
         auto arrayType = llvm::ArrayType::get(globalConstructorType, 1);
-        auto globalConstructor = llvm::ConstantStruct::get(globalConstructorType, {priority, initializer, llvm::Constant::getNullValue(pointerType)});
+        auto globalConstructor = llvm::ConstantStruct::get(
+            globalConstructorType,
+            {priority, initializer, llvm::Constant::getNullValue(pointerType)}
+        );
         llvm::Constant *globalConstructorArray = llvm::ConstantArray::get(arrayType, {globalConstructor});
 
         llvm::GlobalVariable *ctor = new llvm::GlobalVariable(
@@ -148,7 +157,8 @@ public:
         auto functionType = function.type;
         auto llvmFunctionType = functionType->getFunctionType(llvmContext);
 
-        llvm::Function *llvmFunction = llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, mangledName(name), llvmModule);
+        llvm::Function *llvmFunction =
+            llvm::Function::Create(llvmFunctionType, llvm::Function::ExternalLinkage, mangledName(name), llvmModule);
         llvmFunctions.push_back(llvmFunction);
     }
 
@@ -158,12 +168,11 @@ public:
         if (auto function = printFunctions.lookup(&type)) {
             return *function;
         }
-        
+
         auto function = createPrintFunction(type);
         printFunctions.insert(&type, function);
         return function;
     }
-
 };
 
 bool populateContext(Context& context, Module& module) {
@@ -178,7 +187,7 @@ bool populateContext(Context& context, Module& module) {
     std::swap(context.functions, module.functionDeclarations);
 
     context.mainFunction = module.mainFunction;
-    
+
     return false;
 }
 
@@ -208,17 +217,16 @@ class CompilingFunction {
     std::vector<Local> locals;
     std::vector<llvm::BasicBlock *> trapBlocks;
     int currentScope = 1;
-public:
 
+public:
     llvm::IRBuilder<> builder;
 
-    CompilingFunction(Context& context, llvm::Function& function) 
-        : context{context}
-        , function{function}
-        , builder{function.getContext()}
-        , allocaBuilder{function.getContext()}
-        , entry{llvm::BasicBlock::Create(context.llvmContext, "entry", &function)} 
-    {
+    CompilingFunction(Context& context, llvm::Function& function)
+        : context{context},
+          function{function},
+          builder{function.getContext()},
+          allocaBuilder{function.getContext()},
+          entry{llvm::BasicBlock::Create(context.llvmContext, "entry", &function)} {
         allocaBuilder.SetInsertPoint(entry);
         builder.SetInsertPoint(entry, entry->end());
     }
@@ -381,7 +389,11 @@ public:
     }
 
     llvm::ConstantInt *getIntegerConstant(IntegerType *type, u64 value) {
-        return llvm::ConstantInt::get(cast<llvm::IntegerType>(type->getLLVMType(context.llvmContext)), value, type->isSigned);
+        return llvm::ConstantInt::get(
+            cast<llvm::IntegerType>(type->getLLVMType(context.llvmContext)),
+            value,
+            type->isSigned
+        );
     }
 
     llvm::ConstantInt *getIntegerConstant(int bitWidth, u64 value) {
@@ -400,8 +412,8 @@ public:
 
     llvm::FunctionCallee getPrintf() {
         llvm::FunctionType *printfType = llvm::FunctionType::get(
-            llvm::Type::getInt32Ty(context.llvmContext), 
-            llvm::PointerType::get(llvm::Type::getInt8Ty(context.llvmContext), 0), 
+            llvm::Type::getInt32Ty(context.llvmContext),
+            llvm::PointerType::get(llvm::Type::getInt8Ty(context.llvmContext), 0),
             true
         );
         return context.llvmModule.getOrInsertFunction("printf", printfType);
@@ -424,12 +436,11 @@ public:
             false
         );
         return context.llvmModule.getOrInsertFunction("malloc", mallocType);
-
     }
 
     llvm::FunctionCallee getPutchar() {
         llvm::FunctionType *putcharType = llvm::FunctionType::get(
-            llvm::Type::getInt32Ty(context.llvmContext), 
+            llvm::Type::getInt32Ty(context.llvmContext),
             llvm::Type::getInt32Ty(context.llvmContext),
             false
         );
@@ -438,157 +449,163 @@ public:
 };
 
 llvm::Function *Context::createPrintFunction(Type& type) {
-    auto functionType = llvm::FunctionType::get(llvm::IntegerType::get(llvmContext, 32), {type.getLLVMType(llvmContext)}, false);
+    auto functionType =
+        llvm::FunctionType::get(llvm::IntegerType::get(llvmContext, 32), {type.getLLVMType(llvmContext)}, false);
     // TODO: Escape characters in the name.
-    auto llvmFunction = llvm::Function::Create(functionType, llvm::Function::InternalLinkage, "print$" + type.makeName(), llvmModule);
+    auto llvmFunction =
+        llvm::Function::Create(functionType, llvm::Function::InternalLinkage, "print$" + type.makeName(), llvmModule);
 
     llvm::Value *value = llvmFunction->getArg(0);
     CompilingFunction function{*this, *llvmFunction};
 
     auto printf = function.getPrintf();
 
-    auto returnValue = TypeVisitor::visit(type, overloaded {
-        [&](IntegerType& type) -> llvm::Value * {
-            bool isLong;
-            switch (type.bitWidth) {
-                case 64:
-                    isLong = true;
-                    break;
-                case 32:
-                    isLong = false;
-                    break;
-                default:
-                    isLong = false;
-                    auto int32Type = function.getIntegerType(32);
-                    if (type.isSigned) {
-                        value = function.builder.CreateSExt(value, int32Type);
-                    } else {
-                        value = function.builder.CreateZExt(value, int32Type);
-                    }
-                    break;
-            }
-            char format[5];
-            format[0] = '%';
-            char formatChar = type.isSigned ? 'd' : 'u';
-            if (isLong) {
-                format[1] = 'l';
-                format[2] = formatChar;
-                format[3] = '\0';
-            } else {
-                format[1] = formatChar;
-                format[2] = '\0';
-            }
-
-            auto string = function.builder.CreateGlobalString(format);
-            return function.builder.CreateCall(printf, {string, value});
-        },
-        [&](FPType& type) -> llvm::Value * {
-            switch (type.precision) {
-                case FPType::Precision::Single:
-                    value = function.builder.CreateFPExt(value, function.getFPType(FPType::Precision::Double));
-                    break;
-                case FPType::Precision::Double:
-                    break;
-            }
-            auto string = function.builder.CreateGlobalString("%f");
-            return function.builder.CreateCall(printf, {string, value});
-        },
-        [&](BooleanType& _) -> llvm::Value * {
-            auto trueString = function.builder.CreateGlobalString("true");
-            auto falseString = function.builder.CreateGlobalString("false");
-            value = function.builder.CreateSelect(value, trueString, falseString);
-            return function.builder.CreateCall(printf, {value});
-        },
-        [&](PointerType& type) -> llvm::Value * {
-            auto string = function.builder.CreateGlobalString("%p");
-            return function.builder.CreateCall(printf, {string, value});
-        },
-        [&](StructType& type) -> llvm::Value * {
-            auto& fields = type.getFields();
-
-            if (fields.empty()) {
-                auto string = function.builder.CreateGlobalString(type.makeName() + " {}");
-                return function.builder.CreateCall(printf, {string});
-            }
-
-            auto prefix = type.makeName();
-            prefix += " { ";
-            auto prefixString = function.builder.CreateGlobalString(prefix);
-            function.builder.CreateCall(printf, {prefixString});
-
-            bool needsSeparator = false;
-
-            for (auto [i, field] : enumerate(type.getFields())) {
-                std::string leader;
-                if (needsSeparator) {
-                    leader += ", ";
+    auto returnValue = TypeVisitor::visit(
+        type,
+        overloaded{
+            [&](IntegerType& type) -> llvm::Value * {
+                bool isLong;
+                switch (type.bitWidth) {
+                    case 64:
+                        isLong = true;
+                        break;
+                    case 32:
+                        isLong = false;
+                        break;
+                    default:
+                        isLong = false;
+                        auto int32Type = function.getIntegerType(32);
+                        if (type.isSigned) {
+                            value = function.builder.CreateSExt(value, int32Type);
+                        } else {
+                            value = function.builder.CreateZExt(value, int32Type);
+                        }
+                        break;
+                }
+                char format[5];
+                format[0] = '%';
+                char formatChar = type.isSigned ? 'd' : 'u';
+                if (isLong) {
+                    format[1] = 'l';
+                    format[2] = formatChar;
+                    format[3] = '\0';
                 } else {
-                    needsSeparator = true;
+                    format[1] = formatChar;
+                    format[2] = '\0';
                 }
 
-                auto& binding = cast<AST::IdentifierBinding>(field->getBinding());
-                leader += binding.getIdentifier();
-                leader += " = ";
+                auto string = function.builder.CreateGlobalString(format);
+                return function.builder.CreateCall(printf, {string, value});
+            },
+            [&](FPType& type) -> llvm::Value * {
+                switch (type.precision) {
+                    case FPType::Precision::Single:
+                        value = function.builder.CreateFPExt(value, function.getFPType(FPType::Precision::Double));
+                        break;
+                    case FPType::Precision::Double:
+                        break;
+                }
+                auto string = function.builder.CreateGlobalString("%f");
+                return function.builder.CreateCall(printf, {string, value});
+            },
+            [&](BooleanType& _) -> llvm::Value * {
+                auto trueString = function.builder.CreateGlobalString("true");
+                auto falseString = function.builder.CreateGlobalString("false");
+                value = function.builder.CreateSelect(value, trueString, falseString);
+                return function.builder.CreateCall(printf, {value});
+            },
+            [&](PointerType& type) -> llvm::Value * {
+                auto string = function.builder.CreateGlobalString("%p");
+                return function.builder.CreateCall(printf, {string, value});
+            },
+            [&](StructType& type) -> llvm::Value * {
+                auto& fields = type.getFields();
 
-                auto leaderString = function.builder.CreateGlobalString(leader);
-                function.builder.CreateCall(printf, {leaderString});
-                auto printFunction = function.getPrintFunction(*field->getType());
-                auto element = function.builder.CreateExtractValue(value, {(unsigned int)i});
-                function.builder.CreateCall(printFunction, {element});
+                if (fields.empty()) {
+                    auto string = function.builder.CreateGlobalString(type.makeName() + " {}");
+                    return function.builder.CreateCall(printf, {string});
+                }
+
+                auto prefix = type.makeName();
+                prefix += " { ";
+                auto prefixString = function.builder.CreateGlobalString(prefix);
+                function.builder.CreateCall(printf, {prefixString});
+
+                bool needsSeparator = false;
+
+                for (auto [i, field] : enumerate(type.getFields())) {
+                    std::string leader;
+                    if (needsSeparator) {
+                        leader += ", ";
+                    } else {
+                        needsSeparator = true;
+                    }
+
+                    auto& binding = cast<AST::IdentifierBinding>(field->getBinding());
+                    leader += binding.getIdentifier();
+                    leader += " = ";
+
+                    auto leaderString = function.builder.CreateGlobalString(leader);
+                    function.builder.CreateCall(printf, {leaderString});
+                    auto printFunction = function.getPrintFunction(*field->getType());
+                    auto element = function.builder.CreateExtractValue(value, {(unsigned int)i});
+                    function.builder.CreateCall(printFunction, {element});
+                }
+
+                auto suffixString = function.builder.CreateGlobalString(" }");
+                return function.builder.CreateCall(printf, {suffixString});
+            },
+            [&](OptionalType& type) -> llvm::Value * {
+                auto isNil = function.createEqualsNil(value, type);
+
+                auto& onNil = function.createOrphanedBlock();
+                auto& onSome = function.createOrphanedBlock();
+                auto& end = function.createOrphanedBlock();
+                function.builder.CreateCondBr(isNil, &onNil, &onSome);
+
+                function.patchOrphanedBlock(onNil);
+                auto nilString = function.builder.CreateGlobalString("nil");
+                auto nilCall = function.builder.CreateCall(printf, {nilString});
+                function.builder.CreateBr(&end);
+
+                function.patchOrphanedBlock(onSome);
+                auto someValue = function.createExtractSome(value, type);
+                auto printFunction = getPrintFunction(*type.getContained());
+                auto functionType = llvm::FunctionType::get(
+                    function.getIntegerType(32),
+                    {function.getLLVMType(type.getContained())},
+                    false
+                );
+                auto someCall = function.builder.CreateCall(functionType, printFunction, {someValue});
+                function.builder.CreateBr(&end);
+
+                function.patchOrphanedBlock(end);
+                auto phi = function.builder.CreatePHI(nilCall->getType(), 2);
+                phi->addIncoming(nilCall, &onNil);
+                phi->addIncoming(someCall, &onSome);
+
+                return phi;
+            },
+            [&](auto& other) -> llvm::Value * {
+                llvm_unreachable("Unsupported type.");
             }
-
-            auto suffixString = function.builder.CreateGlobalString(" }");
-            return function.builder.CreateCall(printf, {suffixString});
-        },
-        [&](OptionalType& type) -> llvm::Value * {
-            auto isNil = function.createEqualsNil(value, type);
-
-            auto& onNil = function.createOrphanedBlock();
-            auto& onSome = function.createOrphanedBlock();
-            auto& end = function.createOrphanedBlock();
-            function.builder.CreateCondBr(isNil, &onNil, &onSome);
-
-            function.patchOrphanedBlock(onNil);
-            auto nilString = function.builder.CreateGlobalString("nil");
-            auto nilCall = function.builder.CreateCall(printf, {nilString});
-            function.builder.CreateBr(&end);
-
-            function.patchOrphanedBlock(onSome);
-            auto someValue = function.createExtractSome(value, type);
-            auto printFunction = getPrintFunction(*type.getContained());
-            auto functionType = llvm::FunctionType::get(function.getIntegerType(32), {function.getLLVMType(type.getContained())}, false);
-            auto someCall = function.builder.CreateCall(functionType, printFunction, {someValue});
-            function.builder.CreateBr(&end);
-
-            function.patchOrphanedBlock(end);
-            auto phi = function.builder.CreatePHI(nilCall->getType(), 2);
-            phi->addIncoming(nilCall, &onNil);
-            phi->addIncoming(someCall, &onSome);
-
-            return phi;
-        },
-        [&](auto& other) -> llvm::Value * {
-            llvm_unreachable("Unsupported type.");
         }
-    });
+    );
 
     function.builder.CreateRet(returnValue);
 
     return llvmFunction;
 }
 
-class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenerator, void>
-                            , public AST::StatementVisitorT<FunctionCodeGenerator, void>
-                            , public AST::ExpressionVisitorT<FunctionCodeGenerator, Value>
-{
+class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenerator, void>,
+                              public AST::StatementVisitorT<FunctionCodeGenerator, void>,
+                              public AST::ExpressionVisitorT<FunctionCodeGenerator, Value> {
     struct LoopInfo {
         llvm::BasicBlock& continueBlock;
         llvm::BasicBlock& endBlock;
 
         LoopInfo(llvm::BasicBlock& continueBlock, llvm::BasicBlock& endBlock)
-            : continueBlock{continueBlock}
-            , endBlock{endBlock}
-        {}
+            : continueBlock{continueBlock}, endBlock{endBlock} {}
     };
 
     CompilingFunction function;
@@ -597,9 +614,7 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
 
     LoopInfo *currentLoop = nullptr;
 
-    template <typename Func>
-    __attribute__((always_inline))
-    void withLoop(LoopInfo&& loop, Func&& f) {
+    template <typename Func> __attribute__((always_inline)) void withLoop(LoopInfo&& loop, Func&& f) {
         LoopInfo loop_ = loop;
         LoopInfo *previous = currentLoop;
         currentLoop = &loop_;
@@ -637,7 +652,7 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
 
 public:
     FunctionCodeGenerator(llvm::Function& function, Context& context) : function{context, function} {}
-    
+
     void visitBlock(const AST::Block& block) {
         function.pushScope();
         for (int bi = 0; bi < block.size(); bi++) {
@@ -723,11 +738,14 @@ public:
         using enum AST::BinaryOperator;
         switch (op) {
             case Add:
-                value = function.builder.CreateAdd(targetValue, rhs); break;
+                value = function.builder.CreateAdd(targetValue, rhs);
+                break;
             case Subtract:
-                value = function.builder.CreateSub(targetValue, rhs); break;
+                value = function.builder.CreateSub(targetValue, rhs);
+                break;
             case Multiply:
-                value = function.builder.CreateMul(targetValue, rhs); break;
+                value = function.builder.CreateMul(targetValue, rhs);
+                break;
             case Divide: {
                 IntegerType *integerType = cast<IntegerType>(assignment.getTarget().getType());
                 if (integerType->getIsSigned()) {
@@ -747,16 +765,21 @@ public:
                 break;
             }
             case BitwiseAnd:
-                value = function.builder.CreateAnd(targetValue, rhs); break;
+                value = function.builder.CreateAnd(targetValue, rhs);
+                break;
             case BitwiseOr:
-                value = function.builder.CreateOr(targetValue, rhs); break;
+                value = function.builder.CreateOr(targetValue, rhs);
+                break;
             case BitwiseXor:
-                value = function.builder.CreateXor(targetValue, rhs); break;
+                value = function.builder.CreateXor(targetValue, rhs);
+                break;
             case ShiftLeft:
-                value = function.builder.CreateShl(targetValue, rhs); break;
+                value = function.builder.CreateShl(targetValue, rhs);
+                break;
             case ShiftRight:
                 // TODO: Add arithmetic shift for signed types.
-                value = function.builder.CreateLShr(targetValue, rhs); break;
+                value = function.builder.CreateLShr(targetValue, rhs);
+                break;
             case Equal:
             case NotEqual:
             case Less:
@@ -809,16 +832,16 @@ public:
         llvm::BasicBlock *next = nullptr;
         for (auto condition : conditions) {
             value = TypeSwitch<AST::Condition, llvm::Value *>(condition)
-                .Case<AST::ConditionalUnwrap *>([&](AST::ConditionalUnwrap *unwrap) {
-                    return codegenConditionalBinding(*unwrap, onFalse);
-                })
-                .Case<AST::Expression *>([&](AST::Expression *expression) {
-                    auto condition = visitExpressionAsValue(expression);
-                    auto& onTrue = function.createOrphanedBlock();
-                    function.builder.CreateCondBr(condition, &onTrue, &onFalse);
-                    function.patchOrphanedBlock(onTrue);
-                    return condition;
-                });
+                        .Case<AST::ConditionalUnwrap *>([&](AST::ConditionalUnwrap *unwrap) {
+                            return codegenConditionalBinding(*unwrap, onFalse);
+                        })
+                        .Case<AST::Expression *>([&](AST::Expression *expression) {
+                            auto condition = visitExpressionAsValue(expression);
+                            auto& onTrue = function.createOrphanedBlock();
+                            function.builder.CreateCondBr(condition, &onTrue, &onFalse);
+                            function.patchOrphanedBlock(onTrue);
+                            return condition;
+                        });
         }
         return value;
     }
@@ -878,7 +901,7 @@ public:
     }
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
-        if (auto* value = returnStatement.getValue()) {
+        if (auto *value = returnStatement.getValue()) {
             auto *returnValue = visitExpressionAsValue(value);
             function.builder.CreateRet(returnValue);
         } else {
@@ -891,7 +914,7 @@ public:
         auto& end = function.createOrphanedBlock();
 
         function.builder.CreateBr(&header);
-        
+
         function.patchOrphanedBlock(header);
 
         codegenConditions(whileStatement.getConditions(), end);
@@ -973,7 +996,7 @@ public:
 
             function.builder.CreateBr(&header);
             function.patchOrphanedBlock(header);
-            
+
             auto current = function.builder.CreatePHI(llvmElementType, 2);
             current->addIncoming(startValue, &preheader);
 
@@ -1008,7 +1031,8 @@ public:
             }
             function.patchOrphanedBlock(latch);
 
-            auto incremented = function.builder.CreateAdd(current, function.getIntegerConstant(elementType->bitWidth, 1));
+            auto incremented =
+                function.builder.CreateAdd(current, function.getIntegerConstant(elementType->bitWidth, 1));
             current->addIncoming(incremented, &latch);
             function.builder.CreateBr(&header);
 
@@ -1075,66 +1099,81 @@ public:
     llvm::Value *codegenLiteral(AST::Literal& literal) {
         using namespace AST;
         using llvm::Value;
-        return AST::visitLiteral(literal, overloaded {
-            [&](const AST::NilLiteral& nil) -> Value * {
-                auto optionalType = cast<OptionalType>(literal.getType());
-                if (isa<PointerType>(optionalType->getContained())) {
-                    return llvm::Constant::getNullValue(function.getLLVMType(optionalType));
-                } else {
-                    auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
-                    return llvm::ConstantStruct::get(structType, {
-                        function.getIntegerConstant(1, 0), 
-                        llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))
-                    });
+        return AST::visitLiteral(
+            literal,
+            overloaded{
+                [&](const AST::NilLiteral& nil) -> Value * {
+                    auto optionalType = cast<OptionalType>(literal.getType());
+                    if (isa<PointerType>(optionalType->getContained())) {
+                        return llvm::Constant::getNullValue(function.getLLVMType(optionalType));
+                    } else {
+                        auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
+                        return llvm::ConstantStruct::get(
+                            structType,
+                            {function.getIntegerConstant(1, 0),
+                             llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))}
+                        );
+                    }
+                },
+                [&](const AST::BooleanLiteral& boolean) -> Value * {
+                    llvm::APInt i(1, boolean.getValue() ? 1 : 0, true);
+                    return function.getIntegerConstant(1, boolean.getValue() ? 1 : 0);
+                    return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
+                },
+                [&](const AST::IntegerLiteral& integer) -> Value * {
+                    return TypeSwitch<Type *, llvm::Value *>(integer.getType())
+                        .Case([&](IntegerType *integerType) {
+                            auto bitWidth = integerType->bitWidth;
+                            llvm::APInt i;
+                            if (integerType->isSigned) {
+                                i = integer.getValue().sextOrTrunc(bitWidth);
+                            } else {
+                                i = integer.getValue().zextOrTrunc(bitWidth);
+                            }
+                            return llvm::Constant::getIntegerValue(
+                                function.getLLVMType(literal.getType()),
+                                std::move(i)
+                            );
+                        })
+                        .Case([&](FPType *fpType) {
+                            // TODO: We need to think about rounding here.
+                            switch (fpType->precision) {
+                                case FPType::Precision::Single: {
+                                    const llvm::fltSemantics& semantics = llvm::APFloat::IEEEsingle();
+                                    llvm::APFloat fp{semantics};
+                                    fp.convertFromAPInt(
+                                        integer.getValue(),
+                                        false,
+                                        llvm::APFloat::roundingMode::TowardZero
+                                    );
+                                    return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
+                                }
+                                case FPType::Precision::Double: {
+                                    const llvm::fltSemantics& semantics = llvm::APFloat::IEEEdouble();
+                                    llvm::APFloat fp{semantics};
+                                    fp.convertFromAPInt(
+                                        integer.getValue(),
+                                        false,
+                                        llvm::APFloat::roundingMode::TowardZero
+                                    );
+                                    return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
+                                }
+                            }
+                        });
+                },
+                [&](const AST::FloatingPointLiteral& floating) -> Value * {
+                    auto type = cast<FPType>(literal.getType());
+                    auto llvmType = function.getLLVMType(type);
+                    return llvm::ConstantFP::get(llvmType, floating.getValue());
+                },
+                [&](const AST::CharacterLiteral& string) -> Value * {
+                    llvm_unreachable("String literals are not supported.");
+                },
+                [&](const AST::StringLiteral& string) -> Value * {
+                    llvm_unreachable("String literals are not supported.");
                 }
-            },
-            [&](const AST::BooleanLiteral& boolean) -> Value * {
-                llvm::APInt i(1, boolean.getValue() ? 1 : 0, true);
-                return function.getIntegerConstant(1, boolean.getValue() ? 1 : 0);
-                return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), i);
-            },
-            [&](const AST::IntegerLiteral& integer) -> Value * {
-                return TypeSwitch<Type *, llvm::Value *>(integer.getType())
-                    .Case([&](IntegerType *integerType) {
-                        auto bitWidth = integerType->bitWidth;
-                        llvm::APInt i;
-                        if (integerType->isSigned) {
-                            i = integer.getValue().sextOrTrunc(bitWidth);
-                        } else {
-                            i = integer.getValue().zextOrTrunc(bitWidth);
-                        }
-                        return llvm::Constant::getIntegerValue(function.getLLVMType(literal.getType()), std::move(i));
-                    })
-                    .Case([&](FPType *fpType) {
-                        // TODO: We need to think about rounding here.
-                        switch (fpType->precision) {
-                            case FPType::Precision::Single: {
-                                const llvm::fltSemantics &semantics = llvm::APFloat::IEEEsingle();
-                                llvm::APFloat fp{semantics};
-                                fp.convertFromAPInt(integer.getValue(), false, llvm::APFloat::roundingMode::TowardZero);
-                                return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
-                            }
-                            case FPType::Precision::Double: {
-                                const llvm::fltSemantics &semantics = llvm::APFloat::IEEEdouble();
-                                llvm::APFloat fp{semantics};
-                                fp.convertFromAPInt(integer.getValue(), false, llvm::APFloat::roundingMode::TowardZero);
-                                return llvm::ConstantFP::get(function.getLLVMType(literal.getType()), fp);
-                            }
-                        }
-                    });
-            },
-            [&](const AST::FloatingPointLiteral& floating) -> Value * {
-                auto type = cast<FPType>(literal.getType());
-                auto llvmType = function.getLLVMType(type);
-                return llvm::ConstantFP::get(llvmType, floating.getValue());
-            },
-            [&](const AST::CharacterLiteral& string) -> Value * {
-                llvm_unreachable("String literals are not supported.");
-            },
-            [&](const AST::StringLiteral& string) -> Value * {
-                llvm_unreachable("String literals are not supported.");
             }
-        });
+        );
     }
 
     Value visitLiteral(AST::Literal& literal) {
@@ -1145,21 +1184,24 @@ public:
         using enum AST::UnaryOperator;
         switch (unary.getOp()) {
             case Not:
-                return function.builder.CreateSelect(target, function.getIntegerConstant(1, 0), function.getIntegerConstant(1, 1));
-            case Negate: return TypeSwitch<Type *, llvm::Value *>(unary.getType())
-                .Case([&](IntegerType *integerType) {
-                    return function.builder.CreateNeg(target);
-                })
-                .Case([&](FPType *fpType) {
-                    return function.builder.CreateFNeg(target);
-                });
+                return function.builder
+                    .CreateSelect(target, function.getIntegerConstant(1, 0), function.getIntegerConstant(1, 1));
+            case Negate:
+                return TypeSwitch<Type *, llvm::Value *>(unary.getType())
+                    .Case([&](IntegerType *integerType) {
+                        return function.builder.CreateNeg(target);
+                    })
+                    .Case([&](FPType *fpType) {
+                        return function.builder.CreateFNeg(target);
+                    });
 
             case BitwiseNegate: {
                 auto& integerType = cast<IntegerType>(*unary.getType());
                 return function.builder.CreateXor(target, function.getIntegerConstant(integerType.bitWidth, -1));
             }
 
-            case AddressOf: llvm_unreachable("");
+            case AddressOf:
+                llvm_unreachable("");
             case PrefixDereference:
             case PostfixDereference:
                 llvm_unreachable("");
@@ -1216,7 +1258,11 @@ public:
                 } else {
                     // FIXME: Distinguish between optionals that contain pointers, and optionals that do not.
                     auto structType = cast<llvm::StructType>(function.getLLVMType(optionalType));
-                    auto constant = llvm::ConstantStruct::get(structType, {function.getIntegerConstant(1, 1), llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))});
+                    auto constant = llvm::ConstantStruct::get(
+                        structType,
+                        {function.getIntegerConstant(1, 1),
+                         llvm::UndefValue::get(function.getLLVMType(optionalType->getContained()))}
+                    );
                     return function.builder.CreateInsertValue(constant, target, {1});
                 }
             }
@@ -1231,7 +1277,7 @@ public:
             assert(target.getKind() == Value::Kind::Memory);
             // TODO: Ensure that this is right.
             return Value::value(target.get());
-        } 
+        }
         llvm::Value *targetValue = convertToValueIfNecessary(unary.getTarget().getType(), target);
         if (op == AST::UnaryOperator::PrefixDereference || op == AST::UnaryOperator::PostfixDereference) {
             return Value::memory(targetValue);
@@ -1262,7 +1308,7 @@ public:
                 auto phi = function.builder.CreatePHI(booleanType, 2);
                 phi->addIncoming(function.getIntegerConstant(1, false), &leftExit);
                 phi->addIncoming(right, &rightExit);
-                
+
                 return phi;
             }
             case LogicalOr: {
@@ -1286,58 +1332,58 @@ public:
 
                 return phi;
             }
-            default: llvm_unreachable("[PROGRAMMER ERROR]");
+            default:
+                llvm_unreachable("[PROGRAMMER ERROR]");
         }
-
     }
 
     llvm::Value *codegenEquality(llvm::Value *left, llvm::Value *right, Type *type) {
         return TypeSwitch<Type *, llvm::Value *>(type)
-        .Case([&](IntegerType *integerType) {
-            return function.builder.CreateICmpEQ(left, right);
-        })
-        .Case([&](FPType *_) {
-            return function.builder.CreateFCmpOEQ(left, right);
-        })
-        .Case([&](BooleanType *_) {
-            return function.builder.CreateICmpEQ(left, right);
-        })
-        .Case([&](OptionalType *optionalType) -> llvm::Value * {
-            if (auto pointerType = dyn_cast<PointerType>(optionalType->getContained())) {
+            .Case([&](IntegerType *integerType) {
                 return function.builder.CreateICmpEQ(left, right);
-            } else {
-                auto leftFlag = function.builder.CreateExtractValue(left, {0});
-                auto rightFlag = function.builder.CreateExtractValue(right, {0});
-                auto zero = function.getIntegerConstant(1, 0);
-                auto one = function.getIntegerConstant(1, 1);
-                auto llvmBoolean = zero->getType();
+            })
+            .Case([&](FPType *_) {
+                return function.builder.CreateFCmpOEQ(left, right);
+            })
+            .Case([&](BooleanType *_) {
+                return function.builder.CreateICmpEQ(left, right);
+            })
+            .Case([&](OptionalType *optionalType) -> llvm::Value * {
+                if (auto pointerType = dyn_cast<PointerType>(optionalType->getContained())) {
+                    return function.builder.CreateICmpEQ(left, right);
+                } else {
+                    auto leftFlag = function.builder.CreateExtractValue(left, {0});
+                    auto rightFlag = function.builder.CreateExtractValue(right, {0});
+                    auto zero = function.getIntegerConstant(1, 0);
+                    auto one = function.getIntegerConstant(1, 1);
+                    auto llvmBoolean = zero->getType();
 
-                auto& compareFlags = function.currentBlock();
-                auto& testFlags = function.createOrphanedBlock();
-                auto& compareValues = function.createOrphanedBlock();
-                auto& end = function.createOrphanedBlock();
+                    auto& compareFlags = function.currentBlock();
+                    auto& testFlags = function.createOrphanedBlock();
+                    auto& compareValues = function.createOrphanedBlock();
+                    auto& end = function.createOrphanedBlock();
 
-                auto flagComparison = function.builder.CreateICmpEQ(leftFlag, rightFlag);
-                function.builder.CreateCondBr(flagComparison, &testFlags, &end);
+                    auto flagComparison = function.builder.CreateICmpEQ(leftFlag, rightFlag);
+                    function.builder.CreateCondBr(flagComparison, &testFlags, &end);
 
-                function.patchOrphanedBlock(testFlags);
-                auto flagTest = function.builder.CreateICmpEQ(leftFlag, one);
-                function.builder.CreateCondBr(flagTest, &compareValues, &end);
+                    function.patchOrphanedBlock(testFlags);
+                    auto flagTest = function.builder.CreateICmpEQ(leftFlag, one);
+                    function.builder.CreateCondBr(flagTest, &compareValues, &end);
 
-                function.patchOrphanedBlock(compareValues);
-                auto leftValue = function.builder.CreateExtractValue(left, {1});
-                auto rightValue = function.builder.CreateExtractValue(right, {1});
-                auto valueComparison = codegenEquality(leftValue, rightValue, optionalType->getContained());
-                function.builder.CreateBr(&end);
+                    function.patchOrphanedBlock(compareValues);
+                    auto leftValue = function.builder.CreateExtractValue(left, {1});
+                    auto rightValue = function.builder.CreateExtractValue(right, {1});
+                    auto valueComparison = codegenEquality(leftValue, rightValue, optionalType->getContained());
+                    function.builder.CreateBr(&end);
 
-                function.patchOrphanedBlock(end);
-                auto phi = function.builder.CreatePHI(llvmBoolean, 3);
-                phi->addIncoming(zero, &compareFlags);
-                phi->addIncoming(one, &testFlags);
-                phi->addIncoming(valueComparison, &compareValues);
-                return phi;
-            }
-        });
+                    function.patchOrphanedBlock(end);
+                    auto phi = function.builder.CreatePHI(llvmBoolean, 3);
+                    phi->addIncoming(zero, &compareFlags);
+                    phi->addIncoming(one, &testFlags);
+                    phi->addIncoming(valueComparison, &compareValues);
+                    return phi;
+                }
+            });
     }
 
     llvm::Value *testAgainstNil(llvm::Value *value, OptionalType *type, bool equal) {
@@ -1366,41 +1412,45 @@ public:
 
         using enum AST::BinaryOperator;
         switch (binary.getOp()) {
-            case Add: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
-                .Case([&](IntegerType *_) {
-                    return function.builder.CreateAdd(left, right);
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFAdd(left, right);
-                });
+            case Add:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                    .Case([&](IntegerType *_) {
+                        return function.builder.CreateAdd(left, right);
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFAdd(left, right);
+                    });
 
-            case Subtract: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
-                .Case([&](IntegerType *_) {
-                    return function.builder.CreateSub(left, right);
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFSub(left, right);
-                });
+            case Subtract:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                    .Case([&](IntegerType *_) {
+                        return function.builder.CreateSub(left, right);
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFSub(left, right);
+                    });
 
-            case Multiply: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
-                .Case([&](IntegerType *_) {
-                    return function.builder.CreateMul(left, right);
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFMul(left, right);
-                });
+            case Multiply:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                    .Case([&](IntegerType *_) {
+                        return function.builder.CreateMul(left, right);
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFMul(left, right);
+                    });
 
-            case Divide: return TypeSwitch<Type *, llvm::Value *>(binary.getType())
-                .Case([&](IntegerType *integerType) {
-                    if (integerType->isSigned) {
-                        return function.builder.CreateSDiv(left, right);
-                    } else {
-                        return function.builder.CreateUDiv(left, right);
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFDiv(left, right);
-                });
+            case Divide:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getType())
+                    .Case([&](IntegerType *integerType) {
+                        if (integerType->isSigned) {
+                            return function.builder.CreateSDiv(left, right);
+                        } else {
+                            return function.builder.CreateUDiv(left, right);
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFDiv(left, right);
+                    });
 
             case Modulo: {
                 IntegerType *integerType = cast<IntegerType>(binary.getType());
@@ -1412,11 +1462,15 @@ public:
                 break;
             }
 
-            case BitwiseAnd: return function.builder.CreateAnd(left, right);
-            case BitwiseOr: return function.builder.CreateOr(left, right);
-            case BitwiseXor: return function.builder.CreateXor(left, right);
+            case BitwiseAnd:
+                return function.builder.CreateAnd(left, right);
+            case BitwiseOr:
+                return function.builder.CreateOr(left, right);
+            case BitwiseXor:
+                return function.builder.CreateXor(left, right);
 
-            case ShiftLeft: return function.builder.CreateShl(left, right);
+            case ShiftLeft:
+                return function.builder.CreateShl(left, right);
             case ShiftRight: {
                 auto integerType = cast<IntegerType>(binary.getType());
                 if (integerType->isSigned) {
@@ -1426,7 +1480,7 @@ public:
                 }
             }
 
-            case Equal: 
+            case Equal:
                 if (auto optionalType = dyn_cast<OptionalType>(binary.getLeft().getType())) {
                     if (isa<AST::NilLiteral>(binary.getLeft())) {
                         return testAgainstNil(right, cast<OptionalType>(binary.getRight().getType()), true);
@@ -1436,92 +1490,96 @@ public:
                 }
                 return codegenEquality(left, right, binary.getLeft().getType());
 
-            case NotEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    return function.builder.CreateICmpNE(left, right);
-                    if (integerType->isSigned) {
-                    } else {
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpUNE(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpNE(left, right);
-                })
-                .Case([&](OptionalType *optionalType) {
-                    if (isa<AST::NilLiteral>(binary.getLeft())) {
-                        return testAgainstNil(right, cast<OptionalType>(binary.getRight().getType()), false);
-                    } else if (isa<AST::NilLiteral>(binary.getRight())) {
-                        return testAgainstNil(left, cast<OptionalType>(binary.getLeft().getType()), false);
-                    } else {
-                        // TODO: Compare discriminant bits. If both are 1, compare contents.
-                        llvm_unreachable("");
+            case NotEqual:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                    .Case([&](IntegerType *integerType) {
+                        return function.builder.CreateICmpNE(left, right);
+                        if (integerType->isSigned) {
+                        } else {
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFCmpUNE(left, right);
+                    })
+                    .Case([&](BooleanType *_) {
+                        return function.builder.CreateICmpNE(left, right);
+                    })
+                    .Case([&](OptionalType *optionalType) {
+                        if (isa<AST::NilLiteral>(binary.getLeft())) {
+                            return testAgainstNil(right, cast<OptionalType>(binary.getRight().getType()), false);
+                        } else if (isa<AST::NilLiteral>(binary.getRight())) {
+                            return testAgainstNil(left, cast<OptionalType>(binary.getLeft().getType()), false);
+                        } else {
+                            // TODO: Compare discriminant bits. If both are 1, compare contents.
+                            llvm_unreachable("");
+                        }
+                    });
 
-                    }
-                });
-
-            case Less: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    if (integerType->isSigned) {
-                        return function.builder.CreateICmpSLT(left, right);
-                    } else {
+            case Less:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                    .Case([&](IntegerType *integerType) {
+                        if (integerType->isSigned) {
+                            return function.builder.CreateICmpSLT(left, right);
+                        } else {
+                            return function.builder.CreateICmpULT(left, right);
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFCmpOLT(left, right);
+                    })
+                    .Case([&](BooleanType *_) {
                         return function.builder.CreateICmpULT(left, right);
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpOLT(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpULT(left, right);
-                });
+                    });
 
-            case LessEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    if (integerType->isSigned) {
-                        return function.builder.CreateICmpSLE(left, right);
-                    } else {
+            case LessEqual:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                    .Case([&](IntegerType *integerType) {
+                        if (integerType->isSigned) {
+                            return function.builder.CreateICmpSLE(left, right);
+                        } else {
+                            return function.builder.CreateICmpULE(left, right);
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFCmpOLE(left, right);
+                    })
+                    .Case([&](BooleanType *_) {
                         return function.builder.CreateICmpULE(left, right);
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpOLE(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpULE(left, right);
-                });
+                    });
 
-            case Greater: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    if (integerType->isSigned) {
-                        return function.builder.CreateICmpSGT(left, right);
-                    } else {
+            case Greater:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                    .Case([&](IntegerType *integerType) {
+                        if (integerType->isSigned) {
+                            return function.builder.CreateICmpSGT(left, right);
+                        } else {
+                            return function.builder.CreateICmpUGT(left, right);
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFCmpOGT(left, right);
+                    })
+                    .Case([&](BooleanType *_) {
                         return function.builder.CreateICmpUGT(left, right);
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpOGT(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpUGT(left, right);
-                });
+                    });
 
-            case GreaterEqual: return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
-                .Case([&](IntegerType *integerType) {
-                    if (integerType->isSigned) {
-                        return function.builder.CreateICmpSGE(left, right);
-                    } else {
-                        return function.builder.CreateICmpUGE(left, right);
-                    }
-                })
-                .Case([&](FPType *_) {
-                    return function.builder.CreateFCmpOGE(left, right);
-                })
-                .Case([&](BooleanType *_) {
-                    return function.builder.CreateICmpUGT(left, right);
-                });
+            case GreaterEqual:
+                return TypeSwitch<Type *, llvm::Value *>(binary.getLeft().getType())
+                    .Case([&](IntegerType *integerType) {
+                        if (integerType->isSigned) {
+                            return function.builder.CreateICmpSGE(left, right);
+                        } else {
+                            return function.builder.CreateICmpUGE(left, right);
+                        }
+                    })
+                    .Case([&](FPType *_) {
+                        return function.builder.CreateFCmpOGE(left, right);
+                    })
+                    .Case([&](BooleanType *_) {
+                        return function.builder.CreateICmpUGT(left, right);
+                    });
 
-            case OpenRange: 
+            case OpenRange:
             case ClosedRange: {
                 auto start = left;
                 auto end = right;
@@ -1535,8 +1593,10 @@ public:
                 return insertEnd;
             }
 
-            case LogicalAnd: llvm_unreachable("[PRORAMMER EROR]");
-            case LogicalOr: llvm_unreachable("[PRORAMMER EROR]");
+            case LogicalAnd:
+                llvm_unreachable("[PRORAMMER EROR]");
+            case LogicalOr:
+                llvm_unreachable("[PRORAMMER EROR]");
         }
 
         llvm_unreachable("[PROGRAMMER ERROR]");
@@ -1557,41 +1617,44 @@ public:
         if (auto literal = dyn_cast<AST::Literal>(argument)) {
             using namespace AST;
             // We should probably constrain this to only string literals.
-            returnValue = AST::visitLiteral(*literal, overloaded {
-                [&](StringLiteral& stringLiteral) {
-                    auto formatString = function.builder.CreateGlobalString("%s");
-                    auto& stringLiteralValue = stringLiteral.getValue();
-                    auto string = function.builder.CreateGlobalString({stringLiteralValue.data(), stringLiteralValue.size()});
-                    return function.builder.CreateCall(printf, {formatString, string});
-                },
-                [&](IntegerLiteral& integerLiteral) {
-                    auto& value = integerLiteral.getValue();
-                    llvm::SmallVector<char, 18> literalString;
-                    value.toString(literalString, 10, false);
+            returnValue = AST::visitLiteral(
+                *literal,
+                overloaded{
+                    [&](StringLiteral& stringLiteral) {
+                        auto formatString = function.builder.CreateGlobalString("%s");
+                        auto& stringLiteralValue = stringLiteral.getValue();
+                        auto string =
+                            function.builder.CreateGlobalString({stringLiteralValue.data(), stringLiteralValue.size()});
+                        return function.builder.CreateCall(printf, {formatString, string});
+                    },
+                    [&](IntegerLiteral& integerLiteral) {
+                        auto& value = integerLiteral.getValue();
+                        llvm::SmallVector<char, 18> literalString;
+                        value.toString(literalString, 10, false);
 
-                    auto formatString = function.builder.CreateGlobalString("%s");
-                    auto string = function.builder.CreateGlobalString({literalString.data(), literalString.size()});
-                    return function.builder.CreateCall(printf, {formatString, string});
-                },
-                [&](FloatingPointLiteral& fpLiteral) {
-                    auto fpValue = fpLiteral.getValue();
-                    auto value = llvm::ConstantFP::get(function.getFPType(FPType::Precision::Double), fpValue);
-                    auto formatString = function.builder.CreateGlobalString("%s");
-                    return function.builder.CreateCall(printf, {formatString, value});
-
-                },
-                [&](NilLiteral& nilLiteral) {
-                    auto string = function.builder.CreateGlobalString("nil");
-                    return function.builder.CreateCall(printf, {string});
-                },
-                [&](BooleanLiteral& booleanLiteral) {
-                    auto string = function.builder.CreateGlobalString(booleanLiteral.getValue() ? "true" : "false");
-                    return function.builder.CreateCall(printf, {string});
-                },
-                [&](auto& _) -> llvm::CallInst * {
-                    llvm_unreachable("Implement");
+                        auto formatString = function.builder.CreateGlobalString("%s");
+                        auto string = function.builder.CreateGlobalString({literalString.data(), literalString.size()});
+                        return function.builder.CreateCall(printf, {formatString, string});
+                    },
+                    [&](FloatingPointLiteral& fpLiteral) {
+                        auto fpValue = fpLiteral.getValue();
+                        auto value = llvm::ConstantFP::get(function.getFPType(FPType::Precision::Double), fpValue);
+                        auto formatString = function.builder.CreateGlobalString("%s");
+                        return function.builder.CreateCall(printf, {formatString, value});
+                    },
+                    [&](NilLiteral& nilLiteral) {
+                        auto string = function.builder.CreateGlobalString("nil");
+                        return function.builder.CreateCall(printf, {string});
+                    },
+                    [&](BooleanLiteral& booleanLiteral) {
+                        auto string = function.builder.CreateGlobalString(booleanLiteral.getValue() ? "true" : "false");
+                        return function.builder.CreateCall(printf, {string});
+                    },
+                    [&](auto& _) -> llvm::CallInst * {
+                        llvm_unreachable("Implement");
+                    }
                 }
-            });
+            );
         } else {
             auto printFunction = function.getPrintFunction(*argument->getType());
             llvm::Value *value = visitExpressionAsValue(argument);
@@ -1697,7 +1760,11 @@ public:
             for (int i = 0; i < call.argumentCount(); ++i) {
                 arguments[i] = visitExpressionAsValue(call.getArgument(i));
             }
-            return Value::value(function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction, llvm::ArrayRef(arguments, call.argumentCount())));
+            return Value::value(function.builder.CreateCall(
+                llvmFunction->getFunctionType(),
+                llvmFunction,
+                llvm::ArrayRef(arguments, call.argumentCount())
+            ));
         } else {
             return Value::value(function.builder.CreateCall(llvmFunction->getFunctionType(), llvmFunction));
         }
@@ -1719,14 +1786,15 @@ public:
             auto& trapBlock = function.createTrapBlock();
 
             if (integerType->isSigned) {
-                auto cond = function.builder.CreateICmpSGE(index, function.getIntegerConstant(integerType->bitWidth, 0));
+                auto cond =
+                    function.builder.CreateICmpSGE(index, function.getIntegerConstant(integerType->bitWidth, 0));
                 auto& next = function.createOrphanedBlock();
                 function.builder.CreateCondBr(cond, &next, &trapBlock);
                 function.patchOrphanedBlock(next);
             }
 
             // The index value can now be treated as unsigned.
-            
+
             // TODO: Allow boundary checking to be toggled.
             // TODO: We need to have a default index type, usize.
             // For 32 bit, we might need to zext the length to 64 bit, if the index is 64 bit.
@@ -1758,7 +1826,7 @@ public:
         auto structType = cast<StructType>(initializer.getType());
         llvm::Value *structValue = llvm::UndefValue::get(function.getLLVMType(structType));
 
-        Bitmap undefined{(u32) structType->getFields().size()};
+        Bitmap undefined{(u32)structType->getFields().size()};
 
         for (size_t i = 0; i < initializer.getNumberOfPairs(); ++i) {
             auto& pair = initializer.getPair(i);
@@ -1793,14 +1861,21 @@ public:
                 auto target = memberAccess.getTarget().acceptVisitor(*this);
                 switch (target.getKind()) {
                     case Value::Kind::Value: {
-                        return Value::value(function.builder.CreateExtractValue(target.get(), {resolution.as.structField.index}));
+                        return Value::value(
+                            function.builder.CreateExtractValue(target.get(), {resolution.as.structField.index})
+                        );
                     }
                     case Value::Kind::Memory:
-                        return Value::memory(function.builder.CreateConstGEP2_32(function.getLLVMType(targetType), target.get(), 0, resolution.as.structField.index));
+                        return Value::memory(function.builder.CreateConstGEP2_32(
+                            function.getLLVMType(targetType),
+                            target.get(),
+                            0,
+                            resolution.as.structField.index
+                        ));
                     case Value::Kind::COUNT:
                         llvm_unreachable("");
-                    }
                 }
+            }
                 llvm_unreachable("");
             case MemberResolution::Kind::StructMethod:
                 llvm_unreachable("IMPLEMENT struct methods.");
@@ -1821,7 +1896,7 @@ public:
 
     Value visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess) {
         // This can only be a static member access or enum case
-        
+
         auto resolution = inferredMemberAccess.getResolution();
 
         switch (resolution.getKind()) {
@@ -1841,7 +1916,6 @@ public:
             case MemberResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNRESOLVED member access in codegen.");
         }
-
 
         // TODO: Implement static members
 
@@ -1865,7 +1939,12 @@ void codegenGlobals(Context& context) {
     const char *initializerName = "__glang_global_initializer";
 
     for (auto& global : context.globals) {
-        llvm::Function *initializer = llvm::Function::Create(initializerType, llvm::Function::ExternalLinkage, initializerName, context.llvmModule);
+        llvm::Function *initializer = llvm::Function::Create(
+            initializerType,
+            llvm::Function::ExternalLinkage,
+            initializerName,
+            context.llvmModule
+        );
         FunctionCodeGenerator generator{*initializer, context};
         generator.generateGlobalCode(global);
 
@@ -1882,18 +1961,10 @@ void createCMainFunction(Context& context, u32 mainFunction) {
     llvm::IntegerType *intType = llvm::IntegerType::getInt32Ty(context.llvmContext);
     llvm::PointerType *pointerType = llvm::PointerType::get(context.llvmContext, 0);
 
-    llvm::FunctionType *mainFunctionType = llvm::FunctionType::get(
-        intType, 
-        {intType, pointerType}, 
-        false
-    );
+    llvm::FunctionType *mainFunctionType = llvm::FunctionType::get(intType, {intType, pointerType}, false);
 
-    llvm::Function *main = llvm::Function::Create(
-        mainFunctionType,
-        llvm::Function::ExternalLinkage,
-        "main",
-        context.llvmModule
-    );
+    llvm::Function *main =
+        llvm::Function::Create(mainFunctionType, llvm::Function::ExternalLinkage, "main", context.llvmModule);
 
     CompilingFunction function{context, *main};
 
@@ -1939,25 +2010,24 @@ llvm::IntegerType *getRegisterType(size_t registerSize) {
     }
 }
 
-//void initializeRegisterPackTypesInStructTypes(std::vector<StructType *>& structs) {
-//    const Architecture& architecture = Architecture::current();
+// void initializeRegisterPackTypesInStructTypes(std::vector<StructType *>& structs) {
+//     const Architecture& architecture = Architecture::current();
 //
-//    auto registerPackSize = architecture.registerSize * architecture.registerPackSize;
-//    llvm::Type *registerType = getRegisterType(architecture.registerSize);
-//    for (auto structType : structs) {
-//        auto layout = structType->getLayout();
+//     auto registerPackSize = architecture.registerSize * architecture.registerPackSize;
+//     llvm::Type *registerType = getRegisterType(architecture.registerSize);
+//     for (auto structType : structs) {
+//         auto layout = structType->getLayout();
 //
-//        if (layout.size() <= registerPackSize) {
-//            auto size = (layout.size() + architecture.registerSize - 1) / architecture.registerSize;
-//            structType->setPackType(llvm::ArrayType::get(registerType, size));
-//        } else {
-//            structType->setPackType(nullptr);
-//        }
-//    }
-//}
+//         if (layout.size() <= registerPackSize) {
+//             auto size = (layout.size() + architecture.registerSize - 1) / architecture.registerSize;
+//             structType->setPackType(llvm::ArrayType::get(registerType, size));
+//         } else {
+//             structType->setPackType(nullptr);
+//         }
+//     }
+// }
 
-std::unique_ptr<llvm::Module> generateCode(Module& module)
-{
+std::unique_ptr<llvm::Module> generateCode(Module& module) {
     llvm::InitializeNativeTarget();
     llvm::InitializeNativeTargetAsmPrinter();
     llvm::InitializeNativeTargetAsmParser();
@@ -1970,7 +2040,7 @@ std::unique_ptr<llvm::Module> generateCode(Module& module)
 
     Context context{llvmContext, *llvmModule};
 
-//    initializeRegisterPackTypesInStructTypes(module.structs);
+    //    initializeRegisterPackTypesInStructTypes(module.structs);
 
     populateContext(context, module);
 

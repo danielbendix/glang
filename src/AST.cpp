@@ -27,11 +27,11 @@ namespace AST {
         return {offset, 1};
     }
 
-    FileLocation Identifier::getFileLocation() const { 
+    FileLocation Identifier::getFileLocation() const {
         return {offset, name.length()};
     }
 
-    FileLocation Self::getFileLocation() const { 
+    FileLocation Self::getFileLocation() const {
         return {offset, 4};
     }
 
@@ -81,7 +81,7 @@ namespace AST {
         auto getLength = [](UnaryOperator op) -> u32 {
             using enum UnaryOperator;
             switch (op) {
-                case Negate: 
+                case Negate:
                     return 1;
                 case BitwiseNegate:
                     return 1;
@@ -93,11 +93,11 @@ namespace AST {
                     return 1;
                 case ForceUnwrap:
                     return 1;
-                case ZeroExtend: 
+                case ZeroExtend:
                 case SignExtend:
                 case IntegerToFP:
                 case FPExtend:
-                case OptionalWrap: 
+                case OptionalWrap:
                     llvm_unreachable("Cannot get file location for wrapper node.");
             }
         };
@@ -157,7 +157,6 @@ namespace AST {
                 case AST::BinaryOperator::BitwiseXor:
                     return 2;
             }
-
         };
         return {offset, getLength(op)};
     }
@@ -261,7 +260,7 @@ namespace AST {
     }
 
     // Conditional unwrap
-    
+
     FileLocation ConditionalUnwrap::getFileLocation() const {
         return {offset, 6};
     }
@@ -283,32 +282,52 @@ namespace AST {
     PrintContext& operator<<(PrintContext& pc, BinaryOperator op) {
         using enum BinaryOperator;
         switch (op) {
-            case OpenRange: return pc << "..<";
-            case ClosedRange: return pc << "...";
+            case OpenRange:
+                return pc << "..<";
+            case ClosedRange:
+                return pc << "...";
 
-            case Add: return pc << '+';
-            case Subtract: return pc << '-';
-            case Multiply: return pc << '*';
-            case Divide: return pc << '/';
-            case Modulo: return pc << '%';
-                         
-            case BitwiseAnd: return pc << '&';
-            case BitwiseOr: return pc << '|';
-            case BitwiseXor: return pc << '^';
+            case Add:
+                return pc << '+';
+            case Subtract:
+                return pc << '-';
+            case Multiply:
+                return pc << '*';
+            case Divide:
+                return pc << '/';
+            case Modulo:
+                return pc << '%';
 
-            case ShiftLeft: return pc << "<<";
-            case ShiftRight: return pc << ">>";
+            case BitwiseAnd:
+                return pc << '&';
+            case BitwiseOr:
+                return pc << '|';
+            case BitwiseXor:
+                return pc << '^';
 
-            case Equal: return pc << "==";
-            case NotEqual: return pc << "!=";
+            case ShiftLeft:
+                return pc << "<<";
+            case ShiftRight:
+                return pc << ">>";
 
-            case Greater: return pc << '>';
-            case GreaterEqual: return pc << ">=";
-            case Less: return pc << '<';
-            case LessEqual: return pc << "<=";
+            case Equal:
+                return pc << "==";
+            case NotEqual:
+                return pc << "!=";
 
-            case LogicalAnd: return pc << "and";
-            case LogicalOr: return pc << "or";
+            case Greater:
+                return pc << '>';
+            case GreaterEqual:
+                return pc << ">=";
+            case Less:
+                return pc << '<';
+            case LessEqual:
+                return pc << "<=";
+
+            case LogicalAnd:
+                return pc << "and";
+            case LogicalOr:
+                return pc << "or";
         }
     }
 
@@ -368,12 +387,12 @@ namespace AST {
         }
     }
 
-    void Identifier::print(PrintContext& pc) const { 
-        pc << name; 
+    void Identifier::print(PrintContext& pc) const {
+        pc << name;
     }
 
-    void Self::print(PrintContext& pc) const { 
-        pc << "self"; 
+    void Self::print(PrintContext& pc) const {
+        pc << "self";
     }
 
     void BinaryExpression::print(PrintContext& pc) const {
@@ -397,18 +416,40 @@ namespace AST {
     void UnaryExpression::print(PrintContext& pc) const {
         using enum UnaryOperator;
         switch (op) {
-            case Negate: pc << '-'; break;
-            case BitwiseNegate: pc << '~'; break;
-            case Not: pc << "not "; break;
-            case AddressOf: pc << '&'; break;
-            case PrefixDereference: pc << '*'; break;
-            case PostfixDereference: break;
-            case ForceUnwrap: break;
-            case ZeroExtend: pc << "#zext("; break;
-            case SignExtend: pc << "#sext("; break;
-            case IntegerToFP: pc << "#itoFP("; break;
-            case FPExtend: pc << "#fpext("; break;
-            case OptionalWrap: pc << "#wrap("; break;
+            case Negate:
+                pc << '-';
+                break;
+            case BitwiseNegate:
+                pc << '~';
+                break;
+            case Not:
+                pc << "not ";
+                break;
+            case AddressOf:
+                pc << '&';
+                break;
+            case PrefixDereference:
+                pc << '*';
+                break;
+            case PostfixDereference:
+                break;
+            case ForceUnwrap:
+                break;
+            case ZeroExtend:
+                pc << "#zext(";
+                break;
+            case SignExtend:
+                pc << "#sext(";
+                break;
+            case IntegerToFP:
+                pc << "#itoFP(";
+                break;
+            case FPExtend:
+                pc << "#fpext(";
+                break;
+            case OptionalWrap:
+                pc << "#wrap(";
+                break;
         }
         pc << *target;
         switch (op) {
@@ -417,14 +458,28 @@ namespace AST {
             case Not:
             case AddressOf:
             case PrefixDereference:
-                  break;
-            case PostfixDereference: pc << '@'; break;
-            case ForceUnwrap: pc << '!'; break;
-            case ZeroExtend: pc << ")"; break;
-            case SignExtend: pc << ")"; break;
-            case IntegerToFP: pc << ")"; break;
-            case FPExtend: pc << ")"; break;
-            case OptionalWrap: pc << ")"; break;
+                break;
+            case PostfixDereference:
+                pc << '@';
+                break;
+            case ForceUnwrap:
+                pc << '!';
+                break;
+            case ZeroExtend:
+                pc << ")";
+                break;
+            case SignExtend:
+                pc << ")";
+                break;
+            case IntegerToFP:
+                pc << ")";
+                break;
+            case FPExtend:
+                pc << ")";
+                break;
+            case OptionalWrap:
+                pc << ")";
+                break;
         }
     }
 
@@ -453,13 +508,9 @@ namespace AST {
         pc << "}\n";
     }
 
-    void ProtocolDeclaration::print(PrintContext& pc) const {
+    void ProtocolDeclaration::print(PrintContext& pc) const {}
 
-    }
-
-    void EnumDeclaration::print(PrintContext& pc) const {
-
-    }
+    void EnumDeclaration::print(PrintContext& pc) const {}
 
     void AssignmentStatement::print(PrintContext& pc) const {
         pc.startLine();
@@ -592,17 +643,14 @@ namespace AST {
         if (codepoint <= 0x7F) {
             pc << static_cast<char>(codepoint);
         } else if (codepoint <= 0x7FF) {
-            pc << static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F))
-               << static_cast<char>(0x80 | (codepoint & 0x3F));
+            pc << static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F)) << static_cast<char>(0x80 | (codepoint & 0x3F));
         } else if (codepoint <= 0xFFFF) {
             pc << static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F))
-               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
-               << static_cast<char>(0x80 | (codepoint & 0x3F));
+               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)) << static_cast<char>(0x80 | (codepoint & 0x3F));
         } else if (codepoint <= 0x10FFFF) {
             pc << static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07))
                << static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F))
-               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F))
-               << static_cast<char>(0x80 | (codepoint & 0x3F));
+               << static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)) << static_cast<char>(0x80 | (codepoint & 0x3F));
         } else {
             pc << "[Invalid codepoint: " << codepoint << "]";
         }
@@ -664,7 +712,7 @@ namespace AST {
     }
 
     // Conditional unwrap
-    
+
     void ConditionalUnwrap::print(PrintContext& pc) const {
         pc << "unwrap " << *binding << " = " << *value;
     }

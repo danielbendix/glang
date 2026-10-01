@@ -6,18 +6,18 @@
 
 #include "llvm/ADT/PointerUnion.h"
 
-using llvm::isa;
 using llvm::cast;
+using llvm::isa;
 
 extern BooleanType *boolean;
 extern IntegerType *signed64;
 
 class TypeResult {
     enum class Kind : u8 {
-        Empty       = 0b00,
-        Constraint  = 0b01,
-        Type        = 0b10,
-        Metatype    = 0b11,
+        Empty = 0b00,
+        Constraint = 0b01,
+        Type = 0b10,
+        Metatype = 0b11,
     };
 
     constexpr static inline std::size_t BITS = 2;
@@ -34,6 +34,7 @@ class TypeResult {
     }
 
     TypeResult(TypeConstraint *constraint) : pointer{constraint, u8(Kind::Constraint)} {}
+
 public:
     TypeResult() : pointer{nullptr, u8(Kind::Empty)} {}
 
@@ -91,19 +92,19 @@ public:
     [[nodiscard]]
     TypeConstraint *asConstraint() const {
         assert(kind() == Kind::Constraint);
-        return (TypeConstraint *) pointer.getPointer();
+        return (TypeConstraint *)pointer.getPointer();
     }
 
     [[nodiscard]]
     Type *asType() const {
         assert(kind() == Kind::Type);
-        return (Type *) pointer.getPointer();
+        return (Type *)pointer.getPointer();
     }
 
     [[nodiscard]]
     Type *asMetatype() const {
         assert(kind() == Kind::Metatype);
-        return (Type *) pointer.getPointer();
+        return (Type *)pointer.getPointer();
     }
 
     [[nodiscard]]
@@ -122,12 +123,13 @@ class _TypeResult {
     llvm::PointerUnion<Type *, TypeConstraint *> pointer;
     // Pointer to new value if the expression was folded, and a bit set if lvalue.
     AST::Expression *folded;
+
 public:
     _TypeResult() : pointer{nullptr}, folded{nullptr} {}
     explicit _TypeResult(std::nullptr_t) : pointer{(Type *)nullptr}, folded{nullptr} {}
     _TypeResult(Type *type) : pointer{type}, folded{nullptr} {}
     _TypeResult(TypeConstraint *constraint) : pointer{constraint}, folded{nullptr} {}
-    
+
     bool isType() const {
         return isa<Type *>(pointer);
     }

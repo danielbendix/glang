@@ -66,9 +66,11 @@ Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression
     if (toIntegerType->isSigned != fromIntegerType->isSigned) {
         std::string message;
         if (fromIntegerType->isSigned) {
-            message += "Cannot truncate signed type '" + fromIntegerType->makeName() + "' to unsigned type '" + toIntegerType->makeName() + "'.";
+            message += "Cannot truncate signed type '" + fromIntegerType->makeName() + "' to unsigned type '" +
+                       toIntegerType->makeName() + "'.";
         } else {
-            message += "Cannot truncate unsigned type '" + fromIntegerType->makeName() + "' to signed type '" + toIntegerType->makeName() + "'.";
+            message += "Cannot truncate unsigned type '" + fromIntegerType->makeName() + "' to signed type '" +
+                       toIntegerType->makeName() + "'.";
         }
         Diagnostic::error(intrinsic, std::move(message));
         return nullptr;
@@ -76,12 +78,9 @@ Type *ExpressionTypeChecker::typeCheckTruncateIntrinsic(AST::IntrinsicExpression
 
     if (toIntegerType->bitWidth > fromIntegerType->bitWidth) {
         Diagnostic::error(
-            intrinsic, 
-            "Destination type '" + 
-            toIntegerType->makeName() + 
-            "' is larger than source type '" + 
-            fromIntegerType->makeName() + 
-            "'."
+            intrinsic,
+            "Destination type '" + toIntegerType->makeName() + "' is larger than source type '" +
+                fromIntegerType->makeName() + "'."
         );
         return nullptr;
     }
@@ -169,27 +168,40 @@ Type *ExpressionTypeChecker::typeCheckAssertIntrinsic(AST::IntrinsicExpression& 
 }
 
 bool typesSupportCast(Type& from, Type& to, AST::IntrinsicExpression& intrinsic) {
-    return TypeVisitor::visit(from, overloaded {
-        [&](PointerType& fromPointer) -> bool {
-            return TypeVisitor::visit(to, overloaded {
-                [&](PointerType& toPointer) -> bool {
-                    return true;
-                },
-                [&](IntegerType& toInteger) -> bool {
-                    Diagnostic::error(intrinsic, "Cannot cast from " + fromPointer.makeName() + " to " + toInteger.makeName() + ". Use #bitcast instead.");
-                    return false;
-                },
-                [&](auto& to) {
-                    Diagnostic::error(intrinsic, "Cannot cast from " + fromPointer.makeName() + " to " + to.makeName() + ".");
-                    return false;
-                }
-            });
-        },
-        [&](auto& type) -> bool {
-            Diagnostic::error(intrinsic, "Cannot use #cast to cast from " + from.makeName());
-            return false;
+    return TypeVisitor::visit(
+        from,
+        overloaded{
+            [&](PointerType& fromPointer) -> bool {
+                return TypeVisitor::visit(
+                    to,
+                    overloaded{
+                        [&](PointerType& toPointer) -> bool {
+                            return true;
+                        },
+                        [&](IntegerType& toInteger) -> bool {
+                            Diagnostic::error(
+                                intrinsic,
+                                "Cannot cast from " + fromPointer.makeName() + " to " + toInteger.makeName() +
+                                    ". Use #bitcast instead."
+                            );
+                            return false;
+                        },
+                        [&](auto& to) {
+                            Diagnostic::error(
+                                intrinsic,
+                                "Cannot cast from " + fromPointer.makeName() + " to " + to.makeName() + "."
+                            );
+                            return false;
+                        }
+                    }
+                );
+            },
+            [&](auto& type) -> bool {
+                Diagnostic::error(intrinsic, "Cannot use #cast to cast from " + from.makeName());
+                return false;
+            }
         }
-    });
+    );
 }
 
 Type *ExpressionTypeChecker::typeCheckCastIntrinsic(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
@@ -197,13 +209,14 @@ Type *ExpressionTypeChecker::typeCheckCastIntrinsic(AST::IntrinsicExpression& in
         Diagnostic::error(intrinsic, "#cast intrinsic takes exactly one argument.");
         return nullptr;
     }
-    auto* target = intrinsic.getArguments()[0];
+    auto *target = intrinsic.getArguments()[0];
 
     Type *destinationType = nullptr;
     if (intrinsic.hasTypeArguments) {
         auto typeArguments = intrinsic.getTypeArguments();
         switch (typeArguments.size()) {
-            case 0: break;
+            case 0:
+                break;
             case 1:
                 destinationType = typeResolver.resolveType(*typeArguments[0]);
                 if (!destinationType) {
@@ -230,7 +243,7 @@ Type *ExpressionTypeChecker::typeCheckCastIntrinsic(AST::IntrinsicExpression& in
         Diagnostic::error(intrinsic, "Unable to determine source type in #cast intrinsic.");
         return {};
     }
-    
+
     intrinsic.setType(destinationType);
 
     if (!typesSupportCast(*sourceType, *destinationType, intrinsic)) {
@@ -320,7 +333,11 @@ Type *ExpressionTypeChecker::typeCheckBitcastIntrinsic(AST::IntrinsicExpression&
     auto toLayout = toType->getLayout();
 
     if (fromLayout.size() != toLayout.size()) {
-        Diagnostic::error(intrinsic, "Cannot bitcast from " + fromType->makeName() + " with size " + std::to_string(fromLayout.size()) + " to " + toType->makeName() + " with size " + std::to_string(toLayout.size()) + ". ");
+        Diagnostic::error(
+            intrinsic,
+            "Cannot bitcast from " + fromType->makeName() + " with size " + std::to_string(fromLayout.size()) + " to " +
+                toType->makeName() + " with size " + std::to_string(toLayout.size()) + ". "
+        );
         return nullptr;
     }
 
@@ -339,7 +356,7 @@ Type *ExpressionTypeChecker::typeCheckAllocateIntrinsic(AST::IntrinsicExpression
         Diagnostic::error(intrinsic, "#allocate intrinsic takes exactly one argument.");
         return {};
     }
-    
+
     // TODO: Allow propagating down an array type.
     Type *type = typeResolver.resolveType(*intrinsic.getTypeArguments()[0]);
     if (!type) {
@@ -357,7 +374,7 @@ Type *ExpressionTypeChecker::typeCheckAllocateIntrinsic(AST::IntrinsicExpression
         return {};
     }
     Type *countType = countTypeResult.asType();
-   
+
     if (!isa<IntegerType>(countType)) {
         Diagnostic::error(*countExpression, "Count must be an integer type.");
         return {};
@@ -387,7 +404,7 @@ Type *ExpressionTypeChecker::typeCheckFreeIntrinsic(AST::IntrinsicExpression& in
         Diagnostic::error(intrinsic, "#free intrinsic should not have type arguments.");
         return {};
     }
-    
+
     auto *memory = intrinsic.getArguments()[0];
     auto memoryTypeResult = typeCheckExpression(*memory);
     if (memoryTypeResult.isConstraint()) {

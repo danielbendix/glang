@@ -17,8 +17,7 @@ struct StructVisitor : public AST::DeclarationVisitorT<StructVisitor, Result> {
     std::vector<AST::FunctionDeclaration *> staticMethods;
     const FileID file;
 
-    StructVisitor(AST::StructDeclaration& visiting, FileID file)
-        : visiting{visiting}, file{file} {}
+    StructVisitor(AST::StructDeclaration& visiting, FileID file) : visiting{visiting}, file{file} {}
 
     // Declaration visitor
 
@@ -98,15 +97,15 @@ StructType *createStructType(AST::StructDeclaration& structDeclaration, FileID f
     auto modifiers = structDeclaration.getModifiers();
     bool isCompact = modifiers.has(AST::Modifier::Compact);
     bool isUnpadded = modifiers.has(AST::Modifier::Unpadded);
-    
+
     return StructType::create(
-        structDeclaration.getName(), 
+        structDeclaration.getName(),
         file,
         result.ok(),
         isCompact,
         isUnpadded,
-        std::move(visitor.properties), 
-        std::move(visitor.fields), 
+        std::move(visitor.properties),
+        std::move(visitor.fields),
         std::move(visitor.methods)
     );
 }

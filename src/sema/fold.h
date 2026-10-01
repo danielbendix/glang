@@ -12,6 +12,6 @@ AST::Expression *NULLABLE foldConstantsUntyped(AST::Expression& expression);
 
 /// Recursively fold all constants within expression. This assumes that the entire expression is type checked.
 /// Returns an error if any calculated values exceed their type bounds.
-//std::pair<Result, AST::Expression *NULLABLE> foldConstantsTyped(AST::Expression& expression);
+// std::pair<Result, AST::Expression *NULLABLE> foldConstantsTyped(AST::Expression& expression);
 
 #endif // LANG_sema_fold

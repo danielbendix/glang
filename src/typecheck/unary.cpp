@@ -134,7 +134,10 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
     if (auto *pointerType = dyn_cast<PointerType>(targetType)) {
         // TODO: This is a lot of indirection. We might want to compare to a cached pointer to the right type.
         if (pointerType->getPointeeType()->isVoid()) {
-            Diagnostic::error(unary, "Cannot dereference void pointer value. Cast to a concrete type before derferencing.");
+            Diagnostic::error(
+                unary,
+                "Cannot dereference void pointer value. Cast to a concrete type before derferencing."
+            );
             return {};
         } else {
             return pointerType->getPointeeType();
@@ -153,7 +156,7 @@ Type *ExpressionTypeChecker::typeCheckDereferenceOperator(AST::UnaryExpression& 
     return {};
 }
 
-// TODO: This could potentially just return a `Type *` if we keep everything with assignment in 
+// TODO: This could potentially just return a `Type *` if we keep everything with assignment in
 // the lvalue type checker.
 TypeResult ExpressionTypeChecker::typeCheckForceUnwrapOperator(AST::UnaryExpression& unary) {
     if (isa<AST::NilLiteral>(unary.getTarget())) {

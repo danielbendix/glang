@@ -6,28 +6,23 @@
 using enum Scanner::ErrorCause;
 const Scanner::ErrorCause Scanner::NO_ERROR = None;
 
-bool isAlpha(char c)
-{
+bool isAlpha(char c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
 }
 
-bool isDigit(char c)
-{
+bool isDigit(char c) {
     return c >= '0' && c <= '9';
 }
 
-bool isBinaryDigit(char c)
-{
+bool isBinaryDigit(char c) {
     return c == '0' || c == '1';
 }
 
-bool isOctalDigit(char c)
-{
+bool isOctalDigit(char c) {
     return c >= '0' && c <= '7';
 }
 
-bool isHexDigit(char c)
-{
+bool isHexDigit(char c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
@@ -42,7 +37,7 @@ void Scanner::multilineComment() {
             error(UnterminatedBlockComment);
             return;
         }
-        switch(peek()) {
+        switch (peek()) {
             case '*':
                 if (peekNext() == '/') {
                     depth--;
@@ -83,8 +78,9 @@ void Scanner::skipWhitespace() {
                 break;
             case '/':
                 switch (peekNext()) {
-                    case '/': 
-                        while (peek() != '\n' && !isAtEnd()) advance();
+                    case '/':
+                        while (peek() != '\n' && !isAtEnd())
+                            advance();
                         break;
                     case '*':
                         multilineComment();
@@ -99,8 +95,7 @@ void Scanner::skipWhitespace() {
     }
 }
 
-Token Scanner::makeToken(TokenType type)
-{
+Token Scanner::makeToken(TokenType type) {
     const char *chars = start.base();
     u32 length = current - start;
     u32 offset = start - _string.begin();
@@ -109,8 +104,13 @@ Token Scanner::makeToken(TokenType type)
 }
 
 [[nodiscard]]
-TokenType testKeyword(std::string::const_iterator it, std::string::const_iterator end, const char *string, int length, TokenType t)
-{
+TokenType testKeyword(
+    std::string::const_iterator it,
+    std::string::const_iterator end,
+    const char *string,
+    int length,
+    TokenType t
+) {
     std::string_view view(it, end);
     if (view.length() == length && view.compare(string) == 0) return t;
     return TokenType::Identifier;
@@ -125,100 +125,131 @@ TokenType Scanner::testTry(std::string::const_iterator it, std::string::const_it
     return TokenType::Identifier;
 }
 
-TokenType Scanner::identifierType()
-{
+TokenType Scanner::identifierType() {
     std::string::const_iterator it = start;
     switch (*it++) {
-        case 'a': return testKeyword(it, current, "nd", 2, TokenType::And);
+        case 'a':
+            return testKeyword(it, current, "nd", 2, TokenType::And);
         case 'b':
             switch (*it++) {
-                case 'i': return testKeyword(it, current, "nd", 2, TokenType::Bind);
-                case 'r': return testKeyword(it, current, "eak", 3, TokenType::Break);
-
+                case 'i':
+                    return testKeyword(it, current, "nd", 2, TokenType::Bind);
+                case 'r':
+                    return testKeyword(it, current, "eak", 3, TokenType::Break);
             }
-        case 'c': 
+        case 'c':
             switch (*it++) {
-                case 'a': return testKeyword(it, current, "se", 2, TokenType::Case);
-                case 'o': 
+                case 'a':
+                    return testKeyword(it, current, "se", 2, TokenType::Case);
+                case 'o':
                     switch (*it++) {
-                        case 'm': return testKeyword(it, current, "pact", 4, TokenType::Compact);
-                        case 'n': 
+                        case 'm':
+                            return testKeyword(it, current, "pact", 4, TokenType::Compact);
+                        case 'n':
                             switch (*it++) {
-                                case 's': return testKeyword(it, current, "t", 1, TokenType::Const);
-                                case 't': return testKeyword(it, current, "inue", 4, TokenType::Continue);
+                                case 's':
+                                    return testKeyword(it, current, "t", 1, TokenType::Const);
+                                case 't':
+                                    return testKeyword(it, current, "inue", 4, TokenType::Continue);
                             }
                     }
             }
             break;
         case 'e':
             switch (*it++) {
-                case 'l': return testKeyword(it, current, "se", 2, TokenType::Else);
-                case 'n': return testKeyword(it, current, "um", 2, TokenType::Enum);
+                case 'l':
+                    return testKeyword(it, current, "se", 2, TokenType::Else);
+                case 'n':
+                    return testKeyword(it, current, "um", 2, TokenType::Enum);
             }
             break;
         case 'f':
             switch (*it++) {
-                case 'a': return testKeyword(it, current, "lse", 3, TokenType::False);
-                case 'o': return testKeyword(it, current, "r", 1, TokenType::For);
-                case 'n': return testKeyword(it, current, "", 0, TokenType::Fn);
+                case 'a':
+                    return testKeyword(it, current, "lse", 3, TokenType::False);
+                case 'o':
+                    return testKeyword(it, current, "r", 1, TokenType::For);
+                case 'n':
+                    return testKeyword(it, current, "", 0, TokenType::Fn);
             }
             break;
-        case 'g': return testKeyword(it, current, "uard", 4, TokenType::Guard);
-        case 'i': 
+        case 'g':
+            return testKeyword(it, current, "uard", 4, TokenType::Guard);
+        case 'i':
             switch (*it++) {
-                case 'f': return testKeyword(it, current, "", 0, TokenType::If);
-                case 'n': return testKeyword(it, current, "", 0, TokenType::In);
+                case 'f':
+                    return testKeyword(it, current, "", 0, TokenType::If);
+                case 'n':
+                    return testKeyword(it, current, "", 0, TokenType::In);
             }
             break;
-        case 'm': return testKeyword(it, current, "ut", 2, TokenType::Mut);
+        case 'm':
+            return testKeyword(it, current, "ut", 2, TokenType::Mut);
         case 'n':
-            switch(*it++) {
-                case 'i': return testKeyword(it, current, "l", 1, TokenType::Nil);
-                case 'o': return testKeyword(it, current, "t", 1, TokenType::Not);
+            switch (*it++) {
+                case 'i':
+                    return testKeyword(it, current, "l", 1, TokenType::Nil);
+                case 'o':
+                    return testKeyword(it, current, "t", 1, TokenType::Not);
             }
             break;
-        case 'o': return testKeyword(it, current, "r", 1, TokenType::Or);
+        case 'o':
+            return testKeyword(it, current, "r", 1, TokenType::Or);
         case 'p':
             switch (*it++) {
-                case 'r': return testKeyword(it, current, "ivate", 5, TokenType::Private);
-                case 'u': return testKeyword(it, current, "blic", 4, TokenType::Public);
+                case 'r':
+                    return testKeyword(it, current, "ivate", 5, TokenType::Private);
+                case 'u':
+                    return testKeyword(it, current, "blic", 4, TokenType::Public);
             }
         case 'r':
             if (*it++ == 'e') {
                 switch (*it++) {
-                    case 'p': return testKeyword(it, current, "eat", 3, TokenType::Repeat);
-                    case 't': return testKeyword(it, current, "urn", 3, TokenType::Return);
+                    case 'p':
+                        return testKeyword(it, current, "eat", 3, TokenType::Repeat);
+                    case 't':
+                        return testKeyword(it, current, "urn", 3, TokenType::Return);
                 }
             }
             break;
-        case 's': 
+        case 's':
             switch (*it++) {
-                case 'e': return testKeyword(it, current, "lf", 2, TokenType::Self);
-                case 't': 
+                case 'e':
+                    return testKeyword(it, current, "lf", 2, TokenType::Self);
+                case 't':
                     switch (*it++) {
-                        case 'a': return testKeyword(it, current, "tic", 3, TokenType::Static);
-                        case 'r': return testKeyword(it, current, "uct", 3, TokenType::Struct);
+                        case 'a':
+                            return testKeyword(it, current, "tic", 3, TokenType::Static);
+                        case 'r':
+                            return testKeyword(it, current, "uct", 3, TokenType::Struct);
                     }
             }
             break;
         case 't':
             switch (*it++) {
-                case 'h': return testKeyword(it, current, "row", 3, TokenType::Throw);
+                case 'h':
+                    return testKeyword(it, current, "row", 3, TokenType::Throw);
                 case 'r': {
-                    switch(*it++) {
-                        case 'u': return testKeyword(it, current, "e", 1, TokenType::True);
-                        case 'y': return testTry(it, current);
+                    switch (*it++) {
+                        case 'u':
+                            return testKeyword(it, current, "e", 1, TokenType::True);
+                        case 'y':
+                            return testTry(it, current);
                     }
                 }
             }
             break;
-        case 'u': return testKeyword(it, current, "nwrap", 5, TokenType::Unwrap);
-        case 'v': return testKeyword(it, current, "ar", 2, TokenType::Var);
-        case 'w': 
+        case 'u':
+            return testKeyword(it, current, "nwrap", 5, TokenType::Unwrap);
+        case 'v':
+            return testKeyword(it, current, "ar", 2, TokenType::Var);
+        case 'w':
             if (*it++ == 'h') {
                 switch (*it++) {
-                    case 'e': return testKeyword(it, current, "re", 2, TokenType::Where);
-                    case 'i': return testKeyword(it, current, "le", 2, TokenType::While);
+                    case 'e':
+                        return testKeyword(it, current, "re", 2, TokenType::Where);
+                    case 'i':
+                        return testKeyword(it, current, "le", 2, TokenType::While);
                 }
             }
             break;
@@ -227,16 +258,15 @@ TokenType Scanner::identifierType()
     return TokenType::Identifier;
 }
 
-Token Scanner::identifier()
-{
+Token Scanner::identifier() {
     char c;
-    while (isAlpha(c = peek()) || isDigit(c)) advance();
+    while (isAlpha(c = peek()) || isDigit(c))
+        advance();
 
     return makeToken(identifierType());
 }
 
-Token Scanner::hashIdentifier()
-{
+Token Scanner::hashIdentifier() {
     char c;
     c = peek();
 
@@ -244,31 +274,30 @@ Token Scanner::hashIdentifier()
         // Error: Intrinsic identifier must start with a letter or underscore.
     }
 
-    munchMany<[](char c) { 
-        return isAlpha(c) || isDigit(c); 
+    munchMany<[](char c) {
+        return isAlpha(c) || isDigit(c);
     }>();
 
     return makeToken(TokenType::HashIdentifier);
 }
 
-Token Scanner::escapedIdentifier()
-{
+Token Scanner::escapedIdentifier() {
     char c;
-    while (isAlpha(c = peek()) || isDigit(c)) advance();
-    
+    while (isAlpha(c = peek()) || isDigit(c))
+        advance();
+
     if (c != '`') {
         // TODO: Throw error
     }
-    
+
     return makeToken(TokenType::Identifier);
 }
 
-Token Scanner::character()
-{
+Token Scanner::character() {
     char c = peek();
     while (c != '\'' && !isAtEnd()) {
         switch (advance()) {
-            case '\n': 
+            case '\n':
                 newline();
                 break;
             case '\\':
@@ -277,9 +306,12 @@ Token Scanner::character()
         }
         c = peek();
     }
-    
+
     if (isAtEnd()) {
-        error(UnterminatedCharacterLiteral, std::format("{}:{}: error: unterminated character literal", this->line, this->column));
+        error(
+            UnterminatedCharacterLiteral,
+            std::format("{}:{}: error: unterminated character literal", this->line, this->column)
+        );
         return errorToken();
     }
 
@@ -293,12 +325,11 @@ Token Scanner::character()
     return makeToken(TokenType::Character);
 }
 
-Token Scanner::string()
-{
+Token Scanner::string() {
     char c = peek();
     while (c != '"' && !isAtEnd()) {
         switch (advance()) {
-            case '\n': 
+            case '\n':
                 newline();
                 break;
             case '\\':
@@ -307,9 +338,12 @@ Token Scanner::string()
         }
         c = peek();
     }
-    
+
     if (isAtEnd()) {
-        error(UnterminatedStringLiteral, std::format("{}:{}: error: unterminated string literal", this->line, this->column));
+        error(
+            UnterminatedStringLiteral,
+            std::format("{}:{}: error: unterminated string literal", this->line, this->column)
+        );
         return errorToken();
     }
 
@@ -318,24 +352,21 @@ Token Scanner::string()
     return makeToken(TokenType::String);
 }
 
-template <auto predicate>
-void Scanner::munchMany() 
-{
+template <auto predicate> void Scanner::munchMany() {
     char c;
-    while (predicate(c = peek())) advance();
+    while (predicate(c = peek()))
+        advance();
 }
 
-template <auto predicate>
-bool Scanner::munchMany1() 
-{
+template <auto predicate> bool Scanner::munchMany1() {
     char c = peek();
     if (!predicate(c)) return false;
-    while (predicate(c = peek())) advance();
+    while (predicate(c = peek()))
+        advance();
     return true;
 }
 
-Token Scanner::number(char first)
-{
+Token Scanner::number(char first) {
     char c;
     if (first == '0') {
         c = peek();
@@ -388,8 +419,7 @@ Token Scanner::number(char first)
     return makeToken(tokenType);
 }
 
-template <char c, TokenType noRead, TokenType readNext>
-Token Scanner::checkNext() {
+template <char c, TokenType noRead, TokenType readNext> Token Scanner::checkNext() {
     if (peek() == c) {
         advance();
         return makeToken(readNext);
@@ -414,25 +444,44 @@ Token Scanner::next() noexcept {
         if (isDigit(c)) return number(c);
 
         switch (c) {
-            case '#': return hashIdentifier();
-            case '`': return escapedIdentifier();
-            case '\'': return character();
-            case '"': return string();
-            case '{': return makeToken(LeftBracket);
-            case '}': return makeToken(RightBracket);
-            case '[': return makeToken(LeftBrace);
-            case ']': return makeToken(RightBrace);
-            case '(': return makeToken(LeftParenthesis);
-            case ')': return makeToken(RightParenthesis);
-            case ':': return makeToken(Colon);
-            case ';': return makeToken(Semicolon);
-            case ',': return makeToken(Comma);
-            case '?': return makeToken(Question);
-            case '~': return makeToken(Tilde);
-            case '&': return checkNext<'=', Ampersand, AmpersandEqual>();
-            case '|': return checkNext<'=', Pipe, PipeEqual>();
-            case '^': return checkNext<'=', Caret, CaretEqual>();
-            case '@': return makeToken(At);
+            case '#':
+                return hashIdentifier();
+            case '`':
+                return escapedIdentifier();
+            case '\'':
+                return character();
+            case '"':
+                return string();
+            case '{':
+                return makeToken(LeftBracket);
+            case '}':
+                return makeToken(RightBracket);
+            case '[':
+                return makeToken(LeftBrace);
+            case ']':
+                return makeToken(RightBrace);
+            case '(':
+                return makeToken(LeftParenthesis);
+            case ')':
+                return makeToken(RightParenthesis);
+            case ':':
+                return makeToken(Colon);
+            case ';':
+                return makeToken(Semicolon);
+            case ',':
+                return makeToken(Comma);
+            case '?':
+                return makeToken(Question);
+            case '~':
+                return makeToken(Tilde);
+            case '&':
+                return checkNext<'=', Ampersand, AmpersandEqual>();
+            case '|':
+                return checkNext<'=', Pipe, PipeEqual>();
+            case '^':
+                return checkNext<'=', Caret, CaretEqual>();
+            case '@':
+                return makeToken(At);
             case '!': {
                 if (peek() == '=') {
                     advance();
@@ -443,7 +492,7 @@ Token Scanner::next() noexcept {
             case '.': {
                 if (peek() == '.') {
                     advance();
-                    switch(peek()) {
+                    switch (peek()) {
                         case '.':
                             advance();
                             return makeToken(DotDotDot);
@@ -462,11 +511,10 @@ Token Scanner::next() noexcept {
                 }
                 return makeToken(Equal);
             }
-            case '+': 
+            case '+':
                 if (peek() == '=') {
                     advance();
                     return makeToken(PlusEqual);
-
                 }
                 return makeToken(Plus);
             case '-': {
@@ -480,9 +528,12 @@ Token Scanner::next() noexcept {
                 }
                 return makeToken(Minus);
             }
-            case '*': return checkNext<'=', Star, StarEqual>();
-            case '/': return checkNext<'=', Slash, SlashEqual>();
-            case '%': return checkNext<'=', Percent, PercentEqual>();
+            case '*':
+                return checkNext<'=', Star, StarEqual>();
+            case '/':
+                return checkNext<'=', Slash, SlashEqual>();
+            case '%':
+                return checkNext<'=', Percent, PercentEqual>();
             case '<': {
                 switch (peek()) {
                     case '=':
@@ -511,7 +562,7 @@ Token Scanner::next() noexcept {
                 auto token = makeToken(EndOfFile);
                 return token;
             }
-            default: 
+            default:
                 return errorToken(UnrecognizedCharacter);
         }
     }

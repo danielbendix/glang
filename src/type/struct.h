@@ -19,6 +19,7 @@ using llvm::PointerUnion;
 class StructType : public Type {
 
     using Property = PointerUnion<AST::VariableDeclaration *, AST::FunctionDeclaration *>;
+
 public:
     bool typeChecked = false;
     // False if the struct:
@@ -29,8 +30,8 @@ public:
     const bool isUnpadded;
     const FileID file;
     u32 fieldCount;
-private:
 
+private:
     struct Field {
         Type *type;
         Symbol *name;
@@ -55,28 +56,27 @@ private:
     } initializedFields;
 
     StructType(
-        const Symbol& name, 
+        const Symbol& name,
         FileID file,
-        bool wellFormed, 
+        bool wellFormed,
         bool isCompact,
         bool isUnpadded,
-        SymbolMap<Property>&& properties, 
-        std::vector<AST::VariableDeclaration *>&& fields, 
+        SymbolMap<Property>&& properties,
+        std::vector<AST::VariableDeclaration *>&& fields,
         std::vector<AST::FunctionDeclaration *>&& methods
-    ) 
-        : Type{TK_Struct}
-        , file{file}
-        , wellFormed{wellFormed}
-        , isCompact{isCompact}
-        , isUnpadded{isUnpadded}
-        , name{name}
-        , properties{std::move(properties)}
-        , fields{std::move(fields)}
-        , methods{std::move(methods)}
-        , initializedFields{0} {
-        }
-public:
+    )
+        : Type{TK_Struct},
+          file{file},
+          wellFormed{wellFormed},
+          isCompact{isCompact},
+          isUnpadded{isUnpadded},
+          name{name},
+          properties{std::move(properties)},
+          fields{std::move(fields)},
+          methods{std::move(methods)},
+          initializedFields{0} {}
 
+public:
     ~StructType() {
         if (fields.size() > 64) {
             delete[] initializedFields.multiple;
@@ -84,18 +84,26 @@ public:
     }
 
     static StructType *NONNULL create(
-        const Symbol& name, 
+        const Symbol& name,
         FileID file,
-        bool wellFormed, 
+        bool wellFormed,
         bool isCompact,
         bool isUnpadded,
-        SymbolMap<Property>&& properties, 
-        std::vector<AST::VariableDeclaration *>&& fields, 
+        SymbolMap<Property>&& properties,
+        std::vector<AST::VariableDeclaration *>&& fields,
         std::vector<AST::FunctionDeclaration *>&& methods
-    ) 
-    {
+    ) {
         return allocate(typeAllocator(), [&](void *space) {
-            return new (space) StructType{name, file, wellFormed, isCompact, isUnpadded, std::move(properties), std::move(fields), std::move(methods)};
+            return new (space) StructType{
+                name,
+                file,
+                wellFormed,
+                isCompact,
+                isUnpadded,
+                std::move(properties),
+                std::move(fields),
+                std::move(methods)
+            };
         });
     }
 
@@ -131,7 +139,8 @@ public:
 
         if (initializedFields.count() > 64) {
             auto& allocator = typeAllocator();
-            this->initializedFields.multiple = (u64 *) allocator.allocate(sizeof(u64) * initializedFields.count() / 64, alignof(u64));
+            this->initializedFields.multiple =
+                (u64 *)allocator.allocate(sizeof(u64) * initializedFields.count() / 64, alignof(u64));
             initializedFields.copyInto(this->initializedFields.multiple);
         } else {
             initializedFields.copyInto(&this->initializedFields.single);

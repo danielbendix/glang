@@ -8,20 +8,22 @@
 #include <cstdint>
 #include <cassert>
 
-
 enum class TokenType : u8 {
     // Used for empty tokens.
     Empty = 0,
     // Brackets
     /// []
-    LeftBrace, RightBrace,
+    LeftBrace,
+    RightBrace,
     /// {}
-    LeftBracket, RightBracket,
+    LeftBracket,
+    RightBracket,
     /// ()
-    LeftParenthesis, RightParenthesis,
+    LeftParenthesis,
+    RightParenthesis,
 
     // Symbols
-    Comma, 
+    Comma,
     Dot,
     DotDot,
     DotDotDot,
@@ -49,9 +51,9 @@ enum class TokenType : u8 {
     Caret,
     Pipe,
 
-    PlusEqual, 
+    PlusEqual,
     MinusEqual,
-    StarEqual, 
+    StarEqual,
     SlashEqual,
     PercentEqual,
 
@@ -118,8 +120,8 @@ enum class TokenType : u8 {
     True,
     False,
     Nil,
-    Integer, 
-    Floating, 
+    Integer,
+    Floating,
     Binary,
     Octal,
     Hexadecimal,
@@ -145,12 +147,10 @@ struct Token final {
 
     Token() : type{TokenType::Empty}, length{0}, offset{0} {}
 
-    Token(TokenType type, u32 length, u32 offset) 
-        : type{type}, length{length}, offset{offset} {}
+    Token(TokenType type, u32 length, u32 offset) : type{type}, length{length}, offset{offset} {}
 };
 
-template<>
-struct OptionalDiscriminant<Token> {
+template <> struct OptionalDiscriminant<Token> {
     using OptionalDiscriminantType = decltype(Token::type);
     static constexpr size_t OptionalDiscriminantOffset = offsetof(Token, type);
 };

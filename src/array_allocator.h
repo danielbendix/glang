@@ -16,9 +16,8 @@
  *   3. potentially reduce fragmentation.
  *
  * Arrays and strings will use the same AST-level allocator.
- * The mutable containers will be friends of the immutable ones, and can emit the immutable ones, along with leftover memory, on "freezing" them.
- * The allocator uses size classes.
- * The mutable container keeps track of the allocation 
+ * The mutable containers will be friends of the immutable ones, and can emit the immutable ones, along with leftover
+ * memory, on "freezing" them. The allocator uses size classes. The mutable container keeps track of the allocation
  *
  */
 
@@ -40,7 +39,7 @@ class ArrayArenaAllocator final {
             allocationsFromSystem -= 1;
             allocatedFromSystem -= n;
         }
-        
+
         void countUsed(size_t n) {
             allocationsInUse += 1;
             allocatedInUse += n;
@@ -56,20 +55,20 @@ class ArrayArenaAllocator final {
         }
 
         void print() {
-            if (allocationsFromSystem == 0 && allocatedFromSystem == 0 && allocationsInUse == 0 && allocatedInUse == 0) return;
+            if (allocationsFromSystem == 0 && allocatedFromSystem == 0 && allocationsInUse == 0 && allocatedInUse == 0)
+                return;
             printf("--- Arena Allocator Stats Begin ---\n");
             printf("Total system allocations: %'lu\n", allocationsFromSystem);
             printf("Allocated from system: %'lu bytes\n", allocatedFromSystem);
             printf("Total allocations in use: %lu\n", allocationsInUse);
             printf("In use by containers: %'lu bytes\n", allocatedInUse);
             printf("--- Arena Allocator Stats End ---\n");
-
         }
 #else
         void countAllocated(size_t n) {}
 
         void countFreed(size_t n) {}
-        
+
         void countUsed(size_t n) {}
 
         void countReclaimed(size_t n) {}
@@ -84,24 +83,21 @@ class ArrayArenaAllocator final {
         Block *next;
         u32 size;
     };
+
 public:
-    template <typename T>
-    struct Allocation {
+    template <typename T> struct Allocation {
         static constexpr u32 INVALID_ALLOCATION_INDEX = ~0U;
 
         T *space;
         u32 size;
         u32 index;
 
-        Allocation(T *pointer, u32 size)
-            : space{pointer}, size{size}, index{INVALID_ALLOCATION_INDEX} {}
+        Allocation(T *pointer, u32 size) : space{pointer}, size{size}, index{INVALID_ALLOCATION_INDEX} {}
 
-        Allocation(T *pointer, u32 size, u32 index)
-            : space{pointer}, size{size}, index{index} {}
+        Allocation(T *pointer, u32 size, u32 index) : space{pointer}, size{size}, index{index} {}
 
-        template <typename U>
-        Allocation<U> as() const {
-            return Allocation<U>{(U *) space, size, index};
+        template <typename U> Allocation<U> as() const {
+            return Allocation<U>{(U *)space, size, index};
         }
     };
 
@@ -130,7 +126,7 @@ private:
     }
 
     static std::byte *bytewiseIncrementPointer(void *pointer, size_t increment) {
-        auto *bytePointer = (std::byte *) pointer;
+        auto *bytePointer = (std::byte *)pointer;
         return bytePointer + increment;
     }
 
@@ -156,7 +152,7 @@ private:
         stats.countAllocated(n);
 
         u32 index = allocations.size();
-        auto *space = (std::byte *) malloc(n);
+        auto *space = (std::byte *)malloc(n);
         allocations.push_back(space);
         return {space, u32(n), index};
     }
@@ -166,7 +162,7 @@ private:
     }
 
     void addBlock(void *space, u32 size, size_t sizeClass) {
-        Block *block = (Block *) space;
+        Block *block = (Block *)space;
         block->size = size;
         block->next = classes[sizeClass];
         classes[sizeClass] = block;
@@ -175,7 +171,7 @@ private:
     }
 
     void addLargeBlock(void *space, u32 size) {
-        Block *block = (Block *) space;
+        Block *block = (Block *)space;
         block->size = size;
         block->next = large;
         large = block;
@@ -229,8 +225,7 @@ public:
         return sizeClass;
     }
 
-    template <typename T>
-    Allocation<T> allocate(size_t n) {
+    template <typename T> Allocation<T> allocate(size_t n) {
         static_assert(alignof(T) <= MIN_ALLOC_ALIGN);
         auto allocation = allocateSpace(n * sizeof(T));
         stats.countUsed(allocation.size);
@@ -250,7 +245,7 @@ public:
         if (next) {
             classes[sizeClass] = next->next;
 
-            return Allocation{(std::byte *) next, next->size};
+            return Allocation{(std::byte *)next, next->size};
         } else {
             for (size_t i = sizeClass; i < CLASSES_COUNT; i++) {
                 if (classes[i]) {
@@ -259,10 +254,10 @@ public:
                     assert(block->size >= bytes);
                     sliceRemainderFromBlock(block, block->size, bytes);
 
-                    return Allocation{(std::byte *) block, u32(bytes)};
+                    return Allocation{(std::byte *)block, u32(bytes)};
                 }
             }
-            
+
             if (bytes >= MIN_ALLOCATION_SIZE) {
                 return allocateSpaceLarge(bytes);
             }
@@ -291,11 +286,9 @@ public:
         } else {
             return allocateSpaceSmall(alignedBytes, sizeClass);
         }
-
     }
 
-    template <typename T>
-    void deallocate(Allocation<T> allocation) {
+    template <typename T> void deallocate(Allocation<T> allocation) {
         stats.countDeallocated(allocation.size);
         if (allocation.index != ~0U) [[unlikely]] {
             stats.countFreed(allocation.size);
@@ -315,7 +308,7 @@ public:
     }
 
     void reclaim(std::byte *memory, size_t size) {
-        std::byte *aligned = (std::byte *) alignAddress(memory);
+        std::byte *aligned = (std::byte *)alignAddress(memory);
         size_t lost = aligned - memory;
 
         if (lost >= size) {

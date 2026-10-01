@@ -13,14 +13,14 @@ using Result = PassResult;
 using enum PassResultKind;
 
 class ScopeManager {
-    
+
     struct Local {
         enum class Kind : u8 {
             Parameter,
             Constant,
             Variable,
         };
-        const Symbol* identifier;
+        const Symbol *identifier;
         union {
             Kind kind;
             struct {
@@ -41,9 +41,13 @@ class ScopeManager {
             llvm_unreachable("Programmer error: Default constructor of Local should never be called.");
         }
 
-        Local(const Symbol& identifier, FunctionID functionID, u32 index) : identifier{&identifier}, as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionID}} {}
+        Local(const Symbol& identifier, FunctionID functionID, u32 index)
+            : identifier{&identifier},
+              as{.parameter = {.kind = Kind::Parameter, .index = index, .functionIndex = functionID}} {}
 
-        Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable) : identifier{&identifier}, as{.local = {.kind = isVariable ? Kind::Variable : Kind::Constant, .binding = &binding}} {}
+        Local(const Symbol& identifier, AST::IdentifierBinding& binding, bool isVariable)
+            : identifier{&identifier},
+              as{.local = {.kind = isVariable ? Kind::Variable : Kind::Constant, .binding = &binding}} {}
     };
 
     static_assert(sizeof(Local) <= 32);
@@ -54,7 +58,6 @@ class ScopeManager {
     Module& module;
 
 public:
-
     static constexpr size_t LOCALS_INITIAL_CAPACITY = 64;
     static constexpr size_t SCOPES_INITIAL_CAPACITY = 8;
 
@@ -69,13 +72,9 @@ public:
         scopes.push_back(0);
     }
 
-    void pushOuterScope() {
+    void pushOuterScope() {}
 
-    }
-
-    void popOuterScope() {
-
-    }
+    void popOuterScope() {}
 
     void pushInnerScope() {
         scopes.push_back(locals.size());
@@ -132,13 +131,11 @@ public:
         popInnerScope();
     }
 
-    template<typename F>
-    static constexpr bool returns_void = std::is_same_v<void, std::invoke_result_t<F>>;
+    template <typename F> static constexpr bool returns_void = std::is_same_v<void, std::invoke_result_t<F>>;
 
     /// This function will reset to the current scope, and remove all bindings
     /// after invoking the handler.
-    template <typename Lambda>
-    auto withAutoResetScope(Lambda handler) {
+    template <typename Lambda> auto withAutoResetScope(Lambda handler) {
         auto index = scopes.size();
         pushInnerScope();
 
@@ -161,8 +158,7 @@ public:
 
     /// This function will merge all scopes added inside the handler into the
     /// currently open scope at call time.
-    template <typename Lambda>
-    auto withAutoMergingScopes(Lambda handler) {
+    template <typename Lambda> auto withAutoMergingScopes(Lambda handler) {
         auto resetScopesTo = scopes.size();
 
         if constexpr (returns_void<Lambda>) {
@@ -175,10 +171,15 @@ public:
         }
     }
 
-    Result pushParameter(const Symbol& identifier, FunctionID functionID, u32 parameterIndex, AST::FunctionDeclaration *declaration) {
+    Result pushParameter(
+        const Symbol& identifier,
+        FunctionID functionID,
+        u32 parameterIndex,
+        AST::FunctionDeclaration *declaration
+    ) {
         assert(!scopes.empty());
         i64 maxIndex = scopes.back();
-        
+
         for (int i = locals.size() - 1; i >= maxIndex; --i) {
             if (*locals[i].identifier == identifier) {
                 Diagnostic::error(*declaration, "Invalid redeclaration of parameter " + identifier.string());
@@ -199,7 +200,12 @@ public:
                 auto fileLocation = locals[i].as.local.binding->getFileLocation();
 
                 Diagnostic::error(binding, "Invalid redeclaration of " + identifier.string());
-                Diagnostic::note(*locals[i].as.local.binding, identifier.string() + " previously declared here.", file, fileLocation.offset);
+                Diagnostic::note(
+                    *locals[i].as.local.binding,
+                    identifier.string() + " previously declared here.",
+                    file,
+                    fileLocation.offset
+                );
                 return ERROR;
             }
         }
@@ -211,7 +217,7 @@ public:
         for (int i = locals.size() - 1; i >= 0; --i) {
             Local& local = locals[i];
             if (*local.identifier == identifier) {
-                if (isWrite) { 
+                if (isWrite) {
                     local.isWritten = true;
                 }
                 if (isRead) {
@@ -219,13 +225,16 @@ public:
                 }
                 if (local.as.kind == Local::Kind::Parameter) {
                     auto *function = &module.functions[local.as.parameter.functionIndex];
-                    return IdentifierResolution::parameter(local.as.parameter.index, FunctionID{local.as.parameter.functionIndex});
+                    return IdentifierResolution::parameter(
+                        local.as.parameter.index,
+                        FunctionID{local.as.parameter.functionIndex}
+                    );
                 } else {
                     return IdentifierResolution::local(local.as.local.binding);
                 }
             }
         }
-        
+
         if (auto definition = module.all.lookup(identifier)) {
             auto kind = definition->kind();
             auto index = definition->index();

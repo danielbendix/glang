@@ -17,11 +17,11 @@ using i32 = int32_t;
 using i64 = int64_t;
 
 #ifdef __clang__
-    #define NULLABLE _Nullable
-    #define NONNULL _Nonnull
+#define NULLABLE _Nullable
+#define NONNULL _Nonnull
 #else
-    #define NULLABLE
-    #define NONNULL
+#define NULLABLE
+#define NONNULL
 #endif
 
 enum class PassResultKind : u8 {

@@ -6,13 +6,12 @@
 #include "llvm/Support/Allocator.h"
 #include "llvm/ADT/DenseMap.h"
 
-/* We could have local buffer optimization on Symbol, but this would only yield 
+/* We could have local buffer optimization on Symbol, but this would only yield
  * a benefit when comparing symbols, which mainly occurs inside the symbol table
  * itself, as symbols from the same table can be tested for equality with pointer
  * equality.
  * It would also save a pointer indirection on data access, i.e. printing the symbol.
  */
-
 
 class Symbol {
 private:
@@ -27,7 +26,8 @@ private:
     Symbol operator=(Symbol&&) = delete;
 
     friend class SymbolTable;
-    friend class llvm::DenseMapInfo<Symbol*>;
+    friend class llvm::DenseMapInfo<Symbol *>;
+
 public:
     bool operator==(const Symbol& other) const {
         return this == &other;
@@ -49,7 +49,6 @@ public:
         return std::string{string_view()};
     }
 };
-
 
 class SymbolTable {
 private:

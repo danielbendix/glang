@@ -17,12 +17,11 @@ const char *diagnosticColorString(BufferedDiagnostic::Kind kind) {
         case Error:
             return RED_COLOR;
         case Warning:
-            return MAGENTA_COLOR; 
+            return MAGENTA_COLOR;
         case Note:
             return CYAN_COLOR;
     }
 }
-
 
 const char *diagnosticKindString(BufferedDiagnostic::Kind kind) {
     using enum BufferedDiagnostic::Kind;
@@ -49,9 +48,7 @@ class IODiagnosticWriter : public DiagnosticWriter {
 public:
     IODiagnosticWriter(std::ostream& out) : out{out} {}
 
-    virtual void start() override {
-        
-    }
+    virtual void start() override {}
 
     virtual void end() override {
         for (auto& file : files) {
@@ -65,7 +62,7 @@ public:
             if (fileID == openFile.id) {
                 return openFile;
             }
-        }   
+        }
         auto& file = globalContext.files[fileID];
         FILE *openedFile = fopen(file.path, "r");
 
@@ -112,7 +109,7 @@ public:
     }
 
     std::span<char> readLine(FILE *file, u32 lineSize) {
-        char *line = (char *) malloc(lineSize * sizeof(char));
+        char *line = (char *)malloc(lineSize * sizeof(char));
         fread(line, sizeof(char), lineSize, file);
         return {line, lineSize};
     }
@@ -127,19 +124,8 @@ public:
 
         const char *color = diagnosticColorString(diagnostic.kind);
         const char *label = diagnosticKindString(diagnostic.kind);
-        out << BOLD_TEXT 
-            << filepath 
-            << ':' 
-            << location.line 
-            << ':' 
-            << location.column 
-            << ": " 
-            << color
-            << label
-            << ": " 
-            << RESET_COLOR
-            << std::string_view{diagnostic.description, diagnostic.descriptionLength} 
-            << RESET_WEIGHT 
+        out << BOLD_TEXT << filepath << ':' << location.line << ':' << location.column << ": " << color << label << ": "
+            << RESET_COLOR << std::string_view{diagnostic.description, diagnostic.descriptionLength} << RESET_WEIGHT
             << '\n';
 
         // 0 is used for diagnostics that cannot have file content printed, e.g. EOF.
@@ -179,6 +165,7 @@ public:
 
 class JSONDiagnosticWriter : public DiagnosticWriter {
     std::ostream& out;
+
 public:
     JSONDiagnosticWriter(std::ostream& out) : out{out} {}
 
@@ -186,11 +173,13 @@ public:
     virtual void end() override {}
 
     void printLocation(Location location) {
-        out << R"({"line": )" << location.line << R"(, "column": )" << (location.column - 1) << R"(, "length": )" << location.length << R"(})";
+        out << R"({"line": )" << location.line << R"(, "column": )" << (location.column - 1) << R"(, "length": )"
+            << location.length << R"(})";
     }
 
     void write(std::string_view kind, std::string_view message, std::string_view path, Location location) {
-        out << R"({"kind": ")" << kind << R"(", "message": ")" << message << R"(", "file": ")" << path << R"(", "location": )";
+        out << R"({"kind": ")" << kind << R"(", "message": ")" << message << R"(", "file": ")" << path
+            << R"(", "location": )";
         printLocation(location);
         out << R"(})" << '\n';
     }

@@ -6,8 +6,7 @@
 #include "type/enum.h"
 
 namespace TypeVisitor {
-    template <typename Func>
-    auto visit(Type& type, Func&& visitor) {
+    template <typename Func> auto visit(Type& type, Func&& visitor) {
         switch (type.getKind()) {
             case TK_Void:
                 return std::invoke(visitor, *static_cast<VoidType *>(&type));
@@ -40,8 +39,7 @@ namespace TypeVisitor {
         }
     }
 
-    template <typename Func>
-    auto visit(const Type& type, Func&& visitor) {
+    template <typename Func> auto visit(const Type& type, Func&& visitor) {
         switch (type.getKind()) {
             case TK_Void:
                 return std::invoke(visitor, *static_cast<const VoidType *>(&type));

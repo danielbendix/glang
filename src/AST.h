@@ -43,8 +43,10 @@ namespace AST {
     struct Modifiers final {
         using BITS_TYPE = u32;
         static constexpr size_t BIT_COUNT = sizeof(BITS_TYPE) * CHAR_BIT;
+
     private:
         BITS_TYPE bits = 0;
+
     public:
         enum class Modifier {
             Static,
@@ -132,7 +134,6 @@ namespace AST {
                     llvm_unreachable("[PROGRAMMER ERROR]: Modifier::COUNT value should never be used.");
             }
         }
-        
     };
     using Modifier = Modifiers::Modifier;
     static constexpr Modifiers accessModifiers = {Modifier::Public, Modifier::Private};
@@ -214,7 +215,7 @@ namespace AST {
         void print(std::ostream& os) const;
 
         // TODO: Implement lldb output
-        //void dump();
+        // void dump();
 
         void print(PrintContext& pc) const {}
         FileLocation getFileLocation() const;
@@ -226,20 +227,21 @@ namespace AST {
 
     // Types
 
-    template <typename Subclass, typename ReturnType, typename... Args>
-    class TypeNodeVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args> class TypeNodeVisitorT;
 
     class TypeNode : public Node {
     protected:
         using Node::Node;
 
         ~TypeNode() = default;
+
     public:
         template <typename Subclass, typename ReturnType, typename... Args>
         ReturnType acceptVisitor(TypeNodeVisitorT<Subclass, ReturnType, Args...>& visitor, Args... args);
 
         static bool classof(const Node *NONNULL node) {
-            return node->kind >= NK_Type_Literal && node->kind <= NK_Type_Modifier;;
+            return node->kind >= NK_Type_Literal && node->kind <= NK_Type_Modifier;
+            ;
         }
     };
 
@@ -247,20 +249,15 @@ namespace AST {
     protected:
         Symbol& name;
 
-        TypeLiteral(Token token, Symbol& name) 
-            : TypeNode{NK_Type_Literal, token}
-            , name{name} 
-        {}
-
+        TypeLiteral(Token token, Symbol& name) : TypeNode{NK_Type_Literal, token}, name{name} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator A>
-        static TypeLiteral *NONNULL create(A& allocator, Token token, Symbol& name) {
+        template <Allocator A> static TypeLiteral *NONNULL create(A& allocator, Token token, Symbol& name) {
             return allocate(allocator, [&](auto space) {
-                return new(space) TypeLiteral{token, name};
+                return new (space) TypeLiteral{token, name};
             });
         }
 
@@ -280,11 +277,11 @@ namespace AST {
         TypeNode *NONNULL contained;
         Expression *NONNULL sizeExpression;
 
-        StaticArrayType(Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression) 
-            : TypeNode{NK_Type_Static_Array, token}
-            , contained{contained}
-            , sizeExpression{sizeExpression}
-        
+        StaticArrayType(Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression)
+            : TypeNode{NK_Type_Static_Array, token},
+              contained{contained},
+              sizeExpression{sizeExpression}
+
         {}
 
     public:
@@ -292,9 +289,10 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator A>
-        static StaticArrayType *NONNULL create(A& allocator, Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression) {
+        static StaticArrayType *NONNULL
+        create(A& allocator, Token token, TypeNode *NONNULL contained, Expression *NONNULL sizeExpression) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StaticArrayType{token, contained, sizeExpression};
+                return new (space) StaticArrayType{token, contained, sizeExpression};
             });
         }
 
@@ -321,21 +319,24 @@ namespace AST {
             Array,
             UnboundedArray,
         };
+
     protected:
         TypeNode *NONNULL child;
         SmallByteArray<Modifier> modifiers;
 
         // FIXME Better location
-        TypeModifier(TypeNode *NONNULL child, std::span<Modifier> modifiers, u32 offset) : TypeNode{NK_Type_Modifier, offset}, child{child}, modifiers{modifiers} {}
+        TypeModifier(TypeNode *NONNULL child, std::span<Modifier> modifiers, u32 offset)
+            : TypeNode{NK_Type_Modifier, offset}, child{child}, modifiers{modifiers} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator A>
-        static TypeModifier *NONNULL create(A& allocator, TypeNode *NONNULL child, std::span<Modifier> modifiers, u32 offset) {
+        static TypeModifier *NONNULL
+        create(A& allocator, TypeNode *NONNULL child, std::span<Modifier> modifiers, u32 offset) {
             return allocate(allocator, [&](auto space) {
-                return new(space) TypeModifier{child, std::move(modifiers), offset};
+                return new (space) TypeModifier{child, std::move(modifiers), offset};
             });
         }
 
@@ -357,17 +358,17 @@ namespace AST {
     };
 
     // Utilities
-    
+
     class Declaration;
     class Block {
     protected:
-        Span<Declaration *NONNULL> declarations;
+        Span<Declaration * NONNULL> declarations;
 
-        using iterator = Span<Declaration *NONNULL>::iterator::dereferencing_iterator;
-        using const_iterator = Span<Declaration *NONNULL>::const_iterator::dereferencing_iterator;
+        using iterator = Span<Declaration * NONNULL>::iterator::dereferencing_iterator;
+        using const_iterator = Span<Declaration * NONNULL>::const_iterator::dereferencing_iterator;
 
     public:
-        Block(Span<Declaration *NONNULL> declarations) : declarations{declarations} {}
+        Block(Span<Declaration * NONNULL> declarations) : declarations{declarations} {}
 
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -416,9 +417,8 @@ namespace AST {
     };
 
     // Expressions
-    
-    template <typename Subclass, typename ReturnType, typename... Args>
-    class ExpressionVisitorT;
+
+    template <typename Subclass, typename ReturnType, typename... Args> class ExpressionVisitorT;
 
     class Expression : public Node {
     public:
@@ -433,6 +433,7 @@ namespace AST {
         void setType(Type *NONNULL type) {
             this->type = type;
         }
+
     protected:
         using Node::Node;
 
@@ -458,7 +459,7 @@ namespace AST {
         template <Allocator Allocator>
         static Identifier *NONNULL create(Allocator& allocator, Token token, Symbol& name) {
             return allocate(allocator, [&](auto space) {
-                return new(space) Identifier{token, name};
+                return new (space) Identifier{token, name};
             });
         }
 
@@ -486,10 +487,9 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator>
-        static Self *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator> static Self *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
-                return new(space) Self{token};
+                return new (space) Self{token};
             });
         }
 
@@ -511,14 +511,14 @@ namespace AST {
     class NilLiteral : public Literal {
     protected:
         NilLiteral(Token token) : Literal{NK_Expr_Literal_Nil, token} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator>
-        static NilLiteral *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator> static NilLiteral *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
-                return new(space) NilLiteral{token};
+                return new (space) NilLiteral{token};
             });
         }
 
@@ -529,8 +529,10 @@ namespace AST {
 
     class BooleanLiteral : public Literal {
     protected:
-        BooleanLiteral(Token token, bool value) : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, token} {}
-        BooleanLiteral(u32 offset, bool value) : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, offset} {}
+        BooleanLiteral(Token token, bool value)
+            : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, token} {}
+        BooleanLiteral(u32 offset, bool value)
+            : Literal{value ? NK_Expr_Literal_True : NK_Expr_Literal_False, offset} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -539,17 +541,17 @@ namespace AST {
         template <Allocator Allocator>
         static BooleanLiteral *NONNULL create(Allocator& allocator, Token token, bool value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) BooleanLiteral{token, value};
+                return new (space) BooleanLiteral{token, value};
             });
         }
 
         template <typename NodeInstance>
-        requires std::derived_from<NodeInstance, Node>
+            requires std::derived_from<NodeInstance, Node>
         static BooleanLiteral *NONNULL createDestroyingOther(NodeInstance& node, bool value) {
             static_assert(sizeof(BooleanLiteral) <= sizeof(NodeInstance));
             node.~NodeInstance();
             void *space = &node;
-            return new(space) BooleanLiteral{node.offset, value};
+            return new (space) BooleanLiteral{node.offset, value};
         }
 
         bool getValue() const {
@@ -563,7 +565,7 @@ namespace AST {
 
     class IntegerLiteral : public Literal {
     public:
-        enum class Type: u8 {
+        enum class Type : u8 {
             Binary,
             Octal,
             Decimal,
@@ -610,20 +612,23 @@ namespace AST {
             friend class IntegerLiteral;
             friend class IntegerFold;
         };
+
     private:
         Value value;
+
     protected:
         IntegerLiteral(Token token, APInt&& value, Type integerType, u32 length)
-            : Literal{NK_Expr_Literal_Integer, token}
-            , value{std::move(value), integerType, length} {}
+            : Literal{NK_Expr_Literal_Integer, token}, value{std::move(value), integerType, length} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static IntegerLiteral *NONNULL create(Allocator& allocator, Token token, APInt&& value, Type integerType, u32 length) {
+        static IntegerLiteral *NONNULL
+        create(Allocator& allocator, Token token, APInt&& value, Type integerType, u32 length) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IntegerLiteral{token, std::move(value), integerType, length};
+                return new (space) IntegerLiteral{token, std::move(value), integerType, length};
             });
         }
 
@@ -643,6 +648,7 @@ namespace AST {
     class FloatingPointLiteral : public Literal {
         // Maybe use a more precise value, and track overflow.
         double value;
+
     protected:
         FloatingPointLiteral(Token token, double value) : Literal{NK_Expr_Literal_Floating, token}, value{value} {}
 
@@ -653,7 +659,7 @@ namespace AST {
         template <Allocator Allocator>
         static FloatingPointLiteral *NONNULL create(Allocator& allocator, Token token, double value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) FloatingPointLiteral{token, value};
+                return new (space) FloatingPointLiteral{token, value};
             });
         }
 
@@ -665,18 +671,18 @@ namespace AST {
             return node->kind == NK_Expr_Literal_Floating;
         }
     };
-    
+
     class CharacterLiteral : public Literal {
     public:
         using Character = u32;
         const Character value;
         /// Source length of the literal.
         const u32 length;
+
     private:
-        CharacterLiteral(Token token, Character value) 
-            : Literal{NK_Expr_Literal_Character, token}
-            , value{value} 
-            , length{token.length} {}
+        CharacterLiteral(Token token, Character value)
+            : Literal{NK_Expr_Literal_Character, token}, value{value}, length{token.length} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -684,10 +690,10 @@ namespace AST {
         template <Allocator Allocator>
         static CharacterLiteral *NONNULL create(Allocator& allocator, Token token, Character value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) CharacterLiteral{token, value};
+                return new (space) CharacterLiteral{token, value};
             });
         }
-        
+
         static bool classof(const Node *NONNULL node) {
             return node->kind == NK_Expr_Literal_Character;
         }
@@ -695,14 +701,14 @@ namespace AST {
 
     class StringLiteral : public Literal {
         String value;
+
     public:
         /// The length of the string literal itself.
         const u32 length; // TODO: Wasted space due to padding
     private:
-        StringLiteral(Token token, String value) 
-            : Literal{NK_Expr_Literal_String, token}
-            , value{std::move(value)}
-            , length{token.length} {}
+        StringLiteral(Token token, String value)
+            : Literal{NK_Expr_Literal_String, token}, value{std::move(value)}, length{token.length} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -710,7 +716,7 @@ namespace AST {
         template <Allocator Allocator>
         static StringLiteral *NONNULL create(Allocator& allocator, Token token, String value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StringLiteral{token, value};
+                return new (space) StringLiteral{token, value};
             });
         }
 
@@ -725,22 +731,21 @@ namespace AST {
 
     class CallExpression : public Expression {
         Expression *NONNULL target;
-        Span<Expression *NONNULL> arguments;
+        Span<Expression * NONNULL> arguments;
 
     protected:
-        CallExpression(Token token, Expression *NONNULL target, Span<Expression *NONNULL> arguments) 
-            : Expression{NK_Expr_Call, token}
-            , target{target}
-            , arguments{arguments} {}
+        CallExpression(Token token, Expression *NONNULL target, Span<Expression * NONNULL> arguments)
+            : Expression{NK_Expr_Call, token}, target{target}, arguments{arguments} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static CallExpression *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Span<Expression *NONNULL> arguments) {
+        static CallExpression *NONNULL
+        create(Allocator& allocator, Token token, Expression *NONNULL target, Span<Expression * NONNULL> arguments) {
             return allocate(allocator, [&](auto space) {
-                return new(space) CallExpression{token, target, arguments};
+                return new (space) CallExpression{token, target, arguments};
             });
         }
 
@@ -773,20 +778,20 @@ namespace AST {
     class SubscriptExpression : public Expression {
         Expression *NONNULL target;
         Expression *NONNULL index;
+
     protected:
         SubscriptExpression(Token token, Expression *NONNULL target, Expression *NONNULL index)
-            : Expression{NK_Expr_Subscript, token}
-            , target{target}
-            , index{index} {}
+            : Expression{NK_Expr_Subscript, token}, target{target}, index{index} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static SubscriptExpression *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL index) {
+        static SubscriptExpression *NONNULL
+        create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL index) {
             return allocate(allocator, [&](auto space) {
-                return new(space) SubscriptExpression(token, target, index);
+                return new (space) SubscriptExpression(token, target, index);
             });
         }
 
@@ -813,18 +818,18 @@ namespace AST {
         MemberResolution resolution;
 
     protected:
-        MemberAccessExpression(Token token, Expression *NONNULL target, Symbol& member) 
-            : Expression{NK_Expr_Member_Access, token}
-            , target{target}
-            , memberName{member} {}
+        MemberAccessExpression(Token token, Expression *NONNULL target, Symbol& member)
+            : Expression{NK_Expr_Member_Access, token}, target{target}, memberName{member} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static MemberAccessExpression *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Symbol& member) {
+        static MemberAccessExpression *NONNULL
+        create(Allocator& allocator, Token token, Expression *NONNULL target, Symbol& member) {
             return allocate(allocator, [&](auto space) {
-                return new(space) MemberAccessExpression{token, target, member};
+                return new (space) MemberAccessExpression{token, target, member};
             });
         }
 
@@ -856,8 +861,8 @@ namespace AST {
 
     protected:
         InferredMemberAccessExpression(Token token, Symbol& memberName)
-            : Expression{NK_Expr_Inferred_Member_Access, token}
-            , memberName{memberName} {}
+            : Expression{NK_Expr_Inferred_Member_Access, token}, memberName{memberName} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
@@ -865,7 +870,7 @@ namespace AST {
         template <Allocator Allocator>
         static InferredMemberAccessExpression *NONNULL create(Allocator& allocator, Token token, Symbol& memberName) {
             return allocate(allocator, [&](auto space) {
-                return new(space) InferredMemberAccessExpression{token, memberName};
+                return new (space) InferredMemberAccessExpression{token, memberName};
             });
         }
 
@@ -892,28 +897,27 @@ namespace AST {
             InferredMemberAccessExpression *NONNULL name;
             Expression *NONNULL value;
 
-            Pair(InferredMemberAccessExpression *NONNULL name, Expression *NONNULL value)
-                : name{name}, value{value} {}
+            Pair(InferredMemberAccessExpression *NONNULL name, Expression *NONNULL value) : name{name}, value{value} {}
         };
-    private:       
+
+    private:
         // This is a typename. Could contain a type parameter in the future. We should find a better type.
         Identifier *NULLABLE identifier;
         Span<Pair> pairs;
+
     protected:
-        InitializerExpression(Token token, Identifier *NULLABLE identifier, Span<Pair> pairs) 
-            : Expression{NK_Expr_Initializer, token}
-            , identifier{identifier}
-            , pairs{pairs}
-            {}
+        InitializerExpression(Token token, Identifier *NULLABLE identifier, Span<Pair> pairs)
+            : Expression{NK_Expr_Initializer, token}, identifier{identifier}, pairs{pairs} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static InitializerExpression *NONNULL create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, Span<Pair> pairs) {
+        static InitializerExpression *NONNULL
+        create(Allocator& allocator, Token token, Identifier *NULLABLE identifier, Span<Pair> pairs) {
             return allocate(allocator, [&](auto space) {
-                return new(space) InitializerExpression{token, identifier, pairs};
+                return new (space) InitializerExpression{token, identifier, pairs};
             });
         }
 
@@ -929,7 +933,6 @@ namespace AST {
             return pairs[index];
         }
     };
-
 
     enum class UnaryOperator {
         Negate,
@@ -951,29 +954,28 @@ namespace AST {
         UnaryOperator op;
         Expression *NONNULL target;
 
-        UnaryExpression(Token token, UnaryOperator op, Expression *NONNULL target) 
-            : Expression{NK_Expr_Unary, token}, op{op}, target{target}
-        {}
+        UnaryExpression(Token token, UnaryOperator op, Expression *NONNULL target)
+            : Expression{NK_Expr_Unary, token}, op{op}, target{target} {}
 
-        UnaryExpression(u32 offset, UnaryOperator op, Expression *NONNULL target) 
-            : Expression{NK_Expr_Unary, offset}, op{op}, target{target}
-        {}
+        UnaryExpression(u32 offset, UnaryOperator op, Expression *NONNULL target)
+            : Expression{NK_Expr_Unary, offset}, op{op}, target{target} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static UnaryExpression *NONNULL create(Allocator& allocator, Token token, UnaryOperator op, Expression *NONNULL target) {
+        static UnaryExpression *NONNULL
+        create(Allocator& allocator, Token token, UnaryOperator op, Expression *NONNULL target) {
             return allocate(allocator, [&](auto space) {
-                return new(space) UnaryExpression{token, op, target};
+                return new (space) UnaryExpression{token, op, target};
             });
         }
 
         template <Allocator Allocator>
         static UnaryExpression *NONNULL wrap(Allocator& allocator, Expression& target, UnaryOperator op, Type& type) {
             auto result = allocate(allocator, [&](auto space) {
-                return new(space) UnaryExpression(target.offset, op, &target);
+                return new (space) UnaryExpression(target.offset, op, &target);
             });
             result->setType(&type);
             return result;
@@ -1029,28 +1031,30 @@ namespace AST {
         BinaryOperator op;
         Expression *NONNULL left;
         Expression *NONNULL right;
-        BinaryExpression(Token token, BinaryOperator op, Expression *NONNULL left, Expression *NONNULL right) 
-            : Expression{NK_Expr_Binary, token}
-            , op{op}
-            , left{left}
-            , right{right} 
-        {}
+        BinaryExpression(Token token, BinaryOperator op, Expression *NONNULL left, Expression *NONNULL right)
+            : Expression{NK_Expr_Binary, token}, op{op}, left{left}, right{right} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static BinaryExpression *NONNULL create(Allocator& allocator, Token token, BinaryOperator op, Expression *NONNULL left, Expression *NONNULL right) {
+        static BinaryExpression *NONNULL create(
+            Allocator& allocator,
+            Token token,
+            BinaryOperator op,
+            Expression *NONNULL left,
+            Expression *NONNULL right
+        ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) BinaryExpression{token, op, left, right};
+                return new (space) BinaryExpression{token, op, left, right};
             });
         }
 
         BinaryOperator getOp() const {
             return op;
         }
-        
+
         Expression& getLeft() const {
             return *left;
         }
@@ -1080,34 +1084,36 @@ namespace AST {
         }
     };
 
-
     /* This node captures a call if it is present, instead of relying on CallExpression.
      * This is done to make the type checking process easier.
      * If a non-callable intrinsic ever has to return a callable, this should be reconsidered.
      */
     class IntrinsicExpression : public Expression {
         IntrinsicKind intrinsic;
+
     public:
         const bool hasTypeArguments;
         const bool hasCall;
+
     private:
-        Span<TypeNode *NONNULL> typeArguments;
-        Span<Expression *NONNULL> arguments;
+        Span<TypeNode * NONNULL> typeArguments;
+        Span<Expression * NONNULL> arguments;
         Symbol& name;
 
         IntrinsicExpression(
-            Token token, 
-            Symbol& name, 
-            bool hasTypeArguments, 
-            Span<TypeNode *NONNULL> typeArguments, 
+            Token token,
+            Symbol& name,
+            bool hasTypeArguments,
+            Span<TypeNode * NONNULL> typeArguments,
             bool hasCall,
-            Span<Expression *NONNULL> arguments
-        ) : Expression{NK_Expr_Intrinsic, token}
-          , name{name}
-          , hasTypeArguments{hasTypeArguments}
-          , typeArguments{typeArguments}
-          , hasCall{hasCall}
-          , arguments{arguments} {}
+            Span<Expression * NONNULL> arguments
+        )
+            : Expression{NK_Expr_Intrinsic, token},
+              name{name},
+              hasTypeArguments{hasTypeArguments},
+              typeArguments{typeArguments},
+              hasCall{hasCall},
+              arguments{arguments} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -1115,16 +1121,17 @@ namespace AST {
 
         template <Allocator Allocator>
         static IntrinsicExpression *NONNULL create(
-            Allocator& allocator, 
-            Token token, 
-            Symbol& name, 
+            Allocator& allocator,
+            Token token,
+            Symbol& name,
             bool hasTypeArguments,
-            Span<TypeNode *NONNULL> typeArguments, 
+            Span<TypeNode * NONNULL> typeArguments,
             bool hasCall,
-            Span<Expression *NONNULL> arguments
+            Span<Expression * NONNULL> arguments
         ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IntrinsicExpression(token, name, hasTypeArguments, typeArguments, hasCall, arguments);
+                return new (space)
+                    IntrinsicExpression(token, name, hasTypeArguments, typeArguments, hasCall, arguments);
             });
         }
 
@@ -1140,15 +1147,15 @@ namespace AST {
             return name;
         }
 
-        const Span<TypeNode *NONNULL>& getTypeArguments() const {
+        const Span<TypeNode * NONNULL>& getTypeArguments() const {
             return typeArguments;
         }
 
-        Span<Expression *NONNULL>& getArguments() {
+        Span<Expression * NONNULL>& getArguments() {
             return arguments;
         }
 
-        const Span<Expression *NONNULL>& getArguments() const {
+        const Span<Expression * NONNULL>& getArguments() const {
             return arguments;
         }
     };
@@ -1183,20 +1190,16 @@ namespace AST {
         Symbol& identifier;
         bool isMutable = false;
 
-        IdentifierBinding(Token token, Symbol& identifier) 
-            : Binding{NK_Binding_Identifier, token}
-            , identifier{identifier} 
-        {}
-
+        IdentifierBinding(Token token, Symbol& identifier)
+            : Binding{NK_Binding_Identifier, token}, identifier{identifier} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator A>
-        static IdentifierBinding *NONNULL create(A& allocator, Token token, Symbol& identifier) {
+        template <Allocator A> static IdentifierBinding *NONNULL create(A& allocator, Token token, Symbol& identifier) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IdentifierBinding(token, identifier);
+                return new (space) IdentifierBinding(token, identifier);
             });
         }
 
@@ -1211,7 +1214,7 @@ namespace AST {
         void setIsMutable(bool isMutable) {
             this->isMutable = isMutable;
         }
-    
+
         static bool classof(const Node *NONNULL node) {
             return node->kind == NK_Binding_Identifier;
         }
@@ -1225,21 +1228,21 @@ namespace AST {
         Expression *NONNULL value;
 
         ConditionalUnwrap(Token token, Binding *NONNULL binding, Expression *NONNULL value)
-            : Node{NK_Unwrap, token}
-            , binding{binding}
-            , value{value} {}
+            : Node{NK_Unwrap, token}, binding{binding}, value{value} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static ConditionalUnwrap *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL value) {
+        static ConditionalUnwrap *NONNULL
+        create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ConditionalUnwrap{token, binding, value};
+                return new (space) ConditionalUnwrap{token, binding, value};
             });
         }
 
-        Binding &getBinding() {
+        Binding& getBinding() {
             return *binding;
         }
 
@@ -1252,16 +1255,16 @@ namespace AST {
         }
     };
 
-    using Condition = llvm::PointerUnion<ConditionalUnwrap *NONNULL, Expression *NONNULL>;
+    using Condition = llvm::PointerUnion<ConditionalUnwrap * NONNULL, Expression * NONNULL>;
 
     // Statements
-    template <typename Subclass, typename ReturnType, typename... Args>
-    class StatementVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args> class StatementVisitorT;
 
     class Statement : public Node {
     public:
         template <typename Subclass, typename ReturnType, typename... Args>
-        ReturnType acceptVisitor(StatementVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args);
+        ReturnType acceptVisitor(StatementVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&...args);
+
     protected:
         using Node::Node;
     };
@@ -1272,19 +1275,17 @@ namespace AST {
         Expression *NONNULL value;
 
         AssignmentStatement(Token token, Expression *NONNULL target, Expression *NONNULL value)
-            : Statement{NK_Stmt_Assignment, token}
-            , target{target}
-            , value{value} 
-        {}
+            : Statement{NK_Stmt_Assignment, token}, target{target}, value{value} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static AssignmentStatement *NONNULL create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL value) {
+        static AssignmentStatement *NONNULL
+        create(Allocator& allocator, Token token, Expression *NONNULL target, Expression *NONNULL value) {
             return allocate(allocator, [&](auto space) {
-                return new(space) AssignmentStatement{token, target, value};
+                return new (space) AssignmentStatement{token, target, value};
             });
         }
 
@@ -1315,21 +1316,28 @@ namespace AST {
         Expression *NONNULL target;
         Expression *NONNULL operand;
 
-        CompoundAssignmentStatement(Token token, BinaryOperator op, Expression *NONNULL target, Expression *NONNULL operand)
-            : Statement{NK_Stmt_Compound_Assignment, token}
-            , op{op}
-            , target{target}
-            , operand{operand} 
-        {}
+        CompoundAssignmentStatement(
+            Token token,
+            BinaryOperator op,
+            Expression *NONNULL target,
+            Expression *NONNULL operand
+        )
+            : Statement{NK_Stmt_Compound_Assignment, token}, op{op}, target{target}, operand{operand} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static CompoundAssignmentStatement *NONNULL create(Allocator& allocator, Token token, BinaryOperator op, Expression *NONNULL target, Expression *NONNULL operand) {
+        static CompoundAssignmentStatement *NONNULL create(
+            Allocator& allocator,
+            Token token,
+            BinaryOperator op,
+            Expression *NONNULL target,
+            Expression *NONNULL operand
+        ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) CompoundAssignmentStatement{token, op, target, operand};
+                return new (space) CompoundAssignmentStatement{token, op, target, operand};
             });
         }
 
@@ -1389,17 +1397,16 @@ namespace AST {
 
             friend class IfStatement;
         };
+
     protected:
         // TODO: Rename to branches
         Span<Branch> branches;
         std::optional<Block> fallback;
 
-        // NOTE: this would be safer if it took a conditional, and a vector of subsequent ones, but initialization becomes more troublesome that way.
-        IfStatement(Token token, Span<Branch> branches, std::optional<Block> fallback) 
-            : Statement{NK_Stmt_If, token}
-            , branches{branches}
-            , fallback{fallback}
-        {
+        // NOTE: this would be safer if it took a conditional, and a vector of subsequent ones, but initialization
+        // becomes more troublesome that way.
+        IfStatement(Token token, Span<Branch> branches, std::optional<Block> fallback)
+            : Statement{NK_Stmt_If, token}, branches{branches}, fallback{fallback} {
             assert(this->branches.size() > 0 && "if statement must have at least one condition.");
         }
 
@@ -1408,9 +1415,10 @@ namespace AST {
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static IfStatement *NONNULL create(Allocator& allocator, Token token, Span<Branch> branches, std::optional<Block> fallback) {
+        static IfStatement *NONNULL
+        create(Allocator& allocator, Token token, Span<Branch> branches, std::optional<Block> fallback) {
             return allocate(allocator, [&](auto space) {
-                return new(space) IfStatement{token, branches, fallback};
+                return new (space) IfStatement{token, branches, fallback};
             });
         }
 
@@ -1461,17 +1469,20 @@ namespace AST {
     class GuardStatement : public Statement {
         Span<Condition> conditions;
         Block block;
+
     protected:
-        GuardStatement(Token token, Span<Condition> conditions, Block block) : Statement{NK_Stmt_Guard, token}, conditions{conditions}, block{block} {}
+        GuardStatement(Token token, Span<Condition> conditions, Block block)
+            : Statement{NK_Stmt_Guard, token}, conditions{conditions}, block{block} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static GuardStatement *NONNULL create(Allocator& allocator, Token token, Span<Condition> conditions, Block block) {
+        static GuardStatement *NONNULL
+        create(Allocator& allocator, Token token, Span<Condition> conditions, Block block) {
             return allocate(allocator, [&](auto space) {
-                return new(space) GuardStatement{token, conditions, block};
+                return new (space) GuardStatement{token, conditions, block};
             });
         }
 
@@ -1505,7 +1516,7 @@ namespace AST {
         template <Allocator Allocator>
         static ReturnStatement *NONNULL create(Allocator& allocator, Token token, Expression *NULLABLE expression) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ReturnStatement{token, expression};
+                return new (space) ReturnStatement{token, expression};
             });
         }
 
@@ -1531,20 +1542,18 @@ namespace AST {
         Span<Condition> conditions;
         Block code;
 
-        WhileStatement(Token token, Span<Condition> conditions, Block code) 
-            : Statement{NK_Stmt_While, token}
-            , conditions{conditions}
-            , code{code} 
-        {}
-    
+        WhileStatement(Token token, Span<Condition> conditions, Block code)
+            : Statement{NK_Stmt_While, token}, conditions{conditions}, code{code} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static WhileStatement *NONNULL create(Allocator& allocator, Token token, Span<Condition> conditions, Block code) {
+        static WhileStatement *NONNULL
+        create(Allocator& allocator, Token token, Span<Condition> conditions, Block code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) WhileStatement{token, conditions, code};
+                return new (space) WhileStatement{token, conditions, code};
             });
         }
 
@@ -1584,20 +1593,17 @@ namespace AST {
         Block code;
 
         ForStatement(Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block code)
-            : Statement{NK_Stmt_For, token}
-            , binding{binding}
-            , iterable{iterable}
-            , code{code}
-        {}
+            : Statement{NK_Stmt_For, token}, binding{binding}, iterable{iterable}, code{code} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static ForStatement *NONNULL create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block code) {
+        static ForStatement *NONNULL
+        create(Allocator& allocator, Token token, Binding *NONNULL binding, Expression *NONNULL iterable, Block code) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ForStatement{token, binding, iterable, code};
+                return new (space) ForStatement{token, binding, iterable, code};
             });
         }
 
@@ -1638,10 +1644,9 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator>
-        static BreakStatement *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator> static BreakStatement *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
-                return new(space) BreakStatement{token};
+                return new (space) BreakStatement{token};
             });
         }
 
@@ -1658,10 +1663,9 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator>
-        static ContinueStatement *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator> static ContinueStatement *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ContinueStatement{token};
+                return new (space) ContinueStatement{token};
             });
         }
 
@@ -1674,7 +1678,7 @@ namespace AST {
     protected:
         Expression *NONNULL expression;
 
-        ExpressionStatement(Expression *NONNULL expression) 
+        ExpressionStatement(Expression *NONNULL expression)
             : Statement{NK_Stmt_Expression, expression->offset}, expression{expression} {}
 
     public:
@@ -1684,7 +1688,7 @@ namespace AST {
         template <Allocator Allocator>
         static ExpressionStatement *NONNULL create(Allocator& allocator, Expression *NONNULL expression) {
             return allocate(allocator, [&](auto space) {
-                return new(space) ExpressionStatement{expression};
+                return new (space) ExpressionStatement{expression};
             });
         }
 
@@ -1702,21 +1706,20 @@ namespace AST {
     };
 
     // Declarations
-    
-    template <typename Subclass, typename ReturnType, typename... Args>
-    class DeclarationVisitorT;
+
+    template <typename Subclass, typename ReturnType, typename... Args> class DeclarationVisitorT;
 
     class Declaration : public Node {
     public:
         template <typename Subclass, typename ReturnType, typename... Args>
-        ReturnType acceptVisitor(DeclarationVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&... args);
+        ReturnType acceptVisitor(DeclarationVisitorT<Subclass, ReturnType, Args...>& visitor, Args&&...args);
+
     protected:
         Modifiers modifiers;
 
-        Declaration(Node::Kind kind, Token token, Modifiers modifiers)
-            : Node{kind, token}, modifiers{modifiers} {}
-        Declaration(Node::Kind kind, u32 offset, Modifiers modifiers)
-            : Node{kind, offset}, modifiers{modifiers} {}
+        Declaration(Node::Kind kind, Token token, Modifiers modifiers) : Node{kind, token}, modifiers{modifiers} {}
+        Declaration(Node::Kind kind, u32 offset, Modifiers modifiers) : Node{kind, offset}, modifiers{modifiers} {}
+
     public:
         Modifiers getModifiers() const {
             return modifiers;
@@ -1738,34 +1741,35 @@ namespace AST {
         bool isChecked = false;
 
         VariableDeclaration(
-            Token token, 
+            Token token,
             Modifiers modifiers,
             bool isMutable,
             Binding *NONNULL binding,
-            TypeNode *NULLABLE type, 
+            TypeNode *NULLABLE type,
             Expression *NULLABLE initial
-        ) : Declaration{NK_Decl_Variable, token, modifiers}
-          , isMutable{isMutable}
-          , binding{binding}
-          , typeDeclaration{type}
-          , initial{initial} {}
-        
+        )
+            : Declaration{NK_Decl_Variable, token, modifiers},
+              isMutable{isMutable},
+              binding{binding},
+              typeDeclaration{type},
+              initial{initial} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template<Allocator Allocator>
+        template <Allocator Allocator>
         static VariableDeclaration *NONNULL create(
             Allocator& allocator,
-            Token token, 
+            Token token,
             Modifiers modifiers,
             bool isMutable,
             Binding *NONNULL binding,
-            TypeNode *NULLABLE type, 
+            TypeNode *NULLABLE type,
             Expression *NULLABLE initial
         ) {
             return allocate(allocator, [&](void *space) {
-                return new(space) VariableDeclaration{token, modifiers, isMutable, binding, type, initial};
+                return new (space) VariableDeclaration{token, modifiers, isMutable, binding, type, initial};
             });
         }
 
@@ -1821,7 +1825,7 @@ namespace AST {
         static constexpr Modifiers allowedModifiers = {Static, Public, Private};
         static constexpr Modifiers allowedModifersInFunction = {};
         static constexpr Modifiers allowedModifersInGlobal = {Public, Private};
-        static constexpr Modifiers allowedModifersInStruct = {Static,Public, Private};
+        static constexpr Modifiers allowedModifersInStruct = {Static, Public, Private};
     };
 
     // This function has an inline optional representation for parsing.
@@ -1829,7 +1833,7 @@ namespace AST {
     struct FunctionParameter {
         Symbol *name;
         TypeNode *NONNULL typeDeclaration;
-    
+
         FunctionParameter() : name{nullptr}, typeDeclaration{nullptr} {}
 
         FunctionParameter(Symbol& name, TypeNode *NONNULL type) : name{&name}, typeDeclaration{type} {
@@ -1858,8 +1862,6 @@ namespace AST {
     class InitializerDeclaration : public Declaration {
         Span<FunctionParameter> parameters;
         Block code;
-
-
     };
 
     class FunctionDeclaration : public Declaration {
@@ -1871,14 +1873,22 @@ namespace AST {
         TypeNode *NULLABLE returnTypeDeclaration;
         Block code;
 
-        FunctionDeclaration(Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, Span<FunctionParameter> parameters, TypeNode *NULLABLE returnType, Block code) 
-            : Declaration{NK_Decl_Function, token, modifiers}
-            , name{name}
-            , parameters{parameters}
-            , arity{u32(this->parameters.size())}
-            , closingBracket{closingBracket}
-            , returnTypeDeclaration{returnType}
-            , code{code} {}
+        FunctionDeclaration(
+            Token token,
+            u32 closingBracket,
+            Modifiers modifiers,
+            Symbol& name,
+            Span<FunctionParameter> parameters,
+            TypeNode *NULLABLE returnType,
+            Block code
+        )
+            : Declaration{NK_Decl_Function, token, modifiers},
+              name{name},
+              parameters{parameters},
+              arity{u32(this->parameters.size())},
+              closingBracket{closingBracket},
+              returnTypeDeclaration{returnType},
+              code{code} {}
 
     public:
         void print(PrintContext& pc) const;
@@ -1886,9 +1896,19 @@ namespace AST {
         FileLocation getClosingBracketLocation() const;
 
         template <Allocator A>
-        static FunctionDeclaration *NONNULL create(A& allocator, Token token, u32 closingBracket, Modifiers modifiers, Symbol& name, Span<FunctionParameter>&& parameters, TypeNode *NULLABLE returnType, Block code) {
+        static FunctionDeclaration *NONNULL create(
+            A& allocator,
+            Token token,
+            u32 closingBracket,
+            Modifiers modifiers,
+            Symbol& name,
+            Span<FunctionParameter>&& parameters,
+            TypeNode *NULLABLE returnType,
+            Block code
+        ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) FunctionDeclaration(token, closingBracket, modifiers, name, parameters, returnType, code);
+                return new (space)
+                    FunctionDeclaration(token, closingBracket, modifiers, name, parameters, returnType, code);
             });
         }
 
@@ -1925,31 +1945,36 @@ namespace AST {
         }
 
         using enum Modifiers::Modifier;
-        static constexpr Modifiers allowedModifiers = {Static,Public, Private, Mut};
+        static constexpr Modifiers allowedModifiers = {Static, Public, Private, Mut};
         static constexpr Modifiers allowedModifiersInGlobal = {Public, Private};
-        static constexpr Modifiers allowedModifiersInStruct = {Static,Public, Private };
+        static constexpr Modifiers allowedModifiersInStruct = {Static, Public, Private};
     };
 
     class StructDeclaration : public Declaration {
     protected:
         Symbol& name;
-        Span<Declaration *NONNULL> declarations;
+        Span<Declaration * NONNULL> declarations;
 
-        using iterator = Span<Declaration *NONNULL>::iterator::dereferencing_iterator;
-        using const_iterator = Span<Declaration *NONNULL>::const_iterator::dereferencing_iterator;
+        using iterator = Span<Declaration * NONNULL>::iterator::dereferencing_iterator;
+        using const_iterator = Span<Declaration * NONNULL>::const_iterator::dereferencing_iterator;
 
-        StructDeclaration(Token token, Modifiers modifiers, Symbol& name, Span<Declaration *NONNULL> declarations)
-            : Declaration{NK_Decl_Struct, token, modifiers}
-            , name{name}
-            , declarations{declarations} {}
+        StructDeclaration(Token token, Modifiers modifiers, Symbol& name, Span<Declaration * NONNULL> declarations)
+            : Declaration{NK_Decl_Struct, token, modifiers}, name{name}, declarations{declarations} {}
+
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
-        static StructDeclaration *NONNULL create(Allocator& allocator, Token token, Modifiers modifiers, Symbol& name, Span<Declaration *NONNULL>&& declarations) {
+        static StructDeclaration *NONNULL create(
+            Allocator& allocator,
+            Token token,
+            Modifiers modifiers,
+            Symbol& name,
+            Span<Declaration * NONNULL>&& declarations
+        ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StructDeclaration{token, modifiers, name, declarations};
+                return new (space) StructDeclaration{token, modifiers, name, declarations};
             });
         }
 
@@ -1995,6 +2020,7 @@ namespace AST {
             class Member {
                 Symbol *NULLABLE name;
                 TypeNode *NONNULL type;
+
             public:
                 Member(TypeNode *NONNULL type) : name{nullptr}, type{type} {}
                 Member(Symbol *NULLABLE name, TypeNode *NONNULL type) : name{name}, type{type} {}
@@ -2010,9 +2036,11 @@ namespace AST {
 
             using iterator = Span<Member>::iterator;
             using const_iterator = Span<Member>::const_iterator;
+
         private:
             Symbol *NONNULL name;
             Span<Member> members;
+
         public:
             Case(Token token, Symbol& name, Span<Member> members) : name{&name}, members{std::move(members)} {}
 
@@ -2044,7 +2072,6 @@ namespace AST {
                 return members.end();
             }
         };
-
     };
 
     class EnumDeclaration : public Declaration {
@@ -2056,29 +2083,29 @@ namespace AST {
 
             Case(Token token, Symbol& name, Expression *NULLABLE value)
                 : offset{token.offset}, name{name}, value{value} {}
-            
+
             Case(const Case&) = default;
         };
+
     protected:
         Symbol& name;
         TypeNode *NULLABLE rawType;
         Span<Case> cases;
-        Span<Declaration *NONNULL> declarations;
+        Span<Declaration * NONNULL> declarations;
 
         EnumDeclaration(
-            Token token, 
+            Token token,
             Modifiers modifiers,
-            Symbol& name, 
-            TypeNode *NULLABLE rawType, 
-            Span<Case> cases, 
-            Span<Declaration *NONNULL> declarations
-        ) 
-            : Declaration{NK_Decl_Enum, token, modifiers}
-            , name{name}
-            , rawType{rawType}
-            , cases{cases}
-            , declarations{declarations}
-        {}
+            Symbol& name,
+            TypeNode *NULLABLE rawType,
+            Span<Case> cases,
+            Span<Declaration * NONNULL> declarations
+        )
+            : Declaration{NK_Decl_Enum, token, modifiers},
+              name{name},
+              rawType{rawType},
+              cases{cases},
+              declarations{declarations} {}
 
     public:
         using iterator = Span<Case>::iterator;
@@ -2089,16 +2116,16 @@ namespace AST {
 
         template <Allocator A>
         static EnumDeclaration *NONNULL create(
-            A& allocator, 
-            Token token, 
+            A& allocator,
+            Token token,
             Modifiers modifiers,
-            Symbol& name, 
-            TypeNode *NULLABLE rawType, 
-            Span<Case>&& cases, 
-            Span<Declaration *NONNULL>&& declarations
+            Symbol& name,
+            TypeNode *NULLABLE rawType,
+            Span<Case>&& cases,
+            Span<Declaration * NONNULL>&& declarations
         ) {
             return allocate(allocator, [&](auto space) {
-                return new(space) EnumDeclaration{token, modifiers, name, rawType, cases, declarations};
+                return new (space) EnumDeclaration{token, modifiers, name, rawType, cases, declarations};
             });
         }
 
@@ -2136,30 +2163,29 @@ namespace AST {
 
         static constexpr Modifiers allowedModifiers = {};
     };
-    
+
     class StatementDeclaration : public Declaration {
     protected:
         Statement *NONNULL statement;
 
-        StatementDeclaration(Statement *NONNULL statement) 
-            : Declaration{NK_Decl_Statement, statement->offset, {}}
-            , statement{statement} {}
+        StatementDeclaration(Statement *NONNULL statement)
+            : Declaration{NK_Decl_Statement, statement->offset, {}}, statement{statement} {}
 
     public:
-        void print(PrintContext& pc) const; 
+        void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
         template <Allocator Allocator>
         static StatementDeclaration *NONNULL create(Allocator& allocator, Statement *NONNULL statement) {
             return allocate(allocator, [&](auto space) {
-                return new(space) StatementDeclaration{statement};
+                return new (space) StatementDeclaration{statement};
             });
         }
 
         Statement& getStatement() const {
             return *statement;
         }
-        
+
         static bool classof(const Node *NONNULL node) {
             return node->kind == NK_Decl_Statement;
         }
@@ -2169,15 +2195,16 @@ namespace AST {
     protected:
         Symbol& name;
 
-        ProtocolDeclaration(Token token, Modifiers modifiers, Symbol& name) 
-            : Declaration{NK_Decl_Protocol, token, modifiers}
-            , name{name} {}
+        ProtocolDeclaration(Token token, Modifiers modifiers, Symbol& name)
+            : Declaration{NK_Decl_Protocol, token, modifiers}, name{name} {}
 
     public:
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        const Symbol& getName() { return name; }
+        const Symbol& getName() {
+            return name;
+        }
     };
 };
 
@@ -2193,6 +2220,7 @@ namespace AST {
         PrintContext& operator=(const PrintContext&) = delete;
         PrintContext(PrintContext&&) = delete;
         PrintContext& operator=(PrintContext&&) = delete;
+
     public:
         void indent() {
             ++indentLevel;
@@ -2225,7 +2253,9 @@ namespace AST {
         }
 
         template <typename T>
-        PrintContext& operator<<(T value) requires std::is_arithmetic_v<T> {
+        PrintContext& operator<<(T value)
+            requires std::is_arithmetic_v<T>
+        {
             os << value;
             return *this;
         }
@@ -2256,8 +2286,7 @@ namespace AST {
     };
 }
 
-template<>
-struct OptionalDiscriminant<AST::FunctionParameter> {
+template <> struct OptionalDiscriminant<AST::FunctionParameter> {
     static constexpr auto OptionalDiscriminantPointer = &AST::FunctionParameter::typeDeclaration;
     using OptionalDiscriminantType = decltype(AST::FunctionParameter::typeDeclaration);
     static constexpr size_t OptionalDiscriminantOffset = offsetof(AST::FunctionParameter, typeDeclaration);

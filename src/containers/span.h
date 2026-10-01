@@ -6,27 +6,21 @@
 
 namespace span_iterator {
     template <typename T>
-    concept ShouldCopyWhenIterating =
-        std::is_trivially_copyable_v<T> && (sizeof(T) <= sizeof(void*));
+    concept ShouldCopyWhenIterating = std::is_trivially_copyable_v<T> && (sizeof(T) <= sizeof(void *));
 
-    template <typename T, bool Const>
-    class DereferencingIterator;
+    template <typename T, bool Const> class DereferencingIterator;
 
-    template <typename T, bool Const>
-    class Iterator {
+    template <typename T, bool Const> class Iterator {
         T *it;
+
     public:
-        using pointer = T*;
+        using pointer = T *;
         using value_type = T;
         using difference_type = std::ptrdiff_t;
         using iterator_category = std::random_access_iterator_tag;
         using reference_type = std::conditional_t<Const, const T&, T&>;
 
-        using dereference_type = std::conditional_t<
-            ShouldCopyWhenIterating<T>,
-            T,
-            reference_type
-        >;
+        using dereference_type = std::conditional_t<ShouldCopyWhenIterating<T>, T, reference_type>;
 
         using dereferencing_iterator = DereferencingIterator<typename std::remove_pointer_t<T>, Const>;
 
@@ -73,18 +67,13 @@ namespace span_iterator {
         }
     };
 
-    template <typename T, bool Const>
-    class DereferencingIterator {
+    template <typename T, bool Const> class DereferencingIterator {
     public:
         explicit DereferencingIterator(Iterator<T *, Const> inner) : inner(inner) {}
 
         using difference_type = std::ptrdiff_t;
 
-        using dereference_type = std::conditional_t<
-            Const,
-            const T&,
-            T&
-        >;
+        using dereference_type = std::conditional_t<Const, const T&, T&>;
 
         // Dereference operator: dereference the pointer value
         dereference_type operator*() const {
@@ -134,21 +123,22 @@ namespace span_iterator {
 
 }
 
-template <typename T>
-class Span final {
-    static_assert(std::is_trivially_copyable<T>::value, "Span should only be instantiated with a trivially copyable type.");
+template <typename T> class Span final {
+    static_assert(
+        std::is_trivially_copyable<T>::value,
+        "Span should only be instantiated with a trivially copyable type."
+    );
 
     T *elements;
     u32 _size;
+
 public:
     using iterator = span_iterator::Iterator<T, false>;
     using const_iterator = span_iterator::Iterator<T, true>;
 
-    Span()
-        : elements{nullptr}, _size{0} {}
+    Span() : elements{nullptr}, _size{0} {}
 
-    Span(T *elements, u32 size)
-        : elements{elements}, _size{size} {}
+    Span(T *elements, u32 size) : elements{elements}, _size{size} {}
 
     u32 size() const {
         return _size;
@@ -163,7 +153,7 @@ public:
         assert(index < _size);
         return elements[index];
     }
-    
+
     bool isEmpty() const {
         return _size == 0;
     }
@@ -198,11 +188,13 @@ public:
     }
 };
 
-template <typename T>
-class GrowingSpan final {
+template <typename T> class GrowingSpan final {
     using Allocator = ArrayArenaAllocator;
 
-    static_assert(std::is_trivially_copyable<T>::value, "GrowingSpan should only be instantiated with a trivially copyable type.");
+    static_assert(
+        std::is_trivially_copyable<T>::value,
+        "GrowingSpan should only be instantiated with a trivially copyable type."
+    );
 
     u32 size = 0;
     u32 capacity = 0;
@@ -240,19 +232,14 @@ class GrowingSpan final {
     }
 
 public:
-    GrowingSpan(Allocator& allocator)
-        : allocator{allocator} {}
+    GrowingSpan(Allocator& allocator) : allocator{allocator} {}
 
-    GrowingSpan(GrowingSpan&& other) 
-        : size{other.size}
-        , capacity{other.capacity}
-        , elements{other.elements}
-        , allocator{other.allocator}
-        {
-            other.size = 0;
-            other.capacity = 0;
-            other.elements = nullptr;
-        }
+    GrowingSpan(GrowingSpan&& other)
+        : size{other.size}, capacity{other.capacity}, elements{other.elements}, allocator{other.allocator} {
+        other.size = 0;
+        other.capacity = 0;
+        other.elements = nullptr;
+    }
 
     GrowingSpan& operator=(GrowingSpan&) = delete;
     GrowingSpan& operator=(GrowingSpan&& other) = delete;
@@ -269,7 +256,7 @@ public:
             growElements();
         }
         if constexpr (std::is_copy_constructible_v<T>) {
-            new(&elements[size]) T{value};
+            new (&elements[size]) T{value};
         } else {
             elements[size] = value;
         }
@@ -284,7 +271,7 @@ public:
             return Span<T>{nullptr, 0};
         } else {
             auto *elementsEnd = (std::byte *)(elements + size);
-            auto *allocationEnd = ((std::byte *) allocation.space) + allocation.size;
+            auto *allocationEnd = ((std::byte *)allocation.space) + allocation.size;
             allocator.reclaim(elementsEnd, allocationEnd - elementsEnd);
             auto span = Span<T>{elements, size};
             elements = nullptr;

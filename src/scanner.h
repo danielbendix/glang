@@ -13,7 +13,8 @@ public:
     static const ErrorCause NO_ERROR;
 
     // TODO: Maybe we don't need to move the string here.
-    Scanner(std::string&& string) : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()} {}
+    Scanner(std::string&& string)
+        : _string{std::move(string)}, start{_string.cbegin()}, current{start}, end{_string.cend()} {}
 
     Token next() noexcept;
 
@@ -21,6 +22,7 @@ public:
         assert(_error != NO_ERROR);
         return _error;
     }
+
 private:
     using iterator = std::string::const_iterator;
     std::vector<u32> lineBreaks;
@@ -67,7 +69,7 @@ private:
 
     void multilineComment();
     void skipWhitespace();
-    template <char c, TokenType ifRead, TokenType ifNotRead>Token checkNext();
+    template <char c, TokenType ifRead, TokenType ifNotRead> Token checkNext();
     template <auto predicate> void munchMany();
     template <auto predicate> bool munchMany1();
     [[nodiscard]]

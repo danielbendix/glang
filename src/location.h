@@ -11,11 +11,9 @@ struct DiagnosticLocation {
 
     DiagnosticLocation(Token token) : offset{token.offset}, length{token.length} {}
 
-    DiagnosticLocation(u32 offset, u32 length)
-        : offset{offset}, length{length} {}
+    DiagnosticLocation(u32 offset, u32 length) : offset{offset}, length{length} {}
 
-    DiagnosticLocation(AST::FileLocation location)
-        : offset{location.offset}, length{location.length} {}
+    DiagnosticLocation(AST::FileLocation location) : offset{location.offset}, length{location.length} {}
 };
 
 struct Location {
@@ -23,8 +21,7 @@ struct Location {
     u32 column;
     u32 length;
 
-    Location(u32 line, u32 column, u32 length)
-        : line{line}, column{column}, length{length} {}
+    Location(u32 line, u32 column, u32 length) : line{line}, column{column}, length{length} {}
 
     static u32 getLine(u32 offset, std::span<const u32> lineBreaks) {
         u32 line = 1;
@@ -71,7 +68,7 @@ struct Location {
         }
         return Location(line, column, diagnosticLocation.length);
     }
-    
+
     static Location fromNode(const AST::Node& node, std::span<const u32> lineBreaks) {
         auto fileLocation = node.getFileLocation();
         return Location::fromFileLocation(fileLocation, lineBreaks);
@@ -79,9 +76,10 @@ struct Location {
 
     friend std::ostream& operator<<(std::ostream& os, const Location& location) {
         if (location.length == 1) {
-            return os << '[' << location.line << ':' << location.column <<']';
+            return os << '[' << location.line << ':' << location.column << ']';
         } else {
-            return os << '[' << location.line << ':' << location.column << '-' << location.column + location.length - 1 <<']';
+            return os << '[' << location.line << ':' << location.column << '-' << location.column + location.length - 1
+                      << ']';
         }
     }
 };

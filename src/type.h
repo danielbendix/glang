@@ -143,8 +143,10 @@ public:
 
 class BooleanType : public Type {
     Symbol& name;
+
 public:
     const Layout layout;
+
 public:
     BooleanType(Symbol& name, Layout layout) : Type{TK_Boolean}, name{name}, layout{layout} {}
 
@@ -181,12 +183,8 @@ public:
     const u32 bitWidth;
     const Layout layout;
 
-    IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, Layout layout) 
-        : NumericType{TK_Num_Integer}
-        , name{name}
-        , bitWidth{bitWidth}
-        , isSigned{isSigned}
-        , layout{layout} {}
+    IntegerType(Symbol& name, unsigned bitWidth, bool isSigned, Layout layout)
+        : NumericType{TK_Num_Integer}, name{name}, bitWidth{bitWidth}, isSigned{isSigned}, layout{layout} {}
 
     void getName(std::string& result) const {
         result.append(name.string_view());
@@ -217,8 +215,12 @@ public:
     RangeType *getOpenRangeType();
     RangeType *getClosedRangeType();
 
-    unsigned getBitWidth() const { return bitWidth; }
-    bool getIsSigned() const { return isSigned; }
+    unsigned getBitWidth() const {
+        return bitWidth;
+    }
+    bool getIsSigned() const {
+        return isSigned;
+    }
 
     llvm::IntegerType *_getLLVMType(llvm::LLVMContext& context) const {
         return llvm::Type::getIntNTy(context, bitWidth);
@@ -233,8 +235,7 @@ class PointerType : public Type {
     llvm::PointerIntPair<Type *, 1, bool> pair;
 
 public:
-    PointerType(Type *pointeeType, bool isConst) 
-        : Type{TK_Pointer}, pair{pointeeType, isConst} {}
+    PointerType(Type *pointeeType, bool isConst) : Type{TK_Pointer}, pair{pointeeType, isConst} {}
 
     void getName(std::string& result) const;
 
@@ -274,8 +275,9 @@ class FunctionType : public Type {
     Type *returnType;
     Type **parameters;
     size_t parametersSize;
+
 public:
-    FunctionType(Type *returnType, Type ** parameters, size_t parametersSize) 
+    FunctionType(Type *returnType, Type **parameters, size_t parametersSize)
         : Type{TK_Function}, returnType{returnType}, parameters{parameters}, parametersSize{parametersSize} {}
 
     void getName(std::string& result) const;
@@ -305,7 +307,7 @@ public:
 
 class FPType : public NumericType {
 public:
-    enum class Precision: u8 {
+    enum class Precision : u8 {
         Single = 0,
         Double = 1,
     };
@@ -313,11 +315,8 @@ public:
     const Precision precision;
     const Layout layout;
 
-    FPType(Symbol& name, Precision precision, Layout layout) 
-        : NumericType{TK_Num_FP}
-        , name{name}
-        , precision{precision} 
-        , layout{layout} {}
+    FPType(Symbol& name, Precision precision, Layout layout)
+        : NumericType{TK_Num_FP}, name{name}, precision{precision}, layout{layout} {}
 
     void getName(std::string& result) const {
         result.append(name.string_view());
@@ -360,6 +359,7 @@ class ArrayType : public Type {
     static llvm::Type *llvmTypeUnbounded;
 
     Type *NONNULL contained;
+
 public:
     const bool isBounded;
 
@@ -382,6 +382,7 @@ public:
 class StaticArrayType : public Type {
     Type *NONNULL contained;
     u32 size;
+
 public:
     StaticArrayType(Type *contained, u32 size) : Type{TK_Static_Array}, contained{contained}, size{size} {}
 
@@ -406,6 +407,7 @@ public:
 // Ideally it would be based on conformance to a protocol.
 class RangeType : public Type {
     IntegerType *NONNULL integerType;
+
 public:
     bool isClosed;
 

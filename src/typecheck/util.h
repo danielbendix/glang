@@ -7,9 +7,7 @@
 
 using llvm::isa;
 
-
-template <typename TypeType>
-bool expectEqualAs(Type& type1, Type& type2, auto function) {
+template <typename TypeType> bool expectEqualAs(Type& type1, Type& type2, auto function) {
     if (!isa<TypeType>(type1) || !is<TypeType>(type2)) {
         function();
         return true;
@@ -18,8 +16,7 @@ bool expectEqualAs(Type& type1, Type& type2, auto function) {
     }
 }
 
-template <typename TypeType>
-bool expectBothAs(Type& type1, Type& type2, auto function) {
+template <typename TypeType> bool expectBothAs(Type& type1, Type& type2, auto function) {
     if (!isa<TypeType>(type1) || !is<TypeType>(type2)) {
         function();
         return true;
@@ -27,11 +24,5 @@ bool expectBothAs(Type& type1, Type& type2, auto function) {
         return false;
     }
 }
-
-
-
-
-
-
 
 #endif

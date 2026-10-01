@@ -15,7 +15,8 @@
 using llvm::dyn_cast;
 using llvm::dyn_cast_or_null;
 
-// TODO: This needs to be refactored a bit in terms of where diagnostics are emitted, and their text needs to be more specific to the operation being checked.
+// TODO: This needs to be refactored a bit in terms of where diagnostics are emitted, and their text needs to be more
+// specific to the operation being checked.
 
 Type *typeCheckExpressionOrError(AST::Expression& expression, ExpressionTypeChecker& typeChecker) {
     auto result = typeChecker.typeCheckExpression(expression);
@@ -104,7 +105,6 @@ LValueTypeResult ExpressionLValueTypeChecker::visitUnaryExpression(AST::UnaryExp
         case AST::UnaryOperator::FPExtend:
         case AST::UnaryOperator::OptionalWrap:
             break;
-
     }
     Diagnostic::error(unary, "Cannot assign to result of unary expression.");
     return {};
@@ -115,7 +115,8 @@ LValueTypeResult ExpressionLValueTypeChecker::visitBinaryExpression(AST::BinaryE
     return {};
 }
 
-LValueTypeResult ExpressionLValueTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
+LValueTypeResult
+ExpressionLValueTypeChecker::visitIntrinsicExpression(AST::IntrinsicExpression& intrinsic, Type *declaredType) {
     // This may be possible with some intrinsics later.
     Diagnostic::error(intrinsic, "Cannot assign to result of intrinsic.");
     return {};
@@ -126,7 +127,8 @@ LValueTypeResult ExpressionLValueTypeChecker::visitCallExpression(AST::CallExpre
     return {};
 }
 
-LValueTypeResult ExpressionLValueTypeChecker::visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType) {
+LValueTypeResult
+ExpressionLValueTypeChecker::visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType) {
     ExpressionTypeChecker rvalueChecker{scopeManager, typeResolver};
     // Array types cannot be const right now. So we check target as an r-value.
     Type *targetType = typeCheckExpressionOrError(subscript.getTarget(), rvalueChecker);
@@ -142,8 +144,11 @@ LValueTypeResult ExpressionLValueTypeChecker::visitSubscriptExpression(AST::Subs
     }
 
     // FIXME: This should be a default unsigned/index type, so we get free checking of negative literals.
-    Type *indexType = rvalueChecker.typeCheckExpressionUsingDeclaredOrDefaultType(subscript.getIndex(), typeResolver.defaultIntegerType());
-    
+    Type *indexType = rvalueChecker.typeCheckExpressionUsingDeclaredOrDefaultType(
+        subscript.getIndex(),
+        typeResolver.defaultIntegerType()
+    );
+
     auto integerType = dyn_cast_or_null<IntegerType>(indexType);
 
     if (!integerType) {
@@ -158,14 +163,18 @@ LValueTypeResult ExpressionLValueTypeChecker::visitSubscriptExpression(AST::Subs
     return {elementType, true};
 }
 
-LValueTypeResult ExpressionLValueTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
+LValueTypeResult
+ExpressionLValueTypeChecker::visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType) {
     Diagnostic::error(initializer, "Cannot assign to struct initializer expression.");
     return {};
 }
 
-LValueTypeResult ExpressionLValueTypeChecker::visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType) {
+LValueTypeResult ExpressionLValueTypeChecker::visitMemberAccessExpression(
+    AST::MemberAccessExpression& memberAccess,
+    Type *declaredType
+) {
     auto result = typeCheckExpression(memberAccess.getTarget());
-    
+
     if (!result) {
         return {};
     }
@@ -173,7 +182,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitMemberAccessExpression(AST::M
     ExpressionTypeChecker rvalueChecker{scopeManager, typeResolver};
 
     LValueTypeResult target = typeCheckExpression(memberAccess.getTarget());
-    
+
     if (!target) {
         return {};
     }
@@ -201,7 +210,10 @@ LValueTypeResult ExpressionLValueTypeChecker::visitMemberAccessExpression(AST::M
     return {};
 }
 
-LValueTypeResult ExpressionLValueTypeChecker::visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType) {
+LValueTypeResult ExpressionLValueTypeChecker::visitInferredMemberAccessExpression(
+    AST::InferredMemberAccessExpression& inferredMemberAccess,
+    Type *declaredType
+) {
     Diagnostic::error(inferredMemberAccess, "Cannot infer member access in assignment.");
     return {};
 }
@@ -222,7 +234,7 @@ LValueTypeResult ExpressionLValueTypeChecker::visitIdentifier(AST::Identifier& i
         return {};
     }
 
-    auto nested = [this, resolution, &identifier] () -> LValueTypeResult {
+    auto nested = [this, resolution, &identifier]() -> LValueTypeResult {
         switch (resolution.getKind()) {
             case IdentifierResolution::Kind::UNRESOLVED:
                 llvm_unreachable("UNDEFINED resolution in type check.");

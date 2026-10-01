@@ -19,7 +19,7 @@
 static bool verbose = false;
 
 template <typename Step, typename... Parameters>
-auto exitOnFailure(std::string&& name, Step step, Parameters&&... parameters) {
+auto exitOnFailure(std::string&& name, Step step, Parameters&&...parameters) {
     auto result = step(parameters...);
     bool failed;
     if constexpr (std::is_same_v<decltype(result), PassResult>) {
@@ -42,30 +42,40 @@ auto exitOnFailure(std::string&& name, Step step, Parameters&&... parameters) {
     }
 }
 
-void initialize(SymbolTable& symbols)
-{
+void initialize(SymbolTable& symbols) {
     auto cpu = detectCPU();
     Architecture::populate(cpu);
     setupBuiltins(symbols, Architecture::current());
 }
 
 void validate(Module& module, bool verbose = false) {
-    exitOnFailure("Sema phase", [](Module& module) {
-        return typecheckModule(module);
-    }, module);
-    exitOnFailure("Control flow analysis", [](Module& module) {
-        return analyzeControlFlow(module);
-    }, module);
+    exitOnFailure(
+        "Sema phase",
+        [](Module& module) {
+            return typecheckModule(module);
+        },
+        module
+    );
+    exitOnFailure(
+        "Control flow analysis",
+        [](Module& module) {
+            return analyzeControlFlow(module);
+        },
+        module
+    );
 }
 
 std::unique_ptr<llvm::Module> codegen(Module& module, bool verbose = false) {
-    return exitOnFailure("Code generation", [](Module& module) {
-        return generateCode(module);
-    }, module);
+    return exitOnFailure(
+        "Code generation",
+        [](Module& module) {
+            return generateCode(module);
+        },
+        module
+    );
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     Options options = parseOptionsOrExit(std::span(argv, argc));
 
     verbose = options.flags.verbose;
@@ -82,63 +92,68 @@ int main(int argc, char **argv)
 
     globalContext.files.reserve(options.files.size());
 
+    auto module = exitOnFailure(
+        "Building namespace",
+        [](std::vector<const char *>& files) -> std::unique_ptr<Module> {
+            ModuleBuilder builder;
+            bool hadError = false;
 
+            for (auto *filePath : files) {
+                FileID fileID = globalContext.addFile(filePath);
+                File& file = globalContext.files[fileID];
 
-    auto module = exitOnFailure("Building namespace", [](std::vector<const char *>& files) -> std::unique_ptr<Module> {
-        ModuleBuilder builder;
-        bool hadError = false;
+                ParsedFile parsed = parseFile(fileID, file, Diagnostic::writer());
 
-        for (auto *filePath : files) {
-            FileID fileID = globalContext.addFile(filePath);
-            File& file = globalContext.files[fileID];
+                file.lineBreaks = std::move(parsed.lineBreaks);
+                parsed.diagnostics.flush(Diagnostic::writer());
 
-            ParsedFile parsed = parseFile(fileID, file, Diagnostic::writer());
+                if (parsed.result != ParseResult::OK) {
+                    hadError = true;
+                    continue;
+                }
 
-            file.lineBreaks = std::move(parsed.lineBreaks);
-            parsed.diagnostics.flush(Diagnostic::writer());
-
-            if (parsed.result != ParseResult::OK) {
-                hadError = true;
-                continue;
+                file.size = parsed.size;
+                file.astHandle = std::move(parsed.astHandle);
+                builder.addDeclarations(parsed.declarations, fileID);
             }
 
-            file.size = parsed.size;
-            file.astHandle = std::move(parsed.astHandle);
-            builder.addDeclarations(parsed.declarations, fileID);
-        }
+            if (hadError) {
+                return nullptr;
+            }
 
-        if (hadError) {
-            return nullptr;
-        }
-
-        return builder.finalize();
-    }, options.files);
-
-    std::visit(overloaded {
-        [&](Validate& _) {
-            validate(*module, options.flags.verbose);
+            return builder.finalize();
         },
-        [&](Codegen& arg) {
-            validate(*module, options.flags.verbose);
-            auto llvmModule = codegen(*module);
+        options.files
+    );
 
-            if (llvmModule) {
-                if (arg.printIR) {
-                    llvm::outs() << *llvmModule;
-                }
-                if (arg.outputFile) {
-                    std::error_code error;
-                    llvm::raw_fd_ostream output(*arg.outputFile, error);
+    std::visit(
+        overloaded{
+            [&](Validate& _) {
+                validate(*module, options.flags.verbose);
+            },
+            [&](Codegen& arg) {
+                validate(*module, options.flags.verbose);
+                auto llvmModule = codegen(*module);
 
-                    if (error) {
-                        
-                        std::cerr << "Could not open file '" << *arg.outputFile << "' for writing.";
-                    } else {
-                        llvm::WriteBitcodeToFile(*llvmModule, output);
-                        output.close();
+                if (llvmModule) {
+                    if (arg.printIR) {
+                        llvm::outs() << *llvmModule;
+                    }
+                    if (arg.outputFile) {
+                        std::error_code error;
+                        llvm::raw_fd_ostream output(*arg.outputFile, error);
+
+                        if (error) {
+
+                            std::cerr << "Could not open file '" << *arg.outputFile << "' for writing.";
+                        } else {
+                            llvm::WriteBitcodeToFile(*llvmModule, output);
+                            output.close();
+                        }
                     }
                 }
             }
-        }
-    }, options.mode);
+        },
+        options.mode
+    );
 }

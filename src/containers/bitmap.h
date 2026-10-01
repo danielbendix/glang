@@ -16,6 +16,7 @@ class Bitmap final {
 
     u64 *data;
     u64 lbo[LBO];
+
 public:
     static inline constexpr u32 BLOCK_SIZE = 64;
     static inline constexpr u32 BLOCK_MASK = BLOCK_SIZE - 1;
@@ -34,6 +35,7 @@ public:
     static constexpr u32 BLOCK_OFFSET(u32 index) {
         return index & BLOCK_MASK;
     }
+
 private:
     [[nodiscard]]
     bool isLBO() const {
@@ -44,6 +46,7 @@ private:
     std::span<u64> as_span() const {
         return {data, blocks};
     }
+
 public:
     Bitmap(u32 size) {
         this->size = size;
@@ -123,8 +126,8 @@ public:
             segment = ~segment;
         }
     }
-    
-    Bitmap& operator |=(const std::span<const u64> rhs) {
+
+    Bitmap& operator|=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -134,7 +137,7 @@ public:
         return *this;
     }
 
-    Bitmap& operator &=(const std::span<const u64> rhs) {
+    Bitmap& operator&=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -144,7 +147,7 @@ public:
         return *this;
     }
 
-    Bitmap& operator ^=(const std::span<const u64> rhs) {
+    Bitmap& operator^=(const std::span<const u64> rhs) {
         assert(blocks == rhs.size());
 
         for (size_t i = 0; i < blocks; ++i) {
@@ -168,8 +171,7 @@ public:
         return result;
     }
 
-    template <typename Func>
-    void iterate_zeros(Func&& func) {
+    template <typename Func> void iterate_zeros(Func&& func) {
         u32 i = 0;
 
         for (auto segment : as_span()) {
@@ -185,8 +187,7 @@ public:
         }
     }
 
-    template <typename Func>
-    void iterate_ones(Func&& func) {
+    template <typename Func> void iterate_ones(Func&& func) {
         u32 i = 0;
 
         for (auto segment : as_span()) {

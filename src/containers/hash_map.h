@@ -7,12 +7,11 @@
 
 #include <optional>
 
-//template <typename Key, typename Value>
+// template <typename Key, typename Value>
 class HashMap {
-    using Key = int*;
+    using Key = int *;
     using Value = long;
     llvm::DenseMap<Key, Value> internal;
-
 
     // Delete copy and move to be safe for now
     HashMap(const HashMap&) = delete;

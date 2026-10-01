@@ -14,11 +14,9 @@ struct TypeCheckResult {
     Type *_type;
     AST::Expression *_folded;
 
-    TypeCheckResult(Type *type, AST::Expression *folded) 
-        : _type{type}, _folded{folded} {}
-    TypeCheckResult(std::nullptr_t, AST::Expression *folded) 
-        : _type{nullptr}, _folded{folded} {}
-    TypeCheckResult(TypeResult typeResult, AST::Expression *folded) 
+    TypeCheckResult(Type *type, AST::Expression *folded) : _type{type}, _folded{folded} {}
+    TypeCheckResult(std::nullptr_t, AST::Expression *folded) : _type{nullptr}, _folded{folded} {}
+    TypeCheckResult(TypeResult typeResult, AST::Expression *folded)
         : _type{typeResult.asTypeOrNull()}, _folded{folded} {}
 
     Type *type() const {
@@ -53,18 +51,26 @@ enum class LValueKind : u8 {
     AddressOf,
 };
 
-class ExpressionLValueTypeChecker : public AST::ExpressionVisitorT<ExpressionLValueTypeChecker, LValueTypeResult, Type *> {
+class ExpressionLValueTypeChecker
+    : public AST::ExpressionVisitorT<ExpressionLValueTypeChecker, LValueTypeResult, Type *> {
 public:
     using GlobalHandler = std::function<Result(u32)>;
+
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;
     GlobalHandler *globalHandler = nullptr;
     LValueKind kind;
+
 public:
-    ExpressionLValueTypeChecker(LValueKind kind, ScopeManager& scopeManager, TypeResolver& typeResolver) 
+    ExpressionLValueTypeChecker(LValueKind kind, ScopeManager& scopeManager, TypeResolver& typeResolver)
         : kind{kind}, scopeManager{scopeManager}, typeResolver{typeResolver} {}
-    ExpressionLValueTypeChecker(LValueKind kind, ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler) 
+    ExpressionLValueTypeChecker(
+        LValueKind kind,
+        ScopeManager& scopeManager,
+        TypeResolver& typeResolver,
+        GlobalHandler& globalHandler
+    )
         : kind{kind}, scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
 
     TypeCheckResult typeCheckExpressionRequiringInferredType(AST::Expression *NONNULL expression) {
@@ -75,12 +81,12 @@ public:
         LValueTypeResult typeResult = typeCheckExpression(*expression);
         if (!typeResult) {
             return TypeCheckResult(nullptr, expression);
-
         }
         return TypeCheckResult(typeResult.type, expression);
     }
 
-    TypeCheckResult typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
+    TypeCheckResult
+    typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
         if (auto *folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
@@ -117,7 +123,8 @@ public:
     LValueTypeResult visitSubscriptExpression(AST::SubscriptExpression& subscript, Type *declaredType);
     LValueTypeResult visitInitializerExpression(AST::InitializerExpression& initializer, Type *declaredType);
     LValueTypeResult visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType);
-    LValueTypeResult visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
+    LValueTypeResult
+    visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
     LValueTypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
     LValueTypeResult visitIdentifier(AST::Identifier& identifier, Type *declaredType);
 };
@@ -125,14 +132,16 @@ public:
 class ExpressionTypeChecker : public AST::ExpressionVisitorT<ExpressionTypeChecker, TypeResult, Type *> {
 public:
     using GlobalHandler = std::function<Result(u32)>;
+
 private:
     ScopeManager& scopeManager;
     TypeResolver& typeResolver;
     GlobalHandler *globalHandler = nullptr;
+
 public:
-    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver) 
+    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver)
         : scopeManager{scopeManager}, typeResolver{typeResolver} {}
-    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler) 
+    ExpressionTypeChecker(ScopeManager& scopeManager, TypeResolver& typeResolver, GlobalHandler& globalHandler)
         : scopeManager{scopeManager}, typeResolver{typeResolver}, globalHandler{&globalHandler} {}
 
     TypeCheckResult typeCheckExpressionRequiringInferredType(AST::Expression *NONNULL expression) {
@@ -148,7 +157,8 @@ public:
         return TypeCheckResult(typeResult, expression);
     }
 
-    TypeCheckResult typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
+    TypeCheckResult
+    typeCheckExpressionUsingDeclaredType(AST::Expression *NONNULL expression, Type *NONNULL declaredType) {
         if (auto folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
@@ -161,7 +171,8 @@ public:
         return TypeCheckResult(typeResult, expression);
     }
 
-    TypeCheckResult typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression *NONNULL expression, Type *NULLABLE declaredType) {
+    TypeCheckResult
+    typeCheckExpressionUsingDeclaredOrDefaultType(AST::Expression *NONNULL expression, Type *NULLABLE declaredType) {
         if (auto *folded = foldConstantsUntyped(*expression)) {
             expression = folded;
         }
@@ -206,7 +217,7 @@ public:
 
                 Diagnostic::error(expression, "Cannot determine type of expression.");
                 return {};
-            } //else if (typeResult.isMetatype()) {
+            } // else if (typeResult.isMetatype()) {
             return typeResult.asType();
         }
     }
@@ -243,8 +254,14 @@ public:
     TypeResult typeCheckForceUnwrapOperator(AST::UnaryExpression& unary);
     TypeResult visitUnaryExpression(AST::UnaryExpression& unary, Type *propagatedType);
 
-    Type *defaultTypeFromTypeConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild);
-    std::pair<TypeResult, TypeResult> typeCheckBinaryOperands(AST::Expression& leftChild, AST::Expression& rightChild, Type *propagatedType);
+    Type *defaultTypeFromTypeConstraints(
+        TypeConstraint *left,
+        AST::Expression& leftChild,
+        TypeConstraint *right,
+        AST::Expression& rightChild
+    );
+    std::pair<TypeResult, TypeResult>
+    typeCheckBinaryOperands(AST::Expression& leftChild, AST::Expression& rightChild, Type *propagatedType);
 
     Type *typeCheckLogicalOperator(AST::BinaryExpression& binary);
     Type *typeCheckEquality(AST::BinaryExpression& binary);
@@ -271,7 +288,8 @@ public:
 
     TypeResult visitMemberAccessExpression(AST::MemberAccessExpression& memberAccess, Type *declaredType);
 
-    TypeResult visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
+    TypeResult
+    visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
 
     TypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
 

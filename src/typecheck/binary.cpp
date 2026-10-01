@@ -5,31 +5,32 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/ADT/TypeSwitch.h"
 
-using llvm::isa;
 using llvm::dyn_cast;
+using llvm::isa;
 using llvm::TypeSwitch;
 
-TypeConstraint *unifyConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
+TypeConstraint *
+unifyConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
     switch (left->getKind()) {
         case TypeConstraintKind::Numeric:
             switch (right->getKind()) {
-            case TypeConstraintKind::Numeric:
-                return TypeConstraint::Numeric;
-            case TypeConstraintKind::Floating:
-                return TypeConstraint::Floating;
-            case TypeConstraintKind::Optional:
-                Diagnostic::error(rightChild, "'nil' literal requires contextual type.");
-                return nullptr;
+                case TypeConstraintKind::Numeric:
+                    return TypeConstraint::Numeric;
+                case TypeConstraintKind::Floating:
+                    return TypeConstraint::Floating;
+                case TypeConstraintKind::Optional:
+                    Diagnostic::error(rightChild, "'nil' literal requires contextual type.");
+                    return nullptr;
             }
             break;
         case TypeConstraintKind::Floating:
             switch (right->getKind()) {
-            case TypeConstraintKind::Numeric:
-            case TypeConstraintKind::Floating:
-                return TypeConstraint::Floating;
-            case TypeConstraintKind::Optional:
-                Diagnostic::error(rightChild, "'nil' literal requires contextual type.");
-                return nullptr;
+                case TypeConstraintKind::Numeric:
+                case TypeConstraintKind::Floating:
+                    return TypeConstraint::Floating;
+                case TypeConstraintKind::Optional:
+                    Diagnostic::error(rightChild, "'nil' literal requires contextual type.");
+                    return nullptr;
             }
         case TypeConstraintKind::Optional:
             Diagnostic::error(leftChild, "'nil' literal requires contextual type.");
@@ -37,7 +38,12 @@ TypeConstraint *unifyConstraints(TypeConstraint *left, AST::Expression& leftChil
     }
 }
 
-TypeResult unifyConstraintsToTypeResult(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
+TypeResult unifyConstraintsToTypeResult(
+    TypeConstraint *left,
+    AST::Expression& leftChild,
+    TypeConstraint *right,
+    AST::Expression& rightChild
+) {
     if (auto *constraint = unifyConstraints(left, leftChild, right, rightChild)) {
         return TypeResult::constraint(constraint);
     } else {
@@ -45,7 +51,12 @@ TypeResult unifyConstraintsToTypeResult(TypeConstraint *left, AST::Expression& l
     }
 }
 
-Type *ExpressionTypeChecker::defaultTypeFromTypeConstraints(TypeConstraint *left, AST::Expression& leftChild, TypeConstraint *right, AST::Expression& rightChild) {
+Type *ExpressionTypeChecker::defaultTypeFromTypeConstraints(
+    TypeConstraint *left,
+    AST::Expression& leftChild,
+    TypeConstraint *right,
+    AST::Expression& rightChild
+) {
     if (auto *unified = unifyConstraints(left, leftChild, right, rightChild)) {
         switch (unified->getKind()) {
             case TypeConstraintKind::Numeric:
@@ -61,7 +72,11 @@ Type *ExpressionTypeChecker::defaultTypeFromTypeConstraints(TypeConstraint *left
     }
 }
 
-std::pair<TypeResult, TypeResult> ExpressionTypeChecker::typeCheckBinaryOperands(AST::Expression& leftChild, AST::Expression& rightChild, Type *propagatedType) {
+std::pair<TypeResult, TypeResult> ExpressionTypeChecker::typeCheckBinaryOperands(
+    AST::Expression& leftChild,
+    AST::Expression& rightChild,
+    Type *propagatedType
+) {
     auto left = typeCheckExpression(leftChild);
     auto right = typeCheckExpression(rightChild);
 
@@ -98,7 +113,7 @@ Type *ExpressionTypeChecker::typeCheckLogicalOperator(AST::BinaryExpression& bin
     auto *boolean = typeResolver.booleanType();
     auto left = typeCheckExpression(binary.getLeft(), boolean);
     auto right = typeCheckExpression(binary.getRight(), boolean);
-    
+
     if (left.asTypeOrNull() != boolean) {
         Diagnostic::error(binary.getLeft(), "Expected boolean in logical operator.");
         return nullptr;
@@ -146,7 +161,7 @@ Type *ExpressionTypeChecker::typeCheckEquality(AST::BinaryExpression& binary) {
         Type *rightType = right.asType();
 
         auto *boolean = typeResolver.booleanType();
-       
+
         Type *unified;
 
         if (leftType == rightType) {
@@ -205,7 +220,7 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary) 
         auto *boolean = typeResolver.booleanType();
 
         Type *unified;
-       
+
         if (leftType == rightType) {
             unified = leftType;
         } else {
@@ -222,7 +237,7 @@ Type *ExpressionTypeChecker::typeCheckComparison(AST::BinaryExpression& binary) 
         }
     }
 }
-    
+
 Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binary) {
     auto [left, right] = typeCheckBinaryOperands(binary.getLeft(), binary.getRight(), nullptr);
 
@@ -250,7 +265,12 @@ Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binar
     };
 
     if (left.isConstraint() && right.isConstraint()) {
-        auto *type = defaultTypeFromTypeConstraints(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
+        auto *type = defaultTypeFromTypeConstraints(
+            left.asConstraint(),
+            binary.getLeft(),
+            right.asConstraint(),
+            binary.getRight()
+        );
 
         if (!type) {
             return {};
@@ -281,13 +301,18 @@ Type *ExpressionTypeChecker::typeCheckRangeOperator(AST::BinaryExpression& binar
 
 TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary, Type *propagatedType) {
     auto [left, right] = typeCheckBinaryOperands(binary.getLeft(), binary.getRight(), propagatedType);
-    
+
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
+        return unifyConstraintsToTypeResult(
+            left.asConstraint(),
+            binary.getLeft(),
+            right.asConstraint(),
+            binary.getRight()
+        );
     } else if (left.isType() && right.isType()) {
         Type *leftType = left.asType();
         Type *rightType = right.asType();
-            
+
         Type *unified;
         if (leftType == rightType) {
             unified = leftType;
@@ -298,17 +323,18 @@ TypeResult ExpressionTypeChecker::typeCheckBitwise(AST::BinaryExpression& binary
             }
         }
 
-        Type *type = TypeSwitch<Type *, Type *>(unified)
-            .Case([&](IntegerType *integerType) -> Type * {
-                return integerType;
-            })
-            .Case([&](BooleanType *boolean) -> Type * {
-                return boolean;
-            })
-            .Default([&](Type *type) -> Type * {
-                Diagnostic::error(binary, "Cannot apply bitwise operator to operands of type " + type->makeName());
-                return nullptr;
-            });
+        Type *type =
+            TypeSwitch<Type *, Type *>(unified)
+                .Case([&](IntegerType *integerType) -> Type * {
+                    return integerType;
+                })
+                .Case([&](BooleanType *boolean) -> Type * {
+                    return boolean;
+                })
+                .Default([&](Type *type) -> Type * {
+                    Diagnostic::error(binary, "Cannot apply bitwise operator to operands of type " + type->makeName());
+                    return nullptr;
+                });
         if (type) {
             return TypeResult::type(type);
         } else {
@@ -331,7 +357,12 @@ TypeResult ExpressionTypeChecker::typeCheckShift(AST::BinaryExpression& binary, 
     auto [left, right] = typeCheckBinaryOperands(binary.getLeft(), binary.getRight(), propagatedType);
 
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
+        return unifyConstraintsToTypeResult(
+            left.asConstraint(),
+            binary.getLeft(),
+            right.asConstraint(),
+            binary.getRight()
+        );
     } else if (left.isType() && right.isType()) {
         if (!isa<IntegerType>(left.asType())) {
             Diagnostic::error(binary.getLeft(), "Shift operand must be an integer type.");
@@ -360,7 +391,12 @@ TypeResult ExpressionTypeChecker::typeCheckArithmetic(AST::BinaryExpression& bin
     }
 
     if (left.isConstraint() && right.isConstraint()) {
-        return unifyConstraintsToTypeResult(left.asConstraint(), binary.getLeft(), right.asConstraint(), binary.getRight());
+        return unifyConstraintsToTypeResult(
+            left.asConstraint(),
+            binary.getLeft(),
+            right.asConstraint(),
+            binary.getRight()
+        );
     } else if (left.isType() && right.isType()) {
         Type *leftType = left.asType();
         Type *rightType = right.asType();

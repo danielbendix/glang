@@ -7,10 +7,12 @@
 #include "common.h"
 #include "type/enum.h"
 
-PassResult typeCheckEnums(std::vector<EnumType *>& enums,
-                          std::vector<AST::EnumDeclaration *>& declarations,
-                          Module& module,
-                          TypeResolver& typeResolver);
+PassResult typeCheckEnums(
+    std::vector<EnumType *>& enums,
+    std::vector<AST::EnumDeclaration *>& declarations,
+    Module& module,
+    TypeResolver& typeResolver
+);
 
 PassResult typeCheckEnumType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver);
 

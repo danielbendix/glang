@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-enum class IntrinsicKind: u8 {
+enum class IntrinsicKind : u8 {
     /// Truncation of integer values.
     Truncate,
     /// Intermittent support for printing.

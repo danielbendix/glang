@@ -15,7 +15,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     Module& module;
     Symbol& mainSymbol;
 
-    std::pair<AST::Node *NONNULL, FileID> getNodeAndFileFromDefinition(Definition definition) {
+    std::pair<AST::Node * NONNULL, FileID> getNodeAndFileFromDefinition(Definition definition) {
         auto kind = definition.kind();
         auto index = definition.index();
         switch (kind) {
@@ -39,7 +39,13 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         auto [original, originalFile] = getNodeAndFileFromDefinition(existing);
 
         Diagnostic::error(duplicate, "Duplicate declaration.", offendingFile);
-        Diagnostic::note(*original, "Previously declared here.", offendingFile, originalFile, duplicate.getFileLocation().offset);
+        Diagnostic::note(
+            *original,
+            "Previously declared here.",
+            offendingFile,
+            originalFile,
+            duplicate.getFileLocation().offset
+        );
     }
 
     Result addGlobal(AST::IdentifierBinding& binding, AST::VariableDeclaration& variable) {
@@ -75,7 +81,13 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
                 Diagnostic::error(functionDeclaration, "Duplicate main function declaration.", offendingFile);
                 FileID previousMainFile = module.functions[*module.mainFunction].file;
                 auto *previousMainDeclaration = module.functionDeclarations[*module.mainFunction];
-                Diagnostic::note(*previousMainDeclaration, "main function previously declared here.", offendingFile, previousMainFile, functionDeclaration.offset);
+                Diagnostic::note(
+                    *previousMainDeclaration,
+                    "main function previously declared here.",
+                    offendingFile,
+                    previousMainFile,
+                    functionDeclaration.offset
+                );
                 return ERROR;
             } else {
                 // TODO: main will not be callable from other functions, which is probably desired.
@@ -129,7 +141,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 
     // - Visitor
-    
+
     Result visitVariableDeclaration(AST::VariableDeclaration& variable) {
         auto& binding = cast<AST::IdentifierBinding>(variable.getBinding());
         return addGlobal(binding, variable);
@@ -161,13 +173,11 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
         return ERROR;
     }
 
-    ModuleInserter(Module& module, FileID file) 
-        : module{module}
-        , currentFile{file} 
-        , mainSymbol{ThreadContext::get()->symbols->getSymbol("main")}
-        {}
+    ModuleInserter(Module& module, FileID file)
+        : module{module}, currentFile{file}, mainSymbol{ThreadContext::get()->symbols->getSymbol("main")} {}
 
-    static Result insertDeclarationsIntoModule(std::span<AST::Declaration *NONNULL> declarations, FileID file, Module& module) {
+    static Result
+    insertDeclarationsIntoModule(std::span<AST::Declaration * NONNULL> declarations, FileID file, Module& module) {
         ModuleInserter inserter{module, file};
 
         Result result = OK;
@@ -179,7 +189,7 @@ struct ModuleInserter : public AST::DeclarationVisitorT<ModuleInserter, Result> 
     }
 };
 
-void ModuleBuilder::addDeclarations(std::span<AST::Declaration *NONNULL> declarations, FileID file) {
+void ModuleBuilder::addDeclarations(std::span<AST::Declaration * NONNULL> declarations, FileID file) {
     assert(module);
     result |= ModuleInserter::insertDeclarationsIntoModule(declarations, file, *module);
 }

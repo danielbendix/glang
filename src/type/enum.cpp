@@ -21,14 +21,13 @@ std::pair<MemberResolution, Type *> EnumType::resolveMember(const Symbol& name, 
     return {};
 }
 
-
 std::pair<MemberResolution, Type *> EnumType::resolveStaticMember(const Symbol& name, AST::Node& node) {
     if (auto caseIndex = caseMap.lookup(name)) {
         return {MemberResolution::enumCase(*caseIndex), this};
     }
 
     // TODO: Lookup static members.
-    
+
     Diagnostic::error(node, "Enum members beside value not implemented");
 
     return {};

@@ -12,7 +12,7 @@ void SymbolTable::growSlots() {
     }
 
     const u64 mask = capacity - 1;
-    slots = (Slot *) calloc(capacity, sizeof(Slot));
+    slots = (Slot *)calloc(capacity, sizeof(Slot));
     if (oldSlots) {
         const Slot *end = oldSlots + oldCapacity;
         for (Slot *it = oldSlots; it != end; ++it) {
@@ -28,7 +28,7 @@ void SymbolTable::growSlots() {
 inline void SymbolTable::insert(Symbol *symbol, u64 hash) {
     const u64 mask = capacity - 1;
     u64 index = symbol->hash & mask;
-    
+
     for (;;) {
         Slot& slot = slots[index];
 
@@ -68,7 +68,7 @@ Symbol *SymbolTable::insertSymbol(const std::string_view string, u64 hash) {
     symbol->hash = hash;
     symbol->size = string.size();
     size_t allocationSize = string.size() + 1;
-    symbol->data = (char *) stringAllocator.Allocate(allocationSize, 8);
+    symbol->data = (char *)stringAllocator.Allocate(allocationSize, 8);
     memcpy(symbol->data, string.data(), string.size());
     symbol->data[string.size()] = '\0';
 

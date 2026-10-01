@@ -1,23 +1,21 @@
 #include "builtins.h"
 #include "context.h"
 
-template <typename T, Allocator Allocator, typename... Args>
-T *createType(Allocator& allocator, Args&&... args) {
+template <typename T, Allocator Allocator, typename... Args> T *createType(Allocator& allocator, Args&&...args) {
     return allocate(allocator, [&](void *space) {
-        return new(space) T(std::forward<Args>(args)...);
+        return new (space) T(std::forward<Args>(args)...);
     });
 }
 
 Builtins _builtins;
 
-void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Architecture& architecture)
-{
+void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Architecture& architecture) {
     auto& allocator = typeAllocator();
 
     Symbol& voidName = symbols.getSymbol("void");
     auto voidType = createType<VoidType>(allocator, voidName);
     table.insert(voidName, voidType);
-    
+
     Symbol& boolName = symbols.getSymbol("bool");
     auto booleanType = createType<BooleanType>(allocator, boolName, architecture.int8);
     table.insert(boolName, booleanType);
@@ -31,35 +29,35 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Arc
     table.insert(f64Name, f64Type);
 
     // TODO: Add [ui]size, [ui]ptr
-   
+
     IntegerType *defaultIntegerType;
 
-// clang-format off
+    // clang-format off
 #define INT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("i" #bits); \
     auto type = createType<IntegerType>(allocator, name, bits, true, architecture.int ## bits); \
     table.insert(name, type); \
     if constexpr (bits == 64) { defaultIntegerType = type; } \
 }
-// clang-format on
+    // clang-format on
     INT_TYPE(8);
     INT_TYPE(16);
     INT_TYPE(32);
     INT_TYPE(64);
 #undef INT_TYPE
 
-// clang-format off
+    // clang-format off
 #define UINT_TYPE(bits) { \
     Symbol& name = symbols.getSymbol("u" #bits); \
     auto type = createType<IntegerType>(allocator, name, bits, false, architecture.int ## bits); \
     table.insert(name, type); \
 }
-// clang-format on
+    // clang-format on
     UINT_TYPE(8);
     UINT_TYPE(16);
     UINT_TYPE(32);
     UINT_TYPE(64);
-#undef INT_TYPE
+#undef UINT_TYPE
 
     Symbol& usizeName = symbols.getSymbol("usize");
     auto usizeType = createType<IntegerType>(allocator, usizeName, architecture.bits, false, architecture.pointer);
@@ -79,8 +77,7 @@ void setupNumericTypes(SymbolTable& symbols, SymbolMap<Type *>& table, const Arc
     _builtins.isizeType = isizeType;
 }
 
-void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
-{
+void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics) {
     auto& truncateName = symbols.getSymbol("truncate");
     intrinsics.insert(truncateName, IntrinsicKind::Truncate);
 
@@ -103,8 +100,7 @@ void setupIntrinsics(SymbolTable& symbols, SymbolMap<IntrinsicKind>& intrinsics)
     intrinsics.insert(freeName, IntrinsicKind::Free);
 }
 
-void setupBuiltins(SymbolTable& symbols, const Architecture& architecture)
-{
+void setupBuiltins(SymbolTable& symbols, const Architecture& architecture) {
     setupNumericTypes(symbols, _builtins.types, architecture);
     setupIntrinsics(symbols, _builtins.intrinsics);
 }

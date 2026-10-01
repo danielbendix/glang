@@ -25,9 +25,10 @@ public:
 
         friend class EnumType;
     };
+
 private:
     bool wellFormed = true;
-    /// Whether or not this enum allows 
+    /// Whether or not this enum allows
     bool hasZeroValue = false;
     u16 bitWidth = ~0;
     const Symbol& name;
@@ -36,13 +37,13 @@ private:
 
 public:
     const FileID file;
-private:
 
+private:
     std::vector<Case> cases;
     SymbolMap<CaseID> caseMap;
 
-    EnumType(const Symbol& name, FileID file) 
-        : Type{TK_Enum}, name{name}, file{file} {}
+    EnumType(const Symbol& name, FileID file) : Type{TK_Enum}, name{name}, file{file} {}
+
 public:
     void *codegen;
 
@@ -64,9 +65,7 @@ public:
         return cases.size();
     }
 
-    void setEmpty() {
-
-    }
+    void setEmpty() {}
 
     IntegerType *getRawType() const {
         return rawType;

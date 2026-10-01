@@ -9,13 +9,15 @@
 #include <cmath>
 
 struct NoneValue {
-    template <typename T>
-    constexpr operator T*() const noexcept { return nullptr; }
+    template <typename T> constexpr operator T *() const noexcept {
+        return nullptr;
+    }
 };
 
 struct ErrorValue {
-    template <typename T>
-    constexpr operator T*() const noexcept { return nullptr; }
+    template <typename T> constexpr operator T *() const noexcept {
+        return nullptr;
+    }
 };
 
 constexpr NoneValue NONE{};
@@ -84,9 +86,8 @@ ParsedFile parseFile(FileID fileID, File& file, DiagnosticWriter& writer) {
  * - Consider making stringly typed errors into error cases/enums.
  */
 
-ParsedFile Parser::parse(DiagnosticWriter& writer) 
-{
-    std::vector<AST::Declaration *NONNULL> declarations;
+ParsedFile Parser::parse(DiagnosticWriter& writer) {
+    std::vector<AST::Declaration * NONNULL> declarations;
 
     int returnValue = sigsetjmp(startPoint, 0);
 
@@ -97,7 +98,14 @@ ParsedFile Parser::parse(DiagnosticWriter& writer)
         u32 size = previous.offset;
 
         auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
-        return ParsedFile(size, ParseResult::OK, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics));
+        return ParsedFile(
+            size,
+            ParseResult::OK,
+            std::move(declarations),
+            std::move(scanner.lineBreaks),
+            std::move(astHandle),
+            std::move(diagnostics)
+        );
     } else [[unlikely]] { // We're bailing out due to a fatal error
         // Because we're doing lazy lexing, we churn through all the tokens to
         // get all newlines. Otherwise, we'll likely print the rest of the file.
@@ -108,7 +116,14 @@ ParsedFile Parser::parse(DiagnosticWriter& writer)
             }
         }
         auto astHandle = std::make_unique<ASTHandle>(std::move(nodeAllocator), std::move(arrayAllocator));
-        return ParsedFile{0, ParseResult::FATAL, std::move(declarations), std::move(scanner.lineBreaks), std::move(astHandle), std::move(diagnostics)};
+        return ParsedFile{
+            0,
+            ParseResult::FATAL,
+            std::move(declarations),
+            std::move(scanner.lineBreaks),
+            std::move(astHandle),
+            std::move(diagnostics)
+        };
     }
 }
 
@@ -128,8 +143,7 @@ Optional<Token> Parser::consume(TokenType type) {
     return previous;
 }
 
-Parser::Modifiers Parser::parseModifiers()
-{
+Parser::Modifiers Parser::parseModifiers() {
     Modifiers result = {
         .offset = current.offset,
         .length = 0,
@@ -169,14 +183,14 @@ Parser::Modifiers Parser::parseModifiers()
                 advanceAndUpdateLength();
                 result.modifiers.set(Mut);
                 break;
-            default: return result;
+            default:
+                return result;
         }
     }
 }
 
 /// Returns true if modifiers are allowed
-bool Parser::checkModifiers(Modifiers modifiers, AST::Modifiers allowed)
-{
+bool Parser::checkModifiers(Modifiers modifiers, AST::Modifiers allowed) {
     AST::Modifiers notAllowed = modifiers.modifiers.disablingAllIn(allowed);
 
     if (notAllowed.isNonEmpty()) {
@@ -188,15 +202,14 @@ bool Parser::checkModifiers(Modifiers modifiers, AST::Modifiers allowed)
         ParsingError::conflictingAccessModifiers(*this, modifiers, accessModifiers);
         return false;
     }
-    
+
     return true;
 }
 
-AST::Block Parser::block() 
-{
+AST::Block Parser::block() {
     consume(TokenType::LeftBracket);
 
-    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
+    GrowingSpan<AST::Declaration * NONNULL> declarations{arrayAllocator};
 
     while (!match(TokenType::RightBracket)) {
         declarations.append(declaration());
@@ -207,8 +220,7 @@ AST::Block Parser::block()
 
 // Types
 
-AST::TypeNode *Parser::type() 
-{
+AST::TypeNode *Parser::type() {
     if (match(TokenType::LeftBracket)) {
         return staticArrayType();
     }
@@ -266,8 +278,7 @@ AST::TypeNode *Parser::type()
     }
 }
 
-AST::StaticArrayType *Parser::staticArrayType()
-{
+AST::StaticArrayType *Parser::staticArrayType() {
     Token token = previous;
 
     AST::TypeNode *contained = type();
@@ -284,8 +295,7 @@ AST::StaticArrayType *Parser::staticArrayType()
 
 // Bindings
 
-AST::Binding *Parser::binding()
-{
+AST::Binding *Parser::binding() {
     auto token = consume(TokenType::Identifier);
 
     auto& identifier = symbols.getSymbol(toStringView(token));
@@ -295,8 +305,7 @@ AST::Binding *Parser::binding()
 
 // Declarations
 
-AST::Declaration *Parser::declaration() 
-{
+AST::Declaration *Parser::declaration() {
     Token modifierToken = current;
     auto modifiers = parseModifiers();
 
@@ -312,8 +321,7 @@ AST::Declaration *Parser::declaration()
     return statementDeclaration();
 }
 
-Optional<AST::FunctionParameter> Parser::parameter()
-{
+Optional<AST::FunctionParameter> Parser::parameter() {
     auto nameToken = TRY(consume(TokenType::Identifier));
     auto& name = symbols.getSymbol(toStringView(nameToken));
     consume(TokenType::Colon);
@@ -322,8 +330,7 @@ Optional<AST::FunctionParameter> Parser::parameter()
     return AST::FunctionParameter(name, type_);
 }
 
-AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
-{
+AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers) {
     checkModifiers(modifiers, AST::FunctionDeclaration::allowedModifiers);
 
     auto nameToken = consume(TokenType::Identifier);
@@ -351,12 +358,18 @@ AST::FunctionDeclaration *Parser::functionDeclaration(Modifiers modifiers)
     u32 closingBracket = previous.offset;
 
     return AST::FunctionDeclaration::create(
-        nodeAllocator, nameToken, closingBracket, modifiers.modifiers, name, parameters.freeze(), returnType, code
+        nodeAllocator,
+        nameToken,
+        closingBracket,
+        modifiers.modifiers,
+        name,
+        parameters.freeze(),
+        returnType,
+        code
     );
 }
 
-AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
-{
+AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers) {
     checkModifiers(modifiers, AST::FunctionDeclaration::allowedModifiers);
     if (match(TokenType::Question)) {
         assert(false && "TODO: Implement failable initializers");
@@ -385,26 +398,22 @@ AST::FunctionDeclaration *Parser::initializerDeclaration(Modifiers modifiers)
     llvm_unreachable("TODO: Implement this, or reconsider");
 }
 
-AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers)
-{
+AST::StructDeclaration *Parser::structDeclaration(Modifiers modifiers) {
     checkModifiers(modifiers, AST::StructDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
 
     consume(TokenType::LeftBracket);
-    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
+    GrowingSpan<AST::Declaration * NONNULL> declarations{arrayAllocator};
     while (!match(TokenType::RightBracket)) {
         declarations.append(declaration());
     }
 
-    return AST::StructDeclaration::create(
-        nodeAllocator, token, modifiers.modifiers, name, declarations.freeze()
-    );
+    return AST::StructDeclaration::create(nodeAllocator, token, modifiers.modifiers, name, declarations.freeze());
 }
 
-AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
-{
+AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers) {
     checkModifiers(modifiers, AST::EnumDeclaration::allowedModifiers);
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
@@ -416,9 +425,9 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     }
 
     consume(TokenType::LeftBracket);
-  
+
     GrowingSpan<AST::EnumDeclaration::Case> cases{arrayAllocator};
-    GrowingSpan<AST::Declaration *NONNULL> declarations{arrayAllocator};
+    GrowingSpan<AST::Declaration * NONNULL> declarations{arrayAllocator};
 
     while (!match(TokenType::RightBracket)) {
         if (match(TokenType::Case)) {
@@ -430,12 +439,17 @@ AST::EnumDeclaration *Parser::enumDeclaration(Modifiers modifiers)
     }
 
     return AST::EnumDeclaration::create(
-        nodeAllocator, token, modifiers.modifiers, name, rawType, cases.freeze(), declarations.freeze()
+        nodeAllocator,
+        token,
+        modifiers.modifiers,
+        name,
+        rawType,
+        cases.freeze(),
+        declarations.freeze()
     );
 }
 
-AST::EnumDeclaration::Case Parser::enumCase()
-{
+AST::EnumDeclaration::Case Parser::enumCase() {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -451,8 +465,7 @@ AST::EnumDeclaration::Case Parser::enumCase()
     return AST::EnumDeclaration::Case{token, name, value};
 }
 
-AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers)
-{
+AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers) {
     checkModifiers(modifiers, AST::VariableDeclaration::allowedModifiers);
     auto token = previous;
     bool isMutable = token.type == TokenType::Var;
@@ -470,18 +483,24 @@ AST::VariableDeclaration *Parser::variableDeclaration(Modifiers modifiers)
 
     consume(TokenType::Semicolon);
 
-    return AST::VariableDeclaration::create(nodeAllocator, token, modifiers.modifiers, isMutable, variableBinding, tp, initial);
+    return AST::VariableDeclaration::create(
+        nodeAllocator,
+        token,
+        modifiers.modifiers,
+        isMutable,
+        variableBinding,
+        tp,
+        initial
+    );
 }
 
-AST::StatementDeclaration *Parser::statementDeclaration()
-{
+AST::StatementDeclaration *Parser::statementDeclaration() {
     return AST::StatementDeclaration::create(nodeAllocator, statement());
 }
 
 // Statements
 
-bool isAssignmentOperator(TokenType tokenType)
-{
+bool isAssignmentOperator(TokenType tokenType) {
     using enum TokenType;
     switch (tokenType) {
         case Equal:
@@ -498,8 +517,7 @@ bool isAssignmentOperator(TokenType tokenType)
     }
 }
 
-AST::Statement *Parser::statement()
-{
+AST::Statement *Parser::statement() {
     if (match(TokenType::If)) return ifStatement();
     if (match(TokenType::For)) return forStatement();
     if (match(TokenType::Return)) return returnStatement();
@@ -510,8 +528,7 @@ AST::Statement *Parser::statement()
     return assignmentOrExpression();
 }
 
-AST::ConditionalUnwrap *Parser::unwrap()
-{
+AST::ConditionalUnwrap *Parser::unwrap() {
     Token token = previous;
     auto *binding_ = binding();
     consume(TokenType::Equal);
@@ -520,8 +537,7 @@ AST::ConditionalUnwrap *Parser::unwrap()
     return AST::ConditionalUnwrap::create(nodeAllocator, token, binding_, expression_);
 }
 
-Span<AST::Condition> Parser::conditions() 
-{
+Span<AST::Condition> Parser::conditions() {
     GrowingSpan<AST::Condition> conditions{arrayAllocator};
     while (true) {
         if (match(TokenType::Unwrap)) {
@@ -537,8 +553,7 @@ Span<AST::Condition> Parser::conditions()
     return conditions.freeze();
 }
 
-AST::IfStatement *Parser::ifStatement()
-{
+AST::IfStatement *Parser::ifStatement() {
     auto token = previous;
     GrowingSpan<AST::IfStatement::Branch> branches{arrayAllocator};
     std::optional<AST::Block> fallback;
@@ -560,8 +575,7 @@ AST::IfStatement *Parser::ifStatement()
     return AST::IfStatement::create(nodeAllocator, token, branches.freeze(), fallback);
 }
 
-AST::ForStatement *Parser::forStatement()
-{
+AST::ForStatement *Parser::forStatement() {
     auto token = previous;
 
     auto *loopBinding = binding();
@@ -575,8 +589,7 @@ AST::ForStatement *Parser::forStatement()
     return AST::ForStatement::create(nodeAllocator, token, loopBinding, iterable, code);
 }
 
-AST::GuardStatement *Parser::guardStatement() 
-{
+AST::GuardStatement *Parser::guardStatement() {
     auto token = previous;
 
     auto conds = conditions();
@@ -588,8 +601,7 @@ AST::GuardStatement *Parser::guardStatement()
     return AST::GuardStatement::create(nodeAllocator, token, conds, code);
 }
 
-AST::ReturnStatement *Parser::returnStatement()
-{
+AST::ReturnStatement *Parser::returnStatement() {
     auto token = previous;
     AST::Expression *NULLABLE returnValue;
     if (match(TokenType::Semicolon)) {
@@ -601,8 +613,7 @@ AST::ReturnStatement *Parser::returnStatement()
     return AST::ReturnStatement::create(nodeAllocator, token, returnValue);
 }
 
-AST::WhileStatement *Parser::whileStatement()
-{
+AST::WhileStatement *Parser::whileStatement() {
     auto token = previous;
     auto conds = conditions();
     auto code = block();
@@ -610,22 +621,19 @@ AST::WhileStatement *Parser::whileStatement()
     return AST::WhileStatement::create(nodeAllocator, token, conds, code);
 }
 
-AST::BreakStatement *Parser::breakStatement()
-{
+AST::BreakStatement *Parser::breakStatement() {
     auto token = previous;
     consume(TokenType::Semicolon);
     return AST::BreakStatement::create(nodeAllocator, token);
 }
 
-AST::ContinueStatement *Parser::continueStatement()
-{
+AST::ContinueStatement *Parser::continueStatement() {
     auto token = previous;
     consume(TokenType::Semicolon);
     return AST::ContinueStatement::create(nodeAllocator, token);
 }
 
-std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
-{
+std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token) {
     using enum AST::BinaryOperator;
     switch (token.type) {
         case TokenType::Equal:
@@ -649,8 +657,7 @@ std::optional<AST::BinaryOperator> binaryOperatorFromAssignment(Token token)
     }
 }
 
-AST::Statement *Parser::assignmentOrExpression()
-{
+AST::Statement *Parser::assignmentOrExpression() {
     auto expr = expression({});
 
     if (isAssignmentOperator(current.type)) {
@@ -665,7 +672,6 @@ AST::Statement *Parser::assignmentOrExpression()
             return AST::CompoundAssignmentStatement::create(nodeAllocator, token, *op, expr, value);
         } else {
             return AST::AssignmentStatement::create(nodeAllocator, token, expr, value);
-
         }
     } else {
         consume(TokenType::Semicolon);
@@ -677,21 +683,21 @@ AST::Statement *Parser::assignmentOrExpression()
 
 enum class Precedence : int {
     None,
-    LogicalOr,      // or
-    LogicalAnd,     // and
-    LogicalNot,     // not
-    Equality,       // == !=
-    Comparison,     // < > <= >=
-    Shift,          // << >>
-    Range,          // ... ..<
-    Term,           // + -
-    Factor,         // * /
+    LogicalOr,  // or
+    LogicalAnd, // and
+    LogicalNot, // not
+    Equality,   // == !=
+    Comparison, // < > <= >=
+    Shift,      // << >>
+    Range,      // ... ..<
+    Term,       // + -
+    Factor,     // * /
     // FIXME: Ensure bit operators have the desired precedence
-    BitwiseAnd,     // &
-    BitwiseXor,     // ^
-    BitwiseOr,      // |
-    Unary,          // ! -
-    Call,           // . () []
+    BitwiseAnd, // &
+    BitwiseXor, // ^
+    BitwiseOr,  // |
+    Unary,      // ! -
+    Call,       // . () []
     Stop,
 };
 
@@ -701,13 +707,11 @@ Precedence operator++(Precedence& precedence) {
     return precedence;
 }
 
-bool operator<=(Precedence l, Precedence r)
-{
+bool operator<=(Precedence l, Precedence r) {
     return static_cast<int>(l) <= static_cast<int>(r);
 }
 
-Precedence operator+(Precedence l, int i)
-{
+Precedence operator+(Precedence l, int i) {
     return static_cast<Precedence>(static_cast<int>(l) + i);
 }
 
@@ -723,9 +727,7 @@ struct ParseRule {
     static ParseRule expressionRules[];
 };
 
-
-AST::Expression *Parser::expression(ExpressionRules rules)
-{
+AST::Expression *Parser::expression(ExpressionRules rules) {
     ExpressionRules saved = expressionRules;
     expressionRules = rules;
     auto *result = parseExpression(Precedence::LogicalOr);
@@ -733,8 +735,7 @@ AST::Expression *Parser::expression(ExpressionRules rules)
     return result;
 }
 
-AST::Expression *Parser::parseExpression(Precedence precedence)
-{
+AST::Expression *Parser::parseExpression(Precedence precedence) {
     advance();
     ParseRule rule = ParseRule::expressionRules[static_cast<int>(previous.type)];
 
@@ -765,11 +766,10 @@ AST::Expression *Parser::parseExpression(Precedence precedence)
     return expr;
 }
 
-AST::Expression *Parser::call(AST::Expression *callee)
-{
+AST::Expression *Parser::call(AST::Expression *callee) {
     auto token = previous;
 
-    GrowingSpan<AST::Expression *NONNULL> arguments{arrayAllocator};
+    GrowingSpan<AST::Expression * NONNULL> arguments{arrayAllocator};
 
     if (match(TokenType::RightParenthesis)) {
         return AST::CallExpression::create(nodeAllocator, token, callee, arguments.freeze());
@@ -794,8 +794,7 @@ AST::Expression *Parser::subscript(AST::Expression *NONNULL target) {
     return AST::SubscriptExpression::create(nodeAllocator, token, target, index);
 }
 
-AST::Expression *Parser::member(AST::Expression *target)
-{
+AST::Expression *Parser::member(AST::Expression *target) {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -803,8 +802,7 @@ AST::Expression *Parser::member(AST::Expression *target)
     return AST::MemberAccessExpression::create(nodeAllocator, token, target, name);
 }
 
-AST::Expression *Parser::inferredMember()
-{
+AST::Expression *Parser::inferredMember() {
     auto token = previous;
     auto nameToken = consume(TokenType::Identifier);
     auto& name = symbols.getSymbol(toStringView(nameToken));
@@ -812,43 +810,62 @@ AST::Expression *Parser::inferredMember()
     return AST::InferredMemberAccessExpression::create(nodeAllocator, token, name);
 }
 
-std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token)
-{
+std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token) {
     using AST::BinaryOperator;
     using enum TokenType;
     switch (token.type) {
-        case DotDotDot: return {BinaryOperator::ClosedRange, Precedence::Range};
-        case DotDotLess: return {BinaryOperator::OpenRange, Precedence::Range};
+        case DotDotDot:
+            return {BinaryOperator::ClosedRange, Precedence::Range};
+        case DotDotLess:
+            return {BinaryOperator::OpenRange, Precedence::Range};
 
-        case Plus: return {BinaryOperator::Add, Precedence::Term};
-        case Minus: return {BinaryOperator::Subtract, Precedence::Term};
-        case Star: return {BinaryOperator::Multiply, Precedence::Factor};
-        case Slash: return {BinaryOperator::Divide, Precedence::Factor};
-        case Percent: return {BinaryOperator::Modulo, Precedence::Factor};
+        case Plus:
+            return {BinaryOperator::Add, Precedence::Term};
+        case Minus:
+            return {BinaryOperator::Subtract, Precedence::Term};
+        case Star:
+            return {BinaryOperator::Multiply, Precedence::Factor};
+        case Slash:
+            return {BinaryOperator::Divide, Precedence::Factor};
+        case Percent:
+            return {BinaryOperator::Modulo, Precedence::Factor};
 
-        case LessLess: return {BinaryOperator::ShiftLeft, Precedence::Shift};
-        case GreaterGreater: return {BinaryOperator::ShiftRight, Precedence::Shift};
+        case LessLess:
+            return {BinaryOperator::ShiftLeft, Precedence::Shift};
+        case GreaterGreater:
+            return {BinaryOperator::ShiftRight, Precedence::Shift};
 
-        case Ampersand: return {BinaryOperator::BitwiseAnd, Precedence::BitwiseAnd};
-        case Pipe: return {BinaryOperator::BitwiseOr, Precedence::BitwiseOr};
-        case Caret: return {BinaryOperator::BitwiseXor, Precedence::BitwiseXor};
+        case Ampersand:
+            return {BinaryOperator::BitwiseAnd, Precedence::BitwiseAnd};
+        case Pipe:
+            return {BinaryOperator::BitwiseOr, Precedence::BitwiseOr};
+        case Caret:
+            return {BinaryOperator::BitwiseXor, Precedence::BitwiseXor};
 
-        case EqualEqual: return {BinaryOperator::Equal, Precedence::Equality};
-        case BangEqual: return {BinaryOperator::NotEqual, Precedence::Equality};
-        case Less: return {BinaryOperator::Less, Precedence::Comparison};
-        case LessEqual: return {BinaryOperator::Less, Precedence::Comparison};
-        case Greater: return {BinaryOperator::Greater, Precedence::Comparison};
-        case GreaterEqual: return {BinaryOperator::GreaterEqual, Precedence::Comparison};
+        case EqualEqual:
+            return {BinaryOperator::Equal, Precedence::Equality};
+        case BangEqual:
+            return {BinaryOperator::NotEqual, Precedence::Equality};
+        case Less:
+            return {BinaryOperator::Less, Precedence::Comparison};
+        case LessEqual:
+            return {BinaryOperator::Less, Precedence::Comparison};
+        case Greater:
+            return {BinaryOperator::Greater, Precedence::Comparison};
+        case GreaterEqual:
+            return {BinaryOperator::GreaterEqual, Precedence::Comparison};
 
-        case And: return {BinaryOperator::LogicalAnd, Precedence::LogicalAnd};
-        case Or: return {BinaryOperator::LogicalOr, Precedence::LogicalOr};
+        case And:
+            return {BinaryOperator::LogicalAnd, Precedence::LogicalAnd};
+        case Or:
+            return {BinaryOperator::LogicalOr, Precedence::LogicalOr};
 
-        default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported binary operator.");
+        default:
+            llvm_unreachable("[PROGRAMMER ERROR]: Unsupported binary operator.");
     }
 }
 
-AST::Expression *Parser::binary(AST::Expression *left)
-{
+AST::Expression *Parser::binary(AST::Expression *left) {
     // Previous is operator.
     auto token = previous;
     auto [op, newPrecedence] = operatorFromToken(previous);
@@ -858,8 +875,7 @@ AST::Expression *Parser::binary(AST::Expression *left)
     return AST::BinaryExpression::create(nodeAllocator, token, op, left, right);
 }
 
-template <int skip, int base>
-unsigned bitCount(unsigned length) {
+template <int skip, int base> unsigned bitCount(unsigned length) {
     if constexpr (__builtin_popcount(base) == 1) {
         int digits = length - skip;
         unsigned bits = ceil(__builtin_ctz(base) * digits) + 1;
@@ -871,8 +887,7 @@ unsigned bitCount(unsigned length) {
     }
 }
 
-template <int skip, int base>
-llvm::APInt parseInteger(std::string_view chars) {
+template <int skip, int base> llvm::APInt parseInteger(std::string_view chars) {
     if (chars.size() > AST::IntegerLiteral::MAX_LENGTH) {
         // TODO: Emit non-fatal error.
         return llvm::APInt{0U, 0UL, true};
@@ -882,8 +897,7 @@ llvm::APInt parseInteger(std::string_view chars) {
     return llvm::APInt{bits, {chars}, base};
 }
 
-std::optional<double> parseDouble(std::string_view chars)
-{
+std::optional<double> parseDouble(std::string_view chars) {
     char *end = nullptr;
     // NOTE: Depending on what the string view is backed by, this could read OOB in the future.
     double value = strtod(chars.data(), &end);
@@ -893,15 +907,20 @@ std::optional<double> parseDouble(std::string_view chars)
     return value;
 }
 
-std::optional<char> escapeCharacter(char c)
-{
+std::optional<char> escapeCharacter(char c) {
     switch (c) {
-        case '\\': return '\\';
-        case 'n': return '\n';
-        case 't': return '\t';
-        case 'r': return '\r';
-        case '"': return '"';
-        default: return {};
+        case '\\':
+            return '\\';
+        case 'n':
+            return '\n';
+        case 't':
+            return '\t';
+        case 'r':
+            return '\r';
+        case '"':
+            return '"';
+        default:
+            return {};
     }
 }
 
@@ -914,8 +933,7 @@ static inline bool checkCharacterLiteralLength(Token token, std::string_view cha
     return true;
 }
 
-AST::Literal *Parser::createCharacterLiteral(const Token token) 
-{
+AST::Literal *Parser::createCharacterLiteral(const Token token) {
     // NOTE: Assumption of single quote delimiters.
     std::string_view characters = toStringView(token);
     characters.remove_prefix(1);
@@ -944,7 +962,8 @@ AST::Literal *Parser::createCharacterLiteral(const Token token)
                 break;
             case 4:
                 TRY(checkCharacterLiteralLength<4>(token, characters, *this));
-                value = (characters[0] & 0x7) << 18 | (characters[1] & 0x3F) << 12 | (characters[2] & 0x3F) << 6 | (characters[3] & 0x3F);
+                value = (characters[0] & 0x7) << 18 | (characters[1] & 0x3F) << 12 | (characters[2] & 0x3F) << 6 |
+                        (characters[3] & 0x3F);
                 break;
             default:
                 ParsingError::invalidCharacterLiteral(*this, token);
@@ -955,11 +974,10 @@ AST::Literal *Parser::createCharacterLiteral(const Token token)
     return AST::CharacterLiteral::create(nodeAllocator, token, value);
 }
 
-AST::Literal *Parser::createStringLiteral(Token token)
-{
+AST::Literal *Parser::createStringLiteral(Token token) {
     GrowingString string{arrayAllocator};
     string.reserve(token.length - 2); // Don't reserve for quotes
-    
+
     // NOTE: This currently only supports double quotes as delimiters.
     std::string_view characters = toStringView(token);
     characters.remove_prefix(1);
@@ -984,46 +1002,45 @@ AST::Literal *Parser::createStringLiteral(Token token)
     return AST::StringLiteral::create(nodeAllocator, token, string.freeze());
 }
 
-AST::Expression *Parser::literal()
-{
+AST::Expression *Parser::literal() {
     // FIXME: Check overflow of numerical literals
     using enum TokenType;
-    using AST::NilLiteral;
     using AST::BooleanLiteral;
-    using AST::IntegerLiteral;
     using AST::FloatingPointLiteral;
+    using AST::IntegerLiteral;
+    using AST::NilLiteral;
     using IntegerType = AST::IntegerLiteral::Type;
 
     switch (previous.type) {
-        case Binary: 
+        case Binary:
             return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 2>(toStringView(previous)), 
+                nodeAllocator,
+                previous,
+                parseInteger<2, 2>(toStringView(previous)),
                 IntegerType::Binary,
                 previous.length
             );
-        case Octal: 
+        case Octal:
             return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 8>(toStringView(previous)), 
+                nodeAllocator,
+                previous,
+                parseInteger<2, 8>(toStringView(previous)),
                 IntegerType::Octal,
                 previous.length
             );
-        case Integer: 
+        case Integer:
             return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<0, 10>(toStringView(previous)), 
+                nodeAllocator,
+                previous,
+                parseInteger<0, 10>(toStringView(previous)),
                 IntegerType::Decimal,
                 previous.length
             );
-        case Hexadecimal: 
+        case Hexadecimal:
             return IntegerLiteral::create(
-                nodeAllocator, 
-                previous, 
-                parseInteger<2, 16>(toStringView(previous)), 
+                nodeAllocator,
+                previous,
+                parseInteger<2, 16>(toStringView(previous)),
                 IntegerType::Hexadecimal,
                 previous.length
             );
@@ -1038,33 +1055,43 @@ AST::Expression *Parser::literal()
             return FloatingPointLiteral::create(nodeAllocator, previous, value);
         }
 
-        case Character: return createCharacterLiteral(previous);
+        case Character:
+            return createCharacterLiteral(previous);
 
-        case String: return createStringLiteral(previous);
+        case String:
+            return createStringLiteral(previous);
 
-        case True: return BooleanLiteral::create(nodeAllocator, previous, true);
-        case False: return BooleanLiteral::create(nodeAllocator, previous, false);
+        case True:
+            return BooleanLiteral::create(nodeAllocator, previous, true);
+        case False:
+            return BooleanLiteral::create(nodeAllocator, previous, false);
 
-        case Nil: return NilLiteral::create(nodeAllocator, previous);
+        case Nil:
+            return NilLiteral::create(nodeAllocator, previous);
 
-        default: llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
+        default:
+            llvm_unreachable("[PROGRAMMER ERROR]: Unsupported literal type in parser.");
     }
 }
 
-std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type)
-{
+std::pair<AST::UnaryOperator, Precedence> unaryOperator(TokenType type) {
     switch (type) {
-        case TokenType::Not: return {AST::UnaryOperator::Not, Precedence::LogicalNot};
-        case TokenType::Minus: return {AST::UnaryOperator::Negate, Precedence::Unary};
-        case TokenType::Tilde: return {AST::UnaryOperator::BitwiseNegate, Precedence::Unary};
-        case TokenType::Ampersand: return {AST::UnaryOperator::AddressOf, Precedence::Unary};
-        case TokenType::Star: return {AST::UnaryOperator::PrefixDereference, Precedence::Unary};
-        default: llvm_unreachable("Token type is not a unary prefix operator");
+        case TokenType::Not:
+            return {AST::UnaryOperator::Not, Precedence::LogicalNot};
+        case TokenType::Minus:
+            return {AST::UnaryOperator::Negate, Precedence::Unary};
+        case TokenType::Tilde:
+            return {AST::UnaryOperator::BitwiseNegate, Precedence::Unary};
+        case TokenType::Ampersand:
+            return {AST::UnaryOperator::AddressOf, Precedence::Unary};
+        case TokenType::Star:
+            return {AST::UnaryOperator::PrefixDereference, Precedence::Unary};
+        default:
+            llvm_unreachable("Token type is not a unary prefix operator");
     }
 }
 
-AST::Expression *Parser::prefixUnary()
-{
+AST::Expression *Parser::prefixUnary() {
     auto token = previous;
     auto [op, precedence] = unaryOperator(previous.type);
 
@@ -1073,18 +1100,12 @@ AST::Expression *Parser::prefixUnary()
     return AST::UnaryExpression::create(nodeAllocator, token, op, target);
 }
 
-AST::Expression *Parser::postfixUnary(AST::Expression *expression)
-{
+AST::Expression *Parser::postfixUnary(AST::Expression *expression) {
     auto token = previous;
 
     switch (token.type) {
-        case TokenType::Bang: 
-            return AST::UnaryExpression::create(
-                nodeAllocator, 
-                token, 
-                AST::UnaryOperator::ForceUnwrap, 
-                expression
-            );
+        case TokenType::Bang:
+            return AST::UnaryExpression::create(nodeAllocator, token, AST::UnaryOperator::ForceUnwrap, expression);
         case TokenType::At:
             return AST::UnaryExpression::create(
                 nodeAllocator,
@@ -1097,8 +1118,7 @@ AST::Expression *Parser::postfixUnary(AST::Expression *expression)
     }
 }
 
-AST::Expression *Parser::identifier()
-{
+AST::Expression *Parser::identifier() {
     auto token = previous;
     auto& name = symbols.getSymbol(toStringView(token));
     auto *identifier = AST::Identifier::create(nodeAllocator, token, name);
@@ -1108,25 +1128,22 @@ AST::Expression *Parser::identifier()
     return identifier;
 }
 
-AST::Expression *Parser::self()
-{
+AST::Expression *Parser::self() {
     return AST::Self::create(nodeAllocator, previous);
 }
 
-AST::Expression *Parser::grouping()
-{
+AST::Expression *Parser::grouping() {
     auto expr = expression({});
     consume(TokenType::RightParenthesis);
     return expr;
 }
 
-AST::Expression *Parser::intrinsic()
-{
+AST::Expression *Parser::intrinsic() {
     auto token = previous;
     auto& name = symbols.getSymbol(toStringView(token).substr(1));
 
     bool hasTypeArguments = false;
-    GrowingSpan<AST::TypeNode *NONNULL> typeArguments{arrayAllocator};
+    GrowingSpan<AST::TypeNode * NONNULL> typeArguments{arrayAllocator};
     if (match(TokenType::Less)) {
         hasTypeArguments = true;
 
@@ -1140,7 +1157,7 @@ AST::Expression *Parser::intrinsic()
     }
 
     bool hasCall = false;
-    GrowingSpan<AST::Expression *NONNULL> arguments{arrayAllocator};
+    GrowingSpan<AST::Expression * NONNULL> arguments{arrayAllocator};
     if (match(TokenType::LeftParenthesis)) {
         hasCall = true;
 
@@ -1154,23 +1171,21 @@ AST::Expression *Parser::intrinsic()
     }
 
     return AST::IntrinsicExpression::create(
-        nodeAllocator, 
-        token, 
-        name, 
+        nodeAllocator,
+        token,
+        name,
         hasTypeArguments,
-        typeArguments.freeze(), 
+        typeArguments.freeze(),
         hasCall,
         arguments.freeze()
     );
 }
 
-AST::Expression *Parser::inferredInitializer()
-{
+AST::Expression *Parser::inferredInitializer() {
     return initializer(NONE);
 }
 
-AST::Expression *Parser::initializer(AST::Identifier *identifier)
-{
+AST::Expression *Parser::initializer(AST::Identifier *identifier) {
     Token token = previous;
     GrowingSpan<AST::InitializerExpression::Pair> pairs{arrayAllocator};
     while (!match(TokenType::RightBracket)) {
@@ -1267,4 +1282,3 @@ ParseRule ParseRule::expressionRules[] = {
     [static_cast<int>(Return)]                = {nullptr,                      nullptr,               Precedence::None},
 };
 // clang-format on
-

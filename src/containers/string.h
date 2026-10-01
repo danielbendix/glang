@@ -5,9 +5,9 @@ class String final {
     using char_type = char;
     char_type *_data;
     u32 _size;
+
 public:
-    String(char_type *data, u32 size)
-        : _data{data}, _size{size} {}
+    String(char_type *data, u32 size) : _data{data}, _size{size} {}
 
     char_type *data() const {
         return _data;
@@ -89,7 +89,7 @@ public:
             return String::empty;
         } else {
             auto *dataEnd = (std::byte *)(data + size);
-            auto *allocationEnd = ((std::byte *) allocation.space) + allocation.size;
+            auto *allocationEnd = ((std::byte *)allocation.space) + allocation.size;
             allocator.reclaim(dataEnd, allocationEnd - dataEnd);
             auto string = String{data, size};
             data = nullptr;

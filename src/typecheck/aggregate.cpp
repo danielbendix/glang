@@ -17,35 +17,36 @@ using Result = PassResult;
 using enum PassResultKind;
 
 using llvm::TypeSwitch;
-using AggregateType = llvm::PointerUnion<StructType *NONNULL>;
+using AggregateType = llvm::PointerUnion<StructType * NONNULL>;
 
 std::pair<AggregateType, bool> asAggregate(Type *type) {
     using ReturnType = std::pair<AggregateType, bool>;
-    return visit(*type, overloaded {
-        [](StructType& structType) -> ReturnType {
-            return {&structType, structType.typeChecked};
-        },
-        [](OptionalType& optionalType) -> ReturnType {
-            return asAggregate(optionalType.getContained());
-        },
-        [](auto& type) -> ReturnType {
-            return {nullptr, false};
+    return visit(
+        *type,
+        overloaded{
+            [](StructType& structType) -> ReturnType {
+                return {&structType, structType.typeChecked};
+            },
+            [](OptionalType& optionalType) -> ReturnType {
+                return asAggregate(optionalType.getContained());
+            },
+            [](auto& type) -> ReturnType {
+                return {nullptr, false};
+            }
         }
-    });
+    );
 }
 
 FileID getAggregateFileID(AggregateType aggregateType) {
-    return TypeSwitch<AggregateType, FileID>(aggregateType)
-        .Case<StructType *>([](StructType *structType) {
-            return structType->file;
-        });
+    return TypeSwitch<AggregateType, FileID>(aggregateType).Case<StructType *>([](StructType *structType) {
+        return structType->file;
+    });
 }
 
 std::string getAggregateName(AggregateType aggregateType) {
-    return TypeSwitch<AggregateType, std::string>(aggregateType)
-        .Case<StructType *>([](StructType *structType) {
-            return structType->makeName();
-        });
+    return TypeSwitch<AggregateType, std::string>(aggregateType).Case<StructType *>([](StructType *structType) {
+        return structType->makeName();
+    });
 }
 
 class AggregateTypeChecker {
@@ -55,7 +56,7 @@ class AggregateTypeChecker {
     ScopeManager scopeManager;
 
     llvm::SmallVector<AggregateType, 4> checkStack;
-    llvm::SmallVector<AST::Node *NONNULL, 4> diagnosticLocationStack;
+    llvm::SmallVector<AST::Node * NONNULL, 4> diagnosticLocationStack;
 
     void push(AggregateType aggregate) {
         if (current) {
@@ -82,7 +83,7 @@ class AggregateTypeChecker {
     }
 
 public:
-    AggregateTypeChecker(Module& module, TypeResolver& typeResolver) 
+    AggregateTypeChecker(Module& module, TypeResolver& typeResolver)
         : typeResolver{typeResolver}, scopeManager{module} {}
 
     Result typeCheckStructField(AST::VariableDeclaration& field) {
@@ -129,15 +130,22 @@ public:
             type = declaredType;
         }
 
-        TypeVisitor::visit(*type, overloaded {
-            [&](auto&) {}
+        TypeVisitor::visit(
+            *type,
+            overloaded{
+                [&](auto&) {}
 
-        });
+            }
+        );
 
         auto [aggregate, isTypeChecked] = asAggregate(type);
         if (aggregate && !isTypeChecked) {
             if (aggregate == current) {
-                Diagnostic::error(field, "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.", getAggregateFileID(current));
+                Diagnostic::error(
+                    field,
+                    "Struct type '" + getAggregateName(current) + "' cannot recursively contain itself.",
+                    getAggregateFileID(current)
+                );
                 return ERROR;
             } else {
                 pushLocation(field);
@@ -176,12 +184,17 @@ public:
 
         if (result.ok()) {
             if (structType.isCompact) {
-                std::sort(structType.fields.begin(), structType.fields.end(), [](AST::VariableDeclaration *left, AST::VariableDeclaration* right) {
-                    Layout leftLayout = left->getType()->getLayout();
-                    Layout rightLayout = right->getType()->getLayout();
-                    
-                    return leftLayout.alignment() > rightLayout.alignment() || leftLayout.size() > rightLayout.size();
-                });
+                std::sort(
+                    structType.fields.begin(),
+                    structType.fields.end(),
+                    [](AST::VariableDeclaration *left, AST::VariableDeclaration *right) {
+                        Layout leftLayout = left->getType()->getLayout();
+                        Layout rightLayout = right->getType()->getLayout();
+
+                        return leftLayout.alignment() > rightLayout.alignment() ||
+                               leftLayout.size() > rightLayout.size();
+                    }
+                );
             }
 
             Bitmap initialized(structType.fields.size());
@@ -222,7 +235,7 @@ public:
             auto index = it - checkStack.begin();
 
             std::string cycleDescription = "Cycle detected: ";
-            
+
             for (const auto cycleMember : std::views::drop(checkStack, index)) {
                 cycleDescription += getAggregateName(cycleMember) + " -> ";
             }
@@ -246,14 +259,13 @@ public:
             return ERROR;
         }
 
-        return TypeSwitch<AggregateType, Result>(aggregateType)
-            .Case<StructType *>([this](StructType *structType) {
-                return typeCheckStruct(*structType);
-            });
+        return TypeSwitch<AggregateType, Result>(aggregateType).Case<StructType *>([this](StructType *structType) {
+            return typeCheckStruct(*structType);
+        });
     }
 };
 
-Result typeCheckStructs(std::vector<StructType *NONNULL>& structTypes, Module& module, TypeResolver& typeResolver) {
+Result typeCheckStructs(std::vector<StructType * NONNULL>& structTypes, Module& module, TypeResolver& typeResolver) {
     AggregateTypeChecker checker{module, typeResolver};
 
     Result result = OK;

@@ -8,7 +8,7 @@
 #include <optional>
 
 template <typename Key, typename Value>
-requires Pointer<Key>
+    requires Pointer<Key>
 class PointerMap {
     llvm::DenseMap<Key, Value> internal;
 

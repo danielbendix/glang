@@ -17,8 +17,7 @@ enum class Test {
     a = 0x7FFFFFFF,
 };
 
-PassResult typeCheckEnumWithoutRawType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver)
-{
+PassResult typeCheckEnumWithoutRawType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver) {
     u32 numberOfCases = declaration.getNumberOfCases();
 
     u32 bitWidth = std::bit_width(numberOfCases);
@@ -37,7 +36,13 @@ PassResult typeCheckEnumWithoutRawType(EnumType& type, AST::EnumDeclaration& dec
             auto const& astCase = declaration.getCase(*canonical);
             AST::FileLocation location = {astCase.offset, 4};
             FileID fileID = ThreadContext::get()->currentFile;
-            Diagnostic::note(location, "Canonical declaration of case with name `" + case_.name.string() + "` declared here.", fileID, fileID, case_.offset);
+            Diagnostic::note(
+                location,
+                "Canonical declaration of case with name `" + case_.name.string() + "` declared here.",
+                fileID,
+                fileID,
+                case_.offset
+            );
             return ERROR;
         }
 
@@ -60,12 +65,10 @@ PassResult typeCheckEnumWithoutRawType(EnumType& type, AST::EnumDeclaration& dec
 std::string stringFromAPInt(llvm::APInt& integer) {
     llvm::SmallString<32> string;
     integer.toStringSigned(string);
-    return (std::string) string;
+    return (std::string)string;
 }
 
-
-PassResult typeCheckEnumWithRawType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver)
-{
+PassResult typeCheckEnumWithRawType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver) {
     u32 numberOfCases = declaration.getNumberOfCases();
     IntegerType& rawType = *type.getRawType();
     assert(&rawType);
@@ -97,14 +100,20 @@ PassResult typeCheckEnumWithRawType(EnumType& type, AST::EnumDeclaration& declar
             auto const& astCase = declaration.getCase(*canonical);
             AST::FileLocation location = {astCase.offset, 4};
             FileID fileID = ThreadContext::get()->currentFile;
-            Diagnostic::note(location, "Canonical declaration of case with name `" + case_.name.string() + "` declared here.", fileID, fileID, case_.offset);
+            Diagnostic::note(
+                location,
+                "Canonical declaration of case with name `" + case_.name.string() + "` declared here.",
+                fileID,
+                fileID,
+                case_.offset
+            );
             return ERROR;
         }
 
         if (auto *value = case_.value) {
             // TODO: Add an untyped fold here to allow expressions.
             if (auto *literal = dyn_cast<AST::IntegerLiteral>(value)) {
-                tag  = literal->getValue();
+                tag = literal->getValue();
 
             } else {
                 Diagnostic::error(*value, "Enum case value must be an integer literal.");
@@ -118,7 +127,13 @@ PassResult typeCheckEnumWithRawType(EnumType& type, AST::EnumDeclaration& declar
             auto const& astCase = findCase(tag);
             AST::FileLocation location = {astCase.offset, 4};
             FileID fileID = ThreadContext::get()->currentFile;
-            Diagnostic::note(location, "Canonical declaration of case with value `" + tagString + "` declared here.", fileID, fileID, case_.offset);
+            Diagnostic::note(
+                location,
+                "Canonical declaration of case with value `" + tagString + "` declared here.",
+                fileID,
+                fileID,
+                case_.offset
+            );
 
             return ERROR;
         }
@@ -135,8 +150,7 @@ PassResult typeCheckEnumWithRawType(EnumType& type, AST::EnumDeclaration& declar
     return OK;
 }
 
-PassResult typeCheckEnumType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver)
-{
+PassResult typeCheckEnumType(EnumType& type, AST::EnumDeclaration& declaration, TypeResolver& typeResolver) {
     if (auto *typeNode = declaration.getTypeAnnotation()) {
         if (auto *rawType = typeResolver.resolveType(*typeNode)) {
             if (auto *integerType = dyn_cast<IntegerType>(rawType)) {
@@ -154,43 +168,44 @@ PassResult typeCheckEnumType(EnumType& type, AST::EnumDeclaration& declaration, 
     }
 }
 
-//class EnumTypeChecker {
-//    Module& module;
-//    TypeResolver& typeResolver;
+// class EnumTypeChecker {
+//     Module& module;
+//     TypeResolver& typeResolver;
 //
-//    EnumTypeChecker(Module& module, TypeResolver& typeResolver)
-//        : module{module}, typeResolver{typeResolver} {}
+//     EnumTypeChecker(Module& module, TypeResolver& typeResolver)
+//         : module{module}, typeResolver{typeResolver} {}
 //
-//    PassResult typeCheckEnum(EnumType& type, AST::EnumDeclaration& declaration) {
-//        IntegerType *underlyingType = nullptr;
-//        if (auto *typeNode = declaration.getTypeAnnotation()) {
-//            if (auto *type = typeResolver.resolveType(*typeNode)) {
-//                if (auto *integerType = dyn_cast<IntegerType>(type)) {
-//                    underlyingType = integerType;
-//                } else {
-//                    Diagnostic::error(*typeNode, "Enums can only have integer types as their underlying type.");
-//                    return ERROR;
-//                }
-//            } else {
-//                return ERROR;
-//            }
-//        }
+//     PassResult typeCheckEnum(EnumType& type, AST::EnumDeclaration& declaration) {
+//         IntegerType *underlyingType = nullptr;
+//         if (auto *typeNode = declaration.getTypeAnnotation()) {
+//             if (auto *type = typeResolver.resolveType(*typeNode)) {
+//                 if (auto *integerType = dyn_cast<IntegerType>(type)) {
+//                     underlyingType = integerType;
+//                 } else {
+//                     Diagnostic::error(*typeNode, "Enums can only have integer types as their underlying type.");
+//                     return ERROR;
+//                 }
+//             } else {
+//                 return ERROR;
+//             }
+//         }
 //
-//        for (const auto& case_ : declaration) {
-//            // TODO: Typecheck expression.
-//            // This may require more complex constant folding.
+//         for (const auto& case_ : declaration) {
+//             // TODO: Typecheck expression.
+//             // This may require more complex constant folding.
 //
 //
 //
-//        }
-//    }
-//};
+//         }
+//     }
+// };
 
-PassResult typeCheckEnums(std::vector<EnumType *>& enums,
-                          std::vector<AST::EnumDeclaration *>& declarations,
-                          Module& module,
-                          TypeResolver& typeResolver)
-{
+PassResult typeCheckEnums(
+    std::vector<EnumType *>& enums,
+    std::vector<AST::EnumDeclaration *>& declarations,
+    Module& module,
+    TypeResolver& typeResolver
+) {
     ScopeManager scopeManager{module};
     ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
 

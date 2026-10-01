@@ -6,7 +6,7 @@
 
 CPU detectCPU() {
     using enum CPU;
-    auto tripleName= llvm::sys::getDefaultTargetTriple();
+    auto tripleName = llvm::sys::getDefaultTargetTriple();
     llvm::Triple triple(tripleName);
     auto architectureName = triple.getArchName();
 
@@ -15,7 +15,8 @@ CPU detectCPU() {
     } else if (architectureName == "x86_64") {
         return x86_64;
     } else {
-        std::cerr << "Unsupported architecture: " << std::string_view{architectureName.begin(), architectureName.end()} << '\n';
+        std::cerr << "Unsupported architecture: " << std::string_view{architectureName.begin(), architectureName.end()}
+                  << '\n';
         exit(1);
     }
 }

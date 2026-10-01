@@ -9,7 +9,6 @@
 void enableJSONDiagnostics();
 void enableStdoutDiagnostics();
 
-
 struct BufferedDiagnostic {
     enum class Kind : u8 {
         Error,
@@ -28,16 +27,24 @@ struct BufferedDiagnostic {
     const u32 locationsIndex;
     const u32 descriptionLength;
 
-    BufferedDiagnostic(Kind kind, const char *description, u32 descriptionLength, FileID file, FileID sourceFile, u32 sourceOffset, u32 locations, u8 extraLocations)
-        : kind{kind}
-        , description{description}
-        , descriptionLength{descriptionLength}
-        , file{file}
-        , sourceFile{sourceFile}
-        , sourceOffset{sourceOffset}
-        , locationsIndex{locations}
-        , extraLocations{extraLocations}
-        {}
+    BufferedDiagnostic(
+        Kind kind,
+        const char *description,
+        u32 descriptionLength,
+        FileID file,
+        FileID sourceFile,
+        u32 sourceOffset,
+        u32 locations,
+        u8 extraLocations
+    )
+        : kind{kind},
+          description{description},
+          descriptionLength{descriptionLength},
+          file{file},
+          sourceFile{sourceFile},
+          sourceOffset{sourceOffset},
+          locationsIndex{locations},
+          extraLocations{extraLocations} {}
 };
 
 class DiagnosticWriter {
@@ -65,28 +72,30 @@ class DiagnosticBuffer {
 
     void diagnostic(
         BufferedDiagnostic::Kind kind,
-        std::string_view message, 
-        FileID sourceFile, 
+        std::string_view message,
+        FileID sourceFile,
         u32 sourceOffset,
         FileID file,
         DiagnosticLocation location
     ) {
         u32 locationsIndex = pushLocation(location);
 
-        char *messageBuffer = (char *) stringAllocator.Allocate(message.size() + 1, alignof(char));
+        char *messageBuffer = (char *)stringAllocator.Allocate(message.size() + 1, alignof(char));
         memcpy(messageBuffer, message.data(), message.size() * sizeof(char));
         messageBuffer[message.size()] = '\0';
 
-        diagnostics.push_back(BufferedDiagnostic {
-            kind,
-            messageBuffer,
-            u32(message.size()),
-            file,
-            sourceFile,
-            sourceOffset, 
-            locationsIndex,
-            0
-        });
+        diagnostics.push_back(
+            BufferedDiagnostic{
+                kind,
+                messageBuffer,
+                u32(message.size()),
+                file,
+                sourceFile,
+                sourceOffset,
+                locationsIndex,
+                0
+            }
+        );
     }
 
 public:
@@ -120,7 +129,6 @@ public:
         locations.clear();
     }
 };
-
 
 class Diagnostic {
     static DiagnosticWriter *current;
@@ -161,7 +169,8 @@ public:
         buffer.warning(message, file, location.offset, location);
     }
 
-    static void note(AST::FileLocation location, std::string&& message, FileID file, FileID sourceFile, u32 sourceOffset) {
+    static void
+    note(AST::FileLocation location, std::string&& message, FileID file, FileID sourceFile, u32 sourceOffset) {
         buffer.note(message, sourceFile, sourceOffset, file, location);
     }
 

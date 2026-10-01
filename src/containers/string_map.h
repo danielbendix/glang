@@ -5,8 +5,7 @@
 
 #include <llvm/ADT/StringMap.h>
 
-template <typename T>
-class StringMap {
+template <typename T> class StringMap {
     llvm::StringMap<T> internal;
 
     // Delete copy and move to be safe for now

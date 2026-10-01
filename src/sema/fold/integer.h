@@ -7,13 +7,14 @@
  * Integer literals & folding:
  * 09/11/2024:
  * To keep integer literals simple for now, they will always store extra space
- * for a sign bit. This means that large unsigned literals will cause heap 
+ * for a sign bit. This means that large unsigned literals will cause heap
  * allocations that are not strictly necessary.
  * This can be improved in the future.
  */
 
 class IntegerFold {
     using Operand = AST::IntegerLiteral::Value;
+
 public:
     // Unary operators.
     static bool bitwiseNegate(Operand& value, IntegerType *NULLABLE as);
@@ -44,13 +45,19 @@ public:
     /// Either a fold occurred, and a pointer to the new node is returned.
     /// OR
     /// No fold occurred, a null pointer is returned, and the values are unmodified.
-    static AST::Literal *NULLABLE unary(AST::UnaryExpression& unary, AST::IntegerLiteral& operand, IntegerType *NULLABLE as);
+    static AST::Literal *NULLABLE
+    unary(AST::UnaryExpression& unary, AST::IntegerLiteral& operand, IntegerType *NULLABLE as);
 
     /// Attempt to perform fold of binary operation between integer literals.
     /// Either a fold occurred, and a pointer to the new node is returned.
     /// OR
     /// No fold occurred, a null pointer is returned, and the values are unmodified.
-    static AST::Literal *NULLABLE binary(AST::BinaryExpression& binary, AST::IntegerLiteral& left, AST::IntegerLiteral& right, IntegerType *NULLABLE as);
+    static AST::Literal *NULLABLE binary(
+        AST::BinaryExpression& binary,
+        AST::IntegerLiteral& left,
+        AST::IntegerLiteral& right,
+        IntegerType *NULLABLE as
+    );
 };
 
 #endif // LANG_sema_fold_integer_h

@@ -30,19 +30,19 @@ public:
     DiagnosticBuffer diagnostics;
 
     ParsedFile(
-        u32 size, 
-        ParseResult result, 
-        std::vector<AST::Declaration *>&& declarations, 
-        std::vector<u32>&& lineBreaks, 
+        u32 size,
+        ParseResult result,
+        std::vector<AST::Declaration *>&& declarations,
+        std::vector<u32>&& lineBreaks,
         std::unique_ptr<ASTHandle>&& astHandle,
         DiagnosticBuffer&& diagnostics
-    )   : size{size}
-        , result{result}
-        , declarations{std::move(declarations)}
-        , lineBreaks{std::move(lineBreaks)}
-        , astHandle{std::move(astHandle)} 
-        , diagnostics{std::move(diagnostics)}
-        {}
+    )
+        : size{size},
+          result{result},
+          declarations{std::move(declarations)},
+          lineBreaks{std::move(lineBreaks)},
+          astHandle{std::move(astHandle)},
+          diagnostics{std::move(diagnostics)} {}
 
     ParsedFile(const ParsedFile&) = delete;
     ParsedFile(ParsedFile&&) = default;
@@ -70,7 +70,7 @@ class Parser {
     struct Modifiers {
         u32 offset = 0;
         u32 length = 0;
-        AST::Modifiers modifiers; 
+        AST::Modifiers modifiers;
     };
 
     SymbolTable& symbols;
@@ -216,7 +216,7 @@ class Parser {
         advance();
         return true;
     }
-   
+
     Optional<Token> consume(TokenType type);
 
     [[nodiscard]]
@@ -231,13 +231,10 @@ class Parser {
     }
 
     friend class ParseRule;
+
 public:
-    Parser(FileID fileID, SymbolTable& symbols, std::string&& string) 
-        : fileID{fileID}
-        , symbols{symbols}
-        , scanner{std::move(string)}
-        , previous{scanner.next()}
-        , current{previous} {}
+    Parser(FileID fileID, SymbolTable& symbols, std::string&& string)
+        : fileID{fileID}, symbols{symbols}, scanner{std::move(string)}, previous{scanner.next()}, current{previous} {}
 
     ParsedFile parse(DiagnosticWriter& writer);
 

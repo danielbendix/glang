@@ -24,8 +24,8 @@
 using enum PassResultKind;
 using Result = PassResult;
 
-using llvm::TypeSwitch;
 using llvm::isa, llvm::cast, llvm::dyn_cast;
+using llvm::TypeSwitch;
 
 class GlobalVariableTypeChecker {
     Module& module;
@@ -36,10 +36,10 @@ class GlobalVariableTypeChecker {
     ExpressionTypeChecker::GlobalHandler globalHandler;
 
     std::vector<GlobalDeclaration> orderedGlobals;
+
 public:
-    GlobalVariableTypeChecker(Module& module, ScopeManager& scopeManager, TypeResolver& typeResolver) 
-        : module{module}, scopeManager{scopeManager}, typeResolver{typeResolver}
-    {
+    GlobalVariableTypeChecker(Module& module, ScopeManager& scopeManager, TypeResolver& typeResolver)
+        : module{module}, scopeManager{scopeManager}, typeResolver{typeResolver} {
         auto globalHandlerLambda = [this](u32 bindingIndex) -> Result {
             auto& binding = this->module.globalBindings[bindingIndex];
             auto declarationIndex = binding.declarationIndex;
@@ -128,7 +128,9 @@ public:
 
         Result result = OK;
         for (auto [index, global] : llvm::enumerate(globals)) {
-            if (global.declaration->getIsChecked()) { continue; }
+            if (global.declaration->getIsChecked()) {
+                continue;
+            }
             result |= typeCheckGlobal(index, global);
         }
 
@@ -148,15 +150,15 @@ class GlobalDeclarationTypeChecker {
 
     const PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors;
     llvm::SmallVector<AST::VariableDeclaration *, 4> checkStack;
-//    ExpressionTypeChecker::GlobalHandler globalHandler;
+    //    ExpressionTypeChecker::GlobalHandler globalHandler;
 
 public:
-    GlobalDeclarationTypeChecker(Module& module, const Builtins& builtins, PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors) 
-        : module{module}
-        , scopeManager{module}
-        , typeResolver{module, builtins}
-        , ancestors{ancestors}
-    {}
+    GlobalDeclarationTypeChecker(
+        Module& module,
+        const Builtins& builtins,
+        PointerMap<AST::IdentifierBinding *, AST::VariableDeclaration *>& ancestors
+    )
+        : module{module}, scopeManager{module}, typeResolver{module, builtins}, ancestors{ancestors} {}
 
     Result typeCheckGlobals(std::vector<GlobalDeclaration>& globals) {
         scopeManager.reset();
@@ -178,11 +180,11 @@ public:
         } else {
             returnType = typeResolver.voidType();
         }
-        
+
         auto& allocator = typeAllocator();
         auto *typeSpace = allocator.allocate<FunctionType>();
-        auto **parameters = (Type **) allocator.allocate(sizeof(Type *) * declaration->getParameterCount(), alignof(Type *));
-
+        auto **parameters =
+            (Type **)allocator.allocate(sizeof(Type *) * declaration->getParameterCount(), alignof(Type *));
 
         for (int i = 0; i < declaration->getParameterCount(); ++i) {
             auto& parameter = declaration->getParameter(i);
@@ -194,15 +196,17 @@ public:
         }
         if (result.ok()) {
             auto& allocator = typeAllocator();
-            auto functionType = new(typeSpace) FunctionType{returnType, parameters, size_t(declaration->getParameterCount())};
-               
+            auto functionType =
+                new (typeSpace) FunctionType{returnType, parameters, size_t(declaration->getParameterCount())};
+
             function.type = functionType;
         }
         return result;
     }
 };
 
-class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker, void>, public AST::StatementVisitorT<FunctionTypeChecker, void> {
+class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker, void>,
+                            public AST::StatementVisitorT<FunctionTypeChecker, void> {
 
     Result result = OK;
     Function *currentFunction;
@@ -222,9 +226,8 @@ class FunctionTypeChecker : public AST::DeclarationVisitorT<FunctionTypeChecker,
     }
 
 public:
-    FunctionTypeChecker(Module& module, const Builtins& builtins) 
-        : scopeManager{module}, typeResolver{module, builtins} 
-    {}
+    FunctionTypeChecker(Module& module, const Builtins& builtins)
+        : scopeManager{module}, typeResolver{module, builtins} {}
 
     Result typeCheckFunctionBody(Function& function, AST::FunctionDeclaration *declaration, FunctionID id) {
         ThreadContext::setCurrentFile(function.file);
@@ -240,12 +243,7 @@ public:
         scopeManager.pushOuterScope();
         for (u32 parameterIndex = 0; parameterIndex < function.parameterCount; ++parameterIndex) {
             auto& parameter = declaration->getParameter(parameterIndex);
-            result |= scopeManager.pushParameter(
-                *parameter.name, 
-                id,
-                parameterIndex,
-                declaration
-            );
+            result |= scopeManager.pushParameter(*parameter.name, id, parameterIndex, declaration);
         }
         if (result.failed()) return result;
 
@@ -309,7 +307,7 @@ public:
             result = ERROR;
             type = declaredType;
         }
-        
+
         auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
         binding.setType(type);
         binding.setIsMutable(variable.getIsMutable());
@@ -340,10 +338,11 @@ public:
     }
 
     // Statements
-    
+
     void visitAssignmentStatement(AST::AssignmentStatement& assignment) {
         ExpressionLValueTypeChecker lvalueTypeChecker{LValueKind::Assignment, scopeManager, typeResolver};
-        TypeCheckResult targetResult = lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        TypeCheckResult targetResult =
+            lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
         assignment.setTarget(targetResult.folded());
         if (!targetResult.type()) {
             result = ERROR;
@@ -368,7 +367,8 @@ public:
 
     void visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
         ExpressionLValueTypeChecker lvalueTypeChecker{LValueKind::CompoundAssignment, scopeManager, typeResolver};
-        TypeCheckResult targetResult = lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
+        TypeCheckResult targetResult =
+            lvalueTypeChecker.typeCheckExpressionRequiringInferredType(&assignment.getTarget());
         assignment.setTarget(targetResult.folded());
         if (!targetResult.type()) {
             result = ERROR;
@@ -384,7 +384,8 @@ public:
             return;
         }
 
-        auto [coerceResult, wrapped] = coerceCompoundAssignmentOperand(*targetType, *valueType, assignment.getOp(), assignment.getOperand());
+        auto [coerceResult, wrapped] =
+            coerceCompoundAssignmentOperand(*targetType, *valueType, assignment.getOp(), assignment.getOperand());
 
         if (coerceResult.failed()) {
             result = ERROR;
@@ -418,7 +419,7 @@ public:
         }
         auto optionalType = cast<OptionalType>(type);
         type = optionalType->getContained();
-        
+
         auto& binding = llvm::cast<AST::IdentifierBinding>(variable.getBinding());
         binding.setType(type);
         binding.setIsMutable(false);
@@ -435,7 +436,8 @@ public:
             })
             .Case<AST::Expression *>([&](auto expression) {
                 ExpressionTypeChecker typeChecker{scopeManager, typeResolver};
-                TypeCheckResult typeResult = typeChecker.typeCheckExpressionUsingDeclaredType(expression, typeResolver.booleanType());
+                TypeCheckResult typeResult =
+                    typeChecker.typeCheckExpressionUsingDeclaredType(expression, typeResolver.booleanType());
                 *condition = typeResult.folded();
                 Type *type = typeResult.type();
                 if (!type) {
@@ -461,7 +463,7 @@ public:
                 visitBlock(branch.getBlock());
             });
         }
-        if (auto* fallback = ifStatement.getFallback()) {
+        if (auto *fallback = ifStatement.getFallback()) {
             visitBlock(*fallback);
         }
     }
@@ -480,7 +482,7 @@ public:
 
     void visitReturnStatement(AST::ReturnStatement& returnStatement) {
         Type *returnType = currentFunction->type->getReturnType();
-        if (auto* value = returnStatement.getValue()) {
+        if (auto *value = returnStatement.getValue()) {
             if (returnType == builtins.voidType) {
                 Diagnostic::error(returnStatement, "Returning non-void value in function with void return type.");
                 result = ERROR;
@@ -495,7 +497,7 @@ public:
                 result = ERROR;
                 return;
             }
-            
+
             if (returnType != type) {
                 auto [coerceResult, wrapped] = coerceType(*returnType, *type, *value);
 
@@ -535,22 +537,23 @@ public:
             return;
         }
 
-        Type *elementType = TypeSwitch<Type *, Type *>(type)
-            .Case([&forStatement](ArrayType *arrayType) -> Type * {
-                if (!arrayType->isBounded) {
-                    Diagnostic::error(forStatement.getIterable(), "Cannot iterate over unbounded array.");
+        Type *elementType =
+            TypeSwitch<Type *, Type *>(type)
+                .Case([&forStatement](ArrayType *arrayType) -> Type * {
+                    if (!arrayType->isBounded) {
+                        Diagnostic::error(forStatement.getIterable(), "Cannot iterate over unbounded array.");
+                        return nullptr;
+                    } else {
+                        return arrayType->getContained();
+                    }
+                })
+                .Case([](RangeType *rangeType) -> Type * {
+                    return rangeType->getBoundType();
+                })
+                .Default([&forStatement](Type *type) -> Type * {
+                    Diagnostic::error(forStatement.getIterable(), "Target of for loop is not iterable.");
                     return nullptr;
-                } else {
-                    return arrayType->getContained();
-                }
-            })
-            .Case([](RangeType *rangeType) -> Type * {
-                return rangeType->getBoundType();
-            })
-            .Default([&forStatement](Type *type) -> Type * {
-                Diagnostic::error(forStatement.getIterable(), "Target of for loop is not iterable.");
-                return nullptr;
-            });
+                });
 
         if (!elementType) {
             return;
@@ -611,20 +614,25 @@ PassResult validateMainFunction(Module& module) {
         if (integerType->bitWidth > 32) {
             auto *mainFunctionDeclaration = module.functionDeclarations[*module.mainFunction];
             // TODO[DX]: We could sign- or zero-extend return values, but codegen architecture is blocking this for now.
-            Diagnostic::error(*mainFunctionDeclaration->getReturnTypeDeclaration(), "main function must return a 32-bit integer.");
+            Diagnostic::error(
+                *mainFunctionDeclaration->getReturnTypeDeclaration(),
+                "main function must return a 32-bit integer."
+            );
             result |= ERROR;
         }
     } else {
         auto *mainFunctionDeclaration = module.functionDeclarations[*module.mainFunction];
-        Diagnostic::error(*mainFunctionDeclaration->getReturnTypeDeclaration(), "main function can only return void or an integer type.");
+        Diagnostic::error(
+            *mainFunctionDeclaration->getReturnTypeDeclaration(),
+            "main function can only return void or an integer type."
+        );
         result |= ERROR;
     }
 
     return result;
 }
 
-PassResult typecheckModule(Module& module)
-{
+PassResult typecheckModule(Module& module) {
     PassResult result = OK;
 
     std::vector<Type *> _owner;

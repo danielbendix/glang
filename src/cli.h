@@ -10,8 +10,7 @@
 #include <variant>
 #include <filesystem>
 
-struct Validate {
-};
+struct Validate {};
 
 struct Codegen {
     bool printCode = false;

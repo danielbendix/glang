@@ -10,11 +10,10 @@ using llvm::dyn_cast;
 
 using namespace TypeVisitor;
 
-template <typename T, typename... Args>
-T *create(Args&&... args) {
+template <typename T, typename... Args> T *create(Args&&...args) {
     auto& allocator = typeAllocator();
     return allocate(allocator, [&](void *space) {
-        return new(space) T(std::forward<Args>(args)...);
+        return new (space) T(std::forward<Args>(args)...);
     });
 }
 
@@ -80,8 +79,7 @@ RangeType *IntegerType::getClosedRangeType() {
     }
 }
 
-Type *Type::removeImplicitWrapperTypes()
-{
+Type *Type::removeImplicitWrapperTypes() {
     switch (getKind()) {
         case TK_Void:
         case TK_Boolean:

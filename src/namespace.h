@@ -20,8 +20,7 @@ struct Function {
     const FileID file;
     FunctionType *type = nullptr;
 
-    Function(u16 parameterCount, FileID file)
-        : parameterCount{parameterCount}, file{file} {}
+    Function(u16 parameterCount, FileID file) : parameterCount{parameterCount}, file{file} {}
 };
 
 struct Method {
@@ -30,8 +29,7 @@ struct Method {
     Type *self;
     FunctionType *type = nullptr;
 
-    Method(u16 parameterCount, FileID file, Type *self)
-        : parameterCount{parameterCount}, file{file}, self{self} {}
+    Method(u16 parameterCount, FileID file, Type *self) : parameterCount{parameterCount}, file{file}, self{self} {}
 };
 
 // There may be better names for these two.
@@ -42,7 +40,7 @@ struct GlobalDeclaration {
     u32 bindingsSize;
     const FileID file;
 
-    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize, FileID file) 
+    GlobalDeclaration(AST::VariableDeclaration *declaration, u32 bindingsIndex, u32 bindingsSize, FileID file)
         : declaration{declaration}, bindingsIndex{bindingsIndex}, bindingsSize{bindingsSize}, file{file} {}
 };
 
@@ -50,7 +48,7 @@ struct GlobalBinding {
     AST::IdentifierBinding *binding;
     u32 declarationIndex;
 
-    GlobalBinding(AST::IdentifierBinding *binding, u32 declarationIndex) 
+    GlobalBinding(AST::IdentifierBinding *binding, u32 declarationIndex)
         : binding{binding}, declarationIndex{declarationIndex} {}
 };
 
@@ -66,7 +64,7 @@ struct Definition {
 
     const u32 bits;
 
-    Definition(Kind kind, u32 index) : bits{(u32(kind) << 28) | (index & indexBitMask)}  {
+    Definition(Kind kind, u32 index) : bits{(u32(kind) << 28) | (index & indexBitMask)} {
         assert(index < (1 << 28));
     }
 
@@ -106,24 +104,25 @@ struct Definition {
 };
 
 struct Module {
-    //using Definition = llvm::PointerUnion<AST::FunctionDeclaration *, AST::VariableDeclaration *, AST::IdentifierBinding *, Type *>;
+    // using Definition = llvm::PointerUnion<AST::FunctionDeclaration *, AST::VariableDeclaration *,
+    // AST::IdentifierBinding *, Type *>;
     SymbolMap<Definition> all;
 
-    SymbolMap<Type *NONNULL> types;
+    SymbolMap<Type * NONNULL> types;
 
     std::optional<u32> mainFunction = {};
 
-    std::vector<StructType *NONNULL> structs;
+    std::vector<StructType * NONNULL> structs;
     /// parallel to `structs`.
-    std::vector<AST::StructDeclaration *NONNULL> structDeclarations;
+    std::vector<AST::StructDeclaration * NONNULL> structDeclarations;
 
-    std::vector<EnumType *NONNULL> enums;
+    std::vector<EnumType * NONNULL> enums;
     /// parallel to `enums`.
-    std::vector<AST::EnumDeclaration *NONNULL> enumDeclarations;
+    std::vector<AST::EnumDeclaration * NONNULL> enumDeclarations;
 
     std::vector<Function> functions;
     /// parallel to `functions`.
-    std::vector<AST::FunctionDeclaration *NONNULL> functionDeclarations;
+    std::vector<AST::FunctionDeclaration * NONNULL> functionDeclarations;
 
     std::vector<GlobalDeclaration> globalDeclarations;
     std::vector<GlobalBinding> globalBindings;
@@ -136,7 +135,7 @@ struct ModuleBuilder {
     PassResult result = PassResultKind::OK;
     std::unique_ptr<Module> module = std::make_unique<Module>();
 
-    void addDeclarations(std::span<AST::Declaration *NONNULL> declarations, FileID file);
+    void addDeclarations(std::span<AST::Declaration * NONNULL> declarations, FileID file);
 
     std::unique_ptr<Module> finalize() {
         if (result.ok()) {

@@ -24,8 +24,8 @@ struct Layout {
 private:
     Align _alignment;
     u32 _size;
-public:
 
+public:
     Layout(Align alignment, u32 size) : _alignment{alignment}, _size{size} {}
 
     /// The alignment as a power of two.

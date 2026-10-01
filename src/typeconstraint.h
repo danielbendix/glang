@@ -14,7 +14,6 @@ protected:
     TypeConstraintKind kind;
 
 public:
-
     TypeConstraint(TypeConstraintKind kind) : kind{kind} {}
 
     TypeConstraintKind getKind() const {

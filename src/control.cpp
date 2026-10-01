@@ -27,6 +27,7 @@ class FunctionBodyAnalyzer : public AST::DeclarationVisitorT<FunctionBodyAnalyze
     Result result = OK;
     bool isVoid;
     LoopType loop = LoopType::None;
+
 public:
     FunctionBodyAnalyzer() {}
 
@@ -64,11 +65,21 @@ public:
 
     // Declarations
 
-    ControlFlowEffect visitVariableDeclaration(AST::VariableDeclaration& variable) { return Continues; }
-    ControlFlowEffect visitFunctionDeclaration(AST::FunctionDeclaration& function) { return Continues; }
-    ControlFlowEffect visitStructDeclaration(AST::StructDeclaration& structDeclaration) { return Continues; }
-    ControlFlowEffect visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) { return Continues; }
-    ControlFlowEffect visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) { return Continues; }
+    ControlFlowEffect visitVariableDeclaration(AST::VariableDeclaration& variable) {
+        return Continues;
+    }
+    ControlFlowEffect visitFunctionDeclaration(AST::FunctionDeclaration& function) {
+        return Continues;
+    }
+    ControlFlowEffect visitStructDeclaration(AST::StructDeclaration& structDeclaration) {
+        return Continues;
+    }
+    ControlFlowEffect visitEnumDeclaration(AST::EnumDeclaration& enumDeclaration) {
+        return Continues;
+    }
+    ControlFlowEffect visitProtocolDeclaration(AST::ProtocolDeclaration& protocol) {
+        return Continues;
+    }
 
     ControlFlowEffect visitStatementDeclaration(AST::StatementDeclaration& statement) {
         return statement.getStatement().acceptVisitor(*this);
@@ -121,7 +132,7 @@ public:
         return Continues;
     }
 
-    ControlFlowEffect visitForStatement(AST::ForStatement& forStatement) { 
+    ControlFlowEffect visitForStatement(AST::ForStatement& forStatement) {
         auto savedLoop = loop;
         loop = LoopType::For;
         visitBlock(forStatement.getBlock());
@@ -146,11 +157,16 @@ public:
         }
         return EndsBlock;
     }
-    
-    ControlFlowEffect visitAssignmentStatement(AST::AssignmentStatement& assignment) { return Continues; }
-    ControlFlowEffect visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) { return Continues; }
-    ControlFlowEffect visitExpressionStatement(AST::ExpressionStatement& expression) { return Continues; }
 
+    ControlFlowEffect visitAssignmentStatement(AST::AssignmentStatement& assignment) {
+        return Continues;
+    }
+    ControlFlowEffect visitCompoundAssignmentStatement(AST::CompoundAssignmentStatement& assignment) {
+        return Continues;
+    }
+    ControlFlowEffect visitExpressionStatement(AST::ExpressionStatement& expression) {
+        return Continues;
+    }
 };
 
 Result analyzeFunction(Function& function, AST::FunctionDeclaration *declaration) {
@@ -159,8 +175,7 @@ Result analyzeFunction(Function& function, AST::FunctionDeclaration *declaration
     return analyzer.analyzeFunction(function, declaration);
 }
 
-PassResult analyzeControlFlow(Module& module)
-{
+PassResult analyzeControlFlow(Module& module) {
     Result result = OK;
     for (auto [function, declaration] : llvm::zip(module.functions, module.functionDeclarations)) {
         result |= analyzeFunction(function, declaration);

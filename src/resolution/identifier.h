@@ -43,7 +43,7 @@ struct IdentifierResolution {
         u32 bindingIndex;
         AST::IdentifierBinding *NONNULL binding;
 
-        Global(u32 bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern) 
+        Global(u32 bindingIndex, AST::IdentifierBinding *NONNULL binding, bool isExtern)
             : bindingIndex{bindingIndex}, binding{binding}, isExtern{isExtern} {}
     };
 
@@ -68,7 +68,7 @@ struct IdentifierResolution {
 
         TypeIdentifier(Type *NONNULL type) : type{type} {}
     };
-    
+
     union AS {
         Unresolved unresolved;
         Local local;

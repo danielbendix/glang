@@ -12,14 +12,13 @@ enum OptionValues {
     HELP = 'h',
 };
 
-static const 
-struct option options[] = {
-    {"validate-only", no_argument,        NULL, VALIDATE_ONLY},
-    {"json",          no_argument,        NULL, JSON},
-    {"print-ir",      no_argument,        NULL, PRINT_IR},
-    {"verbose",       no_argument,        NULL, VERBOSE},
-    {"output",        required_argument,  NULL, OUTPUT},
-    {"help",          no_argument,        NULL, HELP},
+static const struct option options[] = {
+    {"validate-only", no_argument, NULL, VALIDATE_ONLY},
+    {"json", no_argument, NULL, JSON},
+    {"print-ir", no_argument, NULL, PRINT_IR},
+    {"verbose", no_argument, NULL, VERBOSE},
+    {"output", required_argument, NULL, OUTPUT},
+    {"help", no_argument, NULL, HELP},
     {NULL, 0, 0, 0},
 };
 
@@ -30,7 +29,7 @@ void printHelp() {
     os << "glang - G compiler";
     os << "\n\n";
 
-    //os << "Usage: glang [OPTIONS] FILE1 [FILE2 ...]";
+    // os << "Usage: glang [OPTIONS] FILE1 [FILE2 ...]";
     os << "Usage: glang [OPTIONS] FILE";
     os << "\n\n";
 
@@ -59,7 +58,7 @@ Options parseOptionsOrExit(const std::span<char *const> args) {
         int argIndex = optind ? optind : 1;
         int option;
         int optionIndex;
-        if ((option = getopt_long((int) args.size(), args.data(), "o:h", options, &optionIndex)) == -1) {
+        if ((option = getopt_long((int)args.size(), args.data(), "o:h", options, &optionIndex)) == -1) {
             break;
         }
 

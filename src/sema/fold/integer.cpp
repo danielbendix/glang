@@ -57,7 +57,6 @@ void equalizeForMod(Operand& left, Operand& right) {
     right.signExtendInPlace(bits);
 }
 
-
 bool IntegerFold::bitwiseNegate(Operand& value, IntegerType *as) {
     if (!as) {
         return false;
@@ -153,40 +152,54 @@ bool compare(const Operand& left, const Operand& right, auto comparison) {
 }
 
 bool IntegerFold::equal(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left == right; });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left == right;
+    });
 }
 
 bool IntegerFold::notEqual(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left != right; });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left != right;
+    });
 }
 
 bool IntegerFold::lessThan(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left.slt(right); });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left.slt(right);
+    });
 }
 
 bool IntegerFold::lessThanOrEqualTo(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left.sle(right); });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left.sle(right);
+    });
 }
 
 bool IntegerFold::greaterThan(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left.sgt(right); });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left.sgt(right);
+    });
 }
 
 bool IntegerFold::greaterThanOrEqualTo(const Operand& left, const Operand& right, IntegerType *NULLABLE as) {
-    return compare(left, right, [] (auto& left, auto& right) { return left.sge(right); });
+    return compare(left, right, [](auto& left, auto& right) {
+        return left.sge(right);
+    });
 }
 
-AST::IntegerLiteral *NULLABLE foldUnaryArithmetic(AST::Node& locationNode, AST::IntegerLiteral& operand, IntegerType *NULLABLE as, auto function) {
+AST::IntegerLiteral *NULLABLE
+foldUnaryArithmetic(AST::Node& locationNode, AST::IntegerLiteral& operand, IntegerType *NULLABLE as, auto function) {
     if (function(operand.getValue(), as)) {
         // FIXME. have special location data on IntegerLiteral.
-        //operand.getLocation() = locationNode.getLocation();
+        // operand.getLocation() = locationNode.getLocation();
         return &operand;
     } else {
         return nullptr;
     }
 }
 
-AST::Literal *NULLABLE IntegerFold::unary(AST::UnaryExpression& unary, AST::IntegerLiteral& operand, IntegerType *NULLABLE as) {
+AST::Literal *NULLABLE
+IntegerFold::unary(AST::UnaryExpression& unary, AST::IntegerLiteral& operand, IntegerType *NULLABLE as) {
     switch (unary.getOp()) {
         case AST::UnaryOperator::Negate:
             return foldUnaryArithmetic(unary, operand, as, negate);
@@ -207,11 +220,17 @@ AST::Literal *NULLABLE IntegerFold::unary(AST::UnaryExpression& unary, AST::Inte
     }
 }
 
-AST::IntegerLiteral *NULLABLE foldBinaryArithmetic(AST::Node& locationNode, AST::IntegerLiteral& left, AST::IntegerLiteral& right, IntegerType *NULLABLE as, auto function) {
+AST::IntegerLiteral *NULLABLE foldBinaryArithmetic(
+    AST::Node& locationNode,
+    AST::IntegerLiteral& left,
+    AST::IntegerLiteral& right,
+    IntegerType *NULLABLE as,
+    auto function
+) {
     if (function(left.getValue(), right.getValue(), as)) {
         right.~IntegerLiteral();
         // FIXME: Have special location on IntegerLiteral.
-        //left.getLocation() = locationNode.getLocation();
+        // left.getLocation() = locationNode.getLocation();
         // FIXME: Use location of binary operator for result node.
         return &left;
     } else {
@@ -219,13 +238,24 @@ AST::IntegerLiteral *NULLABLE foldBinaryArithmetic(AST::Node& locationNode, AST:
     }
 }
 
-AST::BooleanLiteral *NONNULL foldComparison(AST::Node& locationNode, AST::IntegerLiteral& left, AST::IntegerLiteral& right, IntegerType *NULLABLE as, auto function) {
-    auto comparison  = function(left.getValue(), right.getValue(), as);
+AST::BooleanLiteral *NONNULL foldComparison(
+    AST::Node& locationNode,
+    AST::IntegerLiteral& left,
+    AST::IntegerLiteral& right,
+    IntegerType *NULLABLE as,
+    auto function
+) {
+    auto comparison = function(left.getValue(), right.getValue(), as);
     right.~IntegerLiteral();
     return AST::BooleanLiteral::createDestroyingOther(left, comparison);
 }
 
-AST::Literal *NULLABLE IntegerFold::binary(AST::BinaryExpression& binary, AST::IntegerLiteral& left, AST::IntegerLiteral& right, IntegerType *NULLABLE as) {
+AST::Literal *NULLABLE IntegerFold::binary(
+    AST::BinaryExpression& binary,
+    AST::IntegerLiteral& left,
+    AST::IntegerLiteral& right,
+    IntegerType *NULLABLE as
+) {
     switch (binary.getOp()) {
         case AST::BinaryOperator::OpenRange:
         case AST::BinaryOperator::ClosedRange:

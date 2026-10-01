@@ -3,16 +3,21 @@
 PassResult operator|(PassResult lhs, PassResult rhs) {
     using enum PassResultKind;
     switch (lhs.kind) {
-        case OK: return rhs;
-        case ERROR: return ERROR;
+        case OK:
+            return rhs;
+        case ERROR:
+            return ERROR;
     }
 }
 
 PassResult& operator|=(PassResult& lhs, PassResult rhs) {
     using enum PassResultKind;
     switch (lhs.kind) {
-        case OK: lhs = rhs; break;
-        case ERROR: break;
+        case OK:
+            lhs = rhs;
+            break;
+        case ERROR:
+            break;
     }
 
     return lhs;

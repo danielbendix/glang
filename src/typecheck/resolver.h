@@ -10,7 +10,7 @@
 
 using llvm::dyn_cast;
 
-class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type*> {
+class TypeResolver : public AST::TypeNodeVisitorT<TypeResolver, Type *> {
     Module& module;
     const Builtins& builtins;
 
@@ -123,7 +123,7 @@ public:
                 case AST::TypeModifier::Modifier::UnboundedArray:
                     type = type->getUnboundedArrayType();
                     break;
-                }
+            }
             if (!type) {
                 break;
             }
