@@ -171,7 +171,8 @@ public:
         return result;
     }
 
-    template <typename Func> void iterate_zeros(Func&& func) {
+    template <typename Func>
+    void iterate_zeros(Func&& func) {
         u32 i = 0;
 
         for (auto segment : as_span()) {
@@ -187,7 +188,8 @@ public:
         }
     }
 
-    template <typename Func> void iterate_ones(Func&& func) {
+    template <typename Func>
+    void iterate_ones(Func&& func) {
         u32 i = 0;
 
         for (auto segment : as_span()) {

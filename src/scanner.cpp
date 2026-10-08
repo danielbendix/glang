@@ -352,13 +352,15 @@ Token Scanner::string() {
     return makeToken(TokenType::String);
 }
 
-template <auto predicate> void Scanner::munchMany() {
+template <auto predicate>
+void Scanner::munchMany() {
     char c;
     while (predicate(c = peek()))
         advance();
 }
 
-template <auto predicate> bool Scanner::munchMany1() {
+template <auto predicate>
+bool Scanner::munchMany1() {
     char c = peek();
     if (!predicate(c)) return false;
     while (predicate(c = peek()))
@@ -419,7 +421,8 @@ Token Scanner::number(char first) {
     return makeToken(tokenType);
 }
 
-template <char c, TokenType noRead, TokenType readNext> Token Scanner::checkNext() {
+template <char c, TokenType noRead, TokenType readNext>
+Token Scanner::checkNext() {
     if (peek() == c) {
         advance();
         return makeToken(readNext);

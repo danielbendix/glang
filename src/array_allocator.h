@@ -85,7 +85,8 @@ class ArrayArenaAllocator final {
     };
 
 public:
-    template <typename T> struct Allocation {
+    template <typename T>
+    struct Allocation {
         static constexpr u32 INVALID_ALLOCATION_INDEX = ~0U;
 
         T *space;
@@ -96,7 +97,8 @@ public:
 
         Allocation(T *pointer, u32 size, u32 index) : space{pointer}, size{size}, index{index} {}
 
-        template <typename U> Allocation<U> as() const {
+        template <typename U>
+        Allocation<U> as() const {
             return Allocation<U>{(U *)space, size, index};
         }
     };
@@ -225,7 +227,8 @@ public:
         return sizeClass;
     }
 
-    template <typename T> Allocation<T> allocate(size_t n) {
+    template <typename T>
+    Allocation<T> allocate(size_t n) {
         static_assert(alignof(T) <= MIN_ALLOC_ALIGN);
         auto allocation = allocateSpace(n * sizeof(T));
         stats.countUsed(allocation.size);
@@ -288,7 +291,8 @@ public:
         }
     }
 
-    template <typename T> void deallocate(Allocation<T> allocation) {
+    template <typename T>
+    void deallocate(Allocation<T> allocation) {
         stats.countDeallocated(allocation.size);
         if (allocation.index != ~0U) [[unlikely]] {
             stats.countFreed(allocation.size);

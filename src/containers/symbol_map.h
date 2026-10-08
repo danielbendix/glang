@@ -8,7 +8,8 @@
 #include <llvm/ADT/DenseMap.h>
 
 namespace llvm {
-    template <> struct DenseMapInfo<Symbol *> {
+    template <>
+    struct DenseMapInfo<Symbol *> {
         static inline Symbol *getEmptyKey() {
             return nullptr;
         }
@@ -27,7 +28,8 @@ namespace llvm {
     };
 }
 
-template <typename T> class SymbolMap {
+template <typename T>
+class SymbolMap {
     llvm::DenseMap<const Symbol *, T> internal;
 
     // Delete copy constructor and assignment to be safe for now.

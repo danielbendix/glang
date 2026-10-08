@@ -7,7 +7,8 @@
 ///
 /// This should primarily be used as a storage type.
 
-template <typename T> class nullable {
+template <typename T>
+class nullable {
     T *value;
 
     nullable(std::nullptr_t) : value{nullptr} {}

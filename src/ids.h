@@ -3,7 +3,8 @@
 
 #include "common.h"
 
-template <typename DerivedID> class IDBase {
+template <typename DerivedID>
+class IDBase {
     u32 value;
 
 public:

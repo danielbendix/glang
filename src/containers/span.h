@@ -8,9 +8,11 @@ namespace span_iterator {
     template <typename T>
     concept ShouldCopyWhenIterating = std::is_trivially_copyable_v<T> && (sizeof(T) <= sizeof(void *));
 
-    template <typename T, bool Const> class DereferencingIterator;
+    template <typename T, bool Const>
+    class DereferencingIterator;
 
-    template <typename T, bool Const> class Iterator {
+    template <typename T, bool Const>
+    class Iterator {
         T *it;
 
     public:
@@ -67,7 +69,8 @@ namespace span_iterator {
         }
     };
 
-    template <typename T, bool Const> class DereferencingIterator {
+    template <typename T, bool Const>
+    class DereferencingIterator {
     public:
         explicit DereferencingIterator(Iterator<T *, Const> inner) : inner(inner) {}
 
@@ -123,7 +126,8 @@ namespace span_iterator {
 
 }
 
-template <typename T> class Span final {
+template <typename T>
+class Span final {
     static_assert(
         std::is_trivially_copyable<T>::value,
         "Span should only be instantiated with a trivially copyable type."
@@ -188,7 +192,8 @@ public:
     }
 };
 
-template <typename T> class GrowingSpan final {
+template <typename T>
+class GrowingSpan final {
     using Allocator = ArrayArenaAllocator;
 
     static_assert(

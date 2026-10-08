@@ -33,6 +33,9 @@ AlignAfterOpenBracket: BlockIndent
 PackConstructorInitializers: NextLine
 ConstructorInitializerIndentWidth: 4
 
+# The template part of a declaration is on its own line before the rest.
+BreakTemplateDeclarations: Yes
+
 # Type binding conventions used throughout the codebase:
 # `Type *name` (and nullability annotations after the star), `Type& name`.
 PointerAlignment: Right

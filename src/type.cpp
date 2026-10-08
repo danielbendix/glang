@@ -10,7 +10,8 @@ using llvm::dyn_cast;
 
 using namespace TypeVisitor;
 
-template <typename T, typename... Args> T *create(Args&&...args) {
+template <typename T, typename... Args>
+T *create(Args&&...args) {
     auto& allocator = typeAllocator();
     return allocate(allocator, [&](void *space) {
         return new (space) T(std::forward<Args>(args)...);

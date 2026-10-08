@@ -42,7 +42,8 @@ public:
         }
     }
 
-    template <Allocator Allocator> SmallByteArray(Allocator& allocator, std::vector<T>& data) {
+    template <Allocator Allocator>
+    SmallByteArray(Allocator& allocator, std::vector<T>& data) {
         storage.size = data.size();
         if (data.size() <= LBO) {
             memcpy(storage.data.array, data.data(), sizeof(T) * data.size());

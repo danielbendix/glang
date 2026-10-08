@@ -614,7 +614,8 @@ class FunctionCodeGenerator : public AST::DeclarationVisitorT<FunctionCodeGenera
 
     LoopInfo *currentLoop = nullptr;
 
-    template <typename Func> __attribute__((always_inline)) void withLoop(LoopInfo&& loop, Func&& f) {
+    template <typename Func>
+    __attribute__((always_inline)) void withLoop(LoopInfo&& loop, Func&& f) {
         LoopInfo loop_ = loop;
         LoopInfo *previous = currentLoop;
         currentLoop = &loop_;

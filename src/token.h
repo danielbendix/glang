@@ -150,7 +150,8 @@ struct Token final {
     Token(TokenType type, u32 length, u32 offset) : type{type}, length{length}, offset{offset} {}
 };
 
-template <> struct OptionalDiscriminant<Token> {
+template <>
+struct OptionalDiscriminant<Token> {
     using OptionalDiscriminantType = decltype(Token::type);
     static constexpr size_t OptionalDiscriminantOffset = offsetof(Token, type);
 };

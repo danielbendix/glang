@@ -131,11 +131,13 @@ public:
         popInnerScope();
     }
 
-    template <typename F> static constexpr bool returns_void = std::is_same_v<void, std::invoke_result_t<F>>;
+    template <typename F>
+    static constexpr bool returns_void = std::is_same_v<void, std::invoke_result_t<F>>;
 
     /// This function will reset to the current scope, and remove all bindings
     /// after invoking the handler.
-    template <typename Lambda> auto withAutoResetScope(Lambda handler) {
+    template <typename Lambda>
+    auto withAutoResetScope(Lambda handler) {
         auto index = scopes.size();
         pushInnerScope();
 
@@ -158,7 +160,8 @@ public:
 
     /// This function will merge all scopes added inside the handler into the
     /// currently open scope at call time.
-    template <typename Lambda> auto withAutoMergingScopes(Lambda handler) {
+    template <typename Lambda>
+    auto withAutoMergingScopes(Lambda handler) {
         auto resetScopesTo = scopes.size();
 
         if constexpr (returns_void<Lambda>) {

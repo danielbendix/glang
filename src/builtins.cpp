@@ -1,7 +1,8 @@
 #include "builtins.h"
 #include "context.h"
 
-template <typename T, Allocator Allocator, typename... Args> T *createType(Allocator& allocator, Args&&...args) {
+template <typename T, Allocator Allocator, typename... Args>
+T *createType(Allocator& allocator, Args&&...args) {
     return allocate(allocator, [&](void *space) {
         return new (space) T(std::forward<Args>(args)...);
     });

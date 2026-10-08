@@ -9,7 +9,8 @@ using llvm::dyn_cast_if_present;
 
 using namespace TypeVisitor;
 
-template <typename T, typename Visitor> T visitTypePair(Type& left, Type& right, Visitor visitor) {
+template <typename T, typename Visitor>
+T visitTypePair(Type& left, Type& right, Visitor visitor) {
     return visit(left, [&](auto& left) -> T {
         return visit(right, [&](auto& right) -> T {
             return visitor(left, right);

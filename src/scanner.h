@@ -69,9 +69,12 @@ private:
 
     void multilineComment();
     void skipWhitespace();
-    template <char c, TokenType ifRead, TokenType ifNotRead> Token checkNext();
-    template <auto predicate> void munchMany();
-    template <auto predicate> bool munchMany1();
+    template <char c, TokenType ifRead, TokenType ifNotRead>
+    Token checkNext();
+    template <auto predicate>
+    void munchMany();
+    template <auto predicate>
+    bool munchMany1();
     [[nodiscard]]
     Token makeToken(TokenType type);
     TokenType testTry(std::string::const_iterator it, std::string::const_iterator end);

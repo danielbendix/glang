@@ -9,13 +9,15 @@
 #include <cmath>
 
 struct NoneValue {
-    template <typename T> constexpr operator T *() const noexcept {
+    template <typename T>
+    constexpr operator T *() const noexcept {
         return nullptr;
     }
 };
 
 struct ErrorValue {
-    template <typename T> constexpr operator T *() const noexcept {
+    template <typename T>
+    constexpr operator T *() const noexcept {
         return nullptr;
     }
 };
@@ -875,7 +877,8 @@ AST::Expression *Parser::binary(AST::Expression *left) {
     return AST::BinaryExpression::create(nodeAllocator, token, op, left, right);
 }
 
-template <int skip, int base> unsigned bitCount(unsigned length) {
+template <int skip, int base>
+unsigned bitCount(unsigned length) {
     if constexpr (__builtin_popcount(base) == 1) {
         int digits = length - skip;
         unsigned bits = ceil(__builtin_ctz(base) * digits) + 1;
@@ -887,7 +890,8 @@ template <int skip, int base> unsigned bitCount(unsigned length) {
     }
 }
 
-template <int skip, int base> llvm::APInt parseInteger(std::string_view chars) {
+template <int skip, int base>
+llvm::APInt parseInteger(std::string_view chars) {
     if (chars.size() > AST::IntegerLiteral::MAX_LENGTH) {
         // TODO: Emit non-fatal error.
         return llvm::APInt{0U, 0UL, true};

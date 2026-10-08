@@ -227,7 +227,8 @@ namespace AST {
 
     // Types
 
-    template <typename Subclass, typename ReturnType, typename... Args> class TypeNodeVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args>
+    class TypeNodeVisitorT;
 
     class TypeNode : public Node {
     protected:
@@ -255,7 +256,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator A> static TypeLiteral *NONNULL create(A& allocator, Token token, Symbol& name) {
+        template <Allocator A>
+        static TypeLiteral *NONNULL create(A& allocator, Token token, Symbol& name) {
             return allocate(allocator, [&](auto space) {
                 return new (space) TypeLiteral{token, name};
             });
@@ -418,7 +420,8 @@ namespace AST {
 
     // Expressions
 
-    template <typename Subclass, typename ReturnType, typename... Args> class ExpressionVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args>
+    class ExpressionVisitorT;
 
     class Expression : public Node {
     public:
@@ -487,7 +490,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator> static Self *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator>
+        static Self *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
                 return new (space) Self{token};
             });
@@ -516,7 +520,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator> static NilLiteral *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator>
+        static NilLiteral *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
                 return new (space) NilLiteral{token};
             });
@@ -1197,7 +1202,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator A> static IdentifierBinding *NONNULL create(A& allocator, Token token, Symbol& identifier) {
+        template <Allocator A>
+        static IdentifierBinding *NONNULL create(A& allocator, Token token, Symbol& identifier) {
             return allocate(allocator, [&](auto space) {
                 return new (space) IdentifierBinding(token, identifier);
             });
@@ -1258,7 +1264,8 @@ namespace AST {
     using Condition = llvm::PointerUnion<ConditionalUnwrap * NONNULL, Expression * NONNULL>;
 
     // Statements
-    template <typename Subclass, typename ReturnType, typename... Args> class StatementVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args>
+    class StatementVisitorT;
 
     class Statement : public Node {
     public:
@@ -1644,7 +1651,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator> static BreakStatement *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator>
+        static BreakStatement *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
                 return new (space) BreakStatement{token};
             });
@@ -1663,7 +1671,8 @@ namespace AST {
         void print(PrintContext& pc) const;
         FileLocation getFileLocation() const;
 
-        template <Allocator Allocator> static ContinueStatement *NONNULL create(Allocator& allocator, Token token) {
+        template <Allocator Allocator>
+        static ContinueStatement *NONNULL create(Allocator& allocator, Token token) {
             return allocate(allocator, [&](auto space) {
                 return new (space) ContinueStatement{token};
             });
@@ -1707,7 +1716,8 @@ namespace AST {
 
     // Declarations
 
-    template <typename Subclass, typename ReturnType, typename... Args> class DeclarationVisitorT;
+    template <typename Subclass, typename ReturnType, typename... Args>
+    class DeclarationVisitorT;
 
     class Declaration : public Node {
     public:
@@ -2286,7 +2296,8 @@ namespace AST {
     };
 }
 
-template <> struct OptionalDiscriminant<AST::FunctionParameter> {
+template <>
+struct OptionalDiscriminant<AST::FunctionParameter> {
     static constexpr auto OptionalDiscriminantPointer = &AST::FunctionParameter::typeDeclaration;
     using OptionalDiscriminantType = decltype(AST::FunctionParameter::typeDeclaration);
     static constexpr size_t OptionalDiscriminantOffset = offsetof(AST::FunctionParameter, typeDeclaration);
