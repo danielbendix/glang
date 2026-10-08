@@ -223,6 +223,11 @@ LValueTypeResult ExpressionLValueTypeChecker::visitLiteral(AST::Literal& literal
     return {};
 }
 
+LValueTypeResult ExpressionLValueTypeChecker::visitArrayExpression(AST::ArrayExpression& array, Type *declaredType) {
+    Diagnostic::error(array, "Cannot assign to array expression.");
+    return {};
+}
+
 LValueTypeResult ExpressionLValueTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
     bool isRead = kind == LValueKind::AddressOf || kind == LValueKind::CompoundAssignment;
     auto resolution = scopeManager.getResolution(identifier.getName(), isRead, true);

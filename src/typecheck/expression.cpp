@@ -565,6 +565,29 @@ TypeResult ExpressionTypeChecker::visitLiteral(AST::Literal& literal, Type *prop
     );
 }
 
+TypeResult ExpressionTypeChecker::visitArrayExpression(AST::ArrayExpression& array, Type *declaredType) {
+    if (declaredType == nullptr) {
+        Diagnostic::error(array, "No type available to array expression type from.");
+        return {};
+    }
+
+    Type *type = nullptr;
+    Type *elementType = nullptr;
+    if (auto *staticArrayType = dyn_cast<StaticArrayType>(declaredType)) {
+        type = staticArrayType;
+        elementType = staticArrayType->getContained();
+
+        // TODO: Make elements mutable here.
+        llvm_unreachable("TODO: IMPLEMENT ARRAY TYPE CHECKING");
+        for (auto *element : array) {
+        }
+    } else {
+        Diagnostic::error(array, "Cannot use " + declaredType->makeName() + " as array expression type.");
+    }
+
+    return TypeResult::type(type);
+}
+
 TypeResult ExpressionTypeChecker::visitIdentifier(AST::Identifier& identifier, Type *declaredType) {
     auto resolution = scopeManager.getResolution(identifier.getName());
 

@@ -126,6 +126,7 @@ public:
     LValueTypeResult
     visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
     LValueTypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
+    LValueTypeResult visitArrayExpression(AST::ArrayExpression& array, Type *declaredType);
     LValueTypeResult visitIdentifier(AST::Identifier& identifier, Type *declaredType);
 };
 
@@ -292,6 +293,8 @@ public:
     visitInferredMemberAccessExpression(AST::InferredMemberAccessExpression& inferredMemberAccess, Type *declaredType);
 
     TypeResult visitLiteral(AST::Literal& literal, Type *declaredType);
+
+    TypeResult visitArrayExpression(AST::ArrayExpression& array, Type *declaredType);
 
     TypeResult visitIdentifier(AST::Identifier& identifier, Type *declaredType);
 };

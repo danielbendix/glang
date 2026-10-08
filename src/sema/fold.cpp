@@ -131,6 +131,11 @@ struct UntypedConstantFolder : public AST::ExpressionVisitorT<UntypedConstantFol
         return &literal;
     }
 
+    AST::Literal *NULLABLE visitArrayExpression(AST::ArrayExpression& array) {
+        // TODO: Go through values
+        return nullptr;
+    }
+
     AST::Literal *NULLABLE visitIdentifier(AST::Identifier& identifier) {
         return nullptr;
     }

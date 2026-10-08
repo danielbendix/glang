@@ -190,6 +190,8 @@ class Parser {
     AST::Expression *inferredInitializer();
     [[nodiscard]]
     AST::Expression *inferredMember();
+    [[nodiscard]]
+    AST::Expression *array();
 
     [[nodiscard]]
     AST::Expression *prefixUnary();

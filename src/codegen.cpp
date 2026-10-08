@@ -1180,6 +1180,11 @@ public:
         return Value::value(codegenLiteral(literal));
     }
 
+    Value visitArrayExpression(AST::ArrayExpression& literal) {
+        // This `Value` should work just like transfer of a struct
+        llvm_unreachable("IMPLEMENT THIS");
+    }
+
     llvm::Value *codegenUnary(AST::UnaryExpression& unary, llvm::Value *target) {
         using enum AST::UnaryOperator;
         switch (unary.getOp()) {

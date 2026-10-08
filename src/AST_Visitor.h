@@ -44,6 +44,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<ExpressionStatement *>(&node));
             case NK_Expr_Identifier:
                 return std::invoke(visitor, *static_cast<Identifier *>(&node));
+            case NK_Expr_Array:
+                return std::invoke(visitor, *static_cast<ArrayExpression *>(&node));
             case NK_Expr_Self:
                 return std::invoke(visitor, *static_cast<Self *>(&node));
             case NK_Expr_Literal_Nil:
@@ -126,6 +128,8 @@ namespace AST {
                 return std::invoke(visitor, *static_cast<const ExpressionStatement *>(&node));
             case NK_Expr_Identifier:
                 return std::invoke(visitor, *static_cast<const Identifier *>(&node));
+            case NK_Expr_Array:
+                return std::invoke(visitor, *static_cast<const ArrayExpression *>(&node));
             case NK_Expr_Self:
                 return std::invoke(visitor, *static_cast<const Self *>(&node));
             case NK_Expr_Literal_Nil:
@@ -320,6 +324,8 @@ namespace AST {
                 case NK_Expr_Literal_Character:
                 case NK_Expr_Literal_String:
                     return subclass().visitLiteral(*static_cast<Literal *>(&expression), std::forward<Args>(args)...);
+                case NK_Expr_Array:
+                    return subclass().visitArrayExpression(*static_cast<ArrayExpression *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Identifier:
                     return subclass().visitIdentifier(*static_cast<Identifier *>(&expression), std::forward<Args>(args)...);
                 case NK_Expr_Unary:

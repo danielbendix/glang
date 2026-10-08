@@ -181,6 +181,7 @@ namespace AST {
             NK_Expr_Literal_Floating,
             NK_Expr_Literal_Character,
             NK_Expr_Literal_String,
+            NK_Expr_Array,
             NK_Expr_Self,
             NK_Expr_Unary,
             NK_Expr_Binary,
@@ -477,6 +478,48 @@ namespace AST {
 
         static bool classof(const Node *NONNULL node) {
             return node->kind == NK_Expr_Identifier;
+        }
+    };
+
+    class ArrayExpression : public Expression {
+        Span<Expression *> elements;
+
+        ArrayExpression(Token token, Span<Expression *> expressions)
+            : Expression{NK_Expr_Array, token}, elements{elements} {}
+
+    public:
+        void print(PrintContext& pc) const;
+        FileLocation getFileLocation() const;
+
+        template <Allocator Allocator>
+        static ArrayExpression *NONNULL create(Allocator& allocator, Token token, Span<Expression *> expressions) {
+            return allocate(allocator, [&](auto space) {
+                return new (space) ArrayExpression{token, expressions};
+            });
+        }
+
+        u32 size() const {
+            return elements.size();
+        }
+
+        Span<Expression *>::iterator begin() {
+            return elements.begin();
+        }
+
+        Span<Expression *>::iterator end() {
+            return elements.end();
+        }
+
+        Span<Expression *>::const_iterator begin() const {
+            return elements.begin();
+        }
+
+        Span<Expression *>::const_iterator end() const {
+            return elements.end();
+        }
+
+        static bool classof(const Node *NONNULL node) {
+            return node->kind == NK_Expr_Array;
         }
     };
 

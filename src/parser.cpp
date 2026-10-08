@@ -810,6 +810,26 @@ AST::Expression *Parser::inferredMember() {
     return AST::InferredMemberAccessExpression::create(nodeAllocator, token, name);
 }
 
+AST::Expression *Parser::array() {
+    auto token = previous;
+
+    GrowingSpan<AST::Expression *> elements{arrayAllocator};
+
+    if (match(TokenType::RightBrace)) {
+        return AST::ArrayExpression::create(nodeAllocator, token, elements.freeze());
+    }
+
+    elements.append(expression({}));
+
+    while (match(TokenType::Comma)) {
+        elements.append(expression({}));
+    }
+
+    consume(TokenType::RightBrace);
+
+    return AST::ArrayExpression::create(nodeAllocator, token, elements.freeze());
+}
+
 std::pair<AST::BinaryOperator, Precedence> operatorFromToken(Token& token) {
     using AST::BinaryOperator;
     using enum TokenType;
@@ -1208,7 +1228,7 @@ AST::Expression *Parser::initializer(AST::Identifier *identifier) {
 // clang-format off
 ParseRule ParseRule::expressionRules[] = {
     // FIXME: Figure out the precedence.
-    [static_cast<int>(LeftBrace)]             = {nullptr,                      &Parser::subscript,    Precedence::Call},
+    [static_cast<int>(LeftBrace)]             = {&Parser::array,               &Parser::subscript,    Precedence::Call},
     [static_cast<int>(RightBrace)]            = {nullptr,                      nullptr,               Precedence::None},
 
     [static_cast<int>(LeftParenthesis)]       = {&Parser::grouping,            &Parser::call,         Precedence::Call},

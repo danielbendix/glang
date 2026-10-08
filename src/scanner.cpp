@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <format>
+#include <bitset>
 
 using enum Scanner::ErrorCause;
 const Scanner::ErrorCause Scanner::NO_ERROR = None;
@@ -25,6 +26,14 @@ bool isOctalDigit(char c) {
 bool isHexDigit(char c) {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
+
+template <char... Cs> struct CharacterSet {
+    constexpr static inline std::bitset<128> bitset = []() {
+        std::bitset<128> set;
+        (set.set(Cs), ...);
+        return set;
+    }();
+};
 
 void Scanner::multilineComment() {
     // Keep this for a potential error token.

@@ -229,6 +229,10 @@ namespace AST {
         return {offset, length};
     }
 
+    FileLocation ArrayExpression::getFileLocation() const {
+        return {offset, 1};
+    }
+
     FileLocation CallExpression::getFileLocation() const {
         // TODO: Get closing parenthesis.
         return {offset, 1};
@@ -659,6 +663,23 @@ namespace AST {
 
     void StringLiteral::print(PrintContext& pc) const {
         pc << value;
+    }
+
+    void ArrayExpression::print(PrintContext& pc) const {
+        pc << '[';
+
+        bool comma = false;
+        for (auto *element : *this) {
+            if (comma) {
+                pc << ", ";
+            } else {
+                comma = true;
+            }
+
+            pc << *element;
+        }
+
+        pc << ']';
     }
 
     void CallExpression::print(PrintContext& pc) const {
