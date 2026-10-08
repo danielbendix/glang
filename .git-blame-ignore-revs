@@ -5,3 +5,5 @@
 #
 # Reformat codebase with clang-format (formatting only).
 80816b3fe59ba2461f0e0516e9993a0eef7d9736
+# Break template declarations onto their own line (formatting only).
+368107a7ab56a7c64aae186ad90711c171813bc2
