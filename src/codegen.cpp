@@ -2037,7 +2037,7 @@ std::unique_ptr<llvm::Module> generateCode(Module& module) {
     std::string targetTriple = llvm::sys::getDefaultTargetTriple();
 
     auto llvmModule = std::make_unique<llvm::Module>("test", llvmContext);
-    llvmModule->setTargetTriple(targetTriple);
+    llvmModule->setTargetTriple(llvm::Triple{targetTriple});
 
     Context context{llvmContext, *llvmModule};
 
